@@ -27,6 +27,9 @@ type Event struct {
 		Execution struct {
 			ProcessID uint32
 			ThreadID  uint32
+			ProcessorID uint16
+			KernelTime uint32
+			UserTime uint32
 		}
 		Keywords struct {
 			Value uint64

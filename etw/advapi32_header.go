@@ -808,7 +808,7 @@ typedef struct _ETW_BUFFER_CONTEXT {
     struct {
       UCHAR ProcessorNumber;
       UCHAR Alignment;
-    } DUMMYSTRUCTNAME; // siize UCHAR
+    } DUMMYSTRUCTNAME; // size UCHAR
     USHORT ProcessorIndex; // USHORT
   } DUMMYUNIONNAME; // USHORT
   USHORT LoggerId;
@@ -816,8 +816,9 @@ typedef struct _ETW_BUFFER_CONTEXT {
 */
 // sizeof: 0x4 (OK)
 type EtwBufferContext struct {
-	Union    uint16
-	LoggerId uint16
+	Processor uint8 // The number of the CPU on which the provider process was running. The number is zero on a single processor computer.
+	Alignment uint8 // Alignment between events (always eight).
+	LoggerId uint16 // Identifier of the session that logged the event.
 }
 
 /*
