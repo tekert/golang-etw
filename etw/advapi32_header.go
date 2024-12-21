@@ -746,7 +746,8 @@ type EventHeader struct {
 	TimeStamp       int64
 	ProviderId      GUID
 	EventDescriptor EventDescriptor
-	Time            int64
+    KernelTime  uint32
+    UserTime   uint32
 	ActivityId      GUID
 }
 

@@ -159,8 +159,8 @@ func (e *EventRecordHelper) setEventMetadata(event *Event) {
 	event.System.Execution.ProcessID = e.EventRec.EventHeader.ProcessId
 	event.System.Execution.ThreadID = e.EventRec.EventHeader.ThreadId
 	event.System.Execution.ProcessorID = uint16(e.EventRec.BufferContext.Processor)
-	event.System.Execution.KernelTime = uint32(e.EventRec.EventHeader.Time & 0xFFFFFFFF) // TODO: for private session use Time
-	event.System.Execution.UserTime = uint32((e.EventRec.EventHeader.Time >> 32) & 0xFFFFFFFF); // TODO: for private session use Time
+	event.System.Execution.KernelTime = e.EventRec.EventHeader.KernelTime // NOTE: for private session use uint64(KernelTime << 32) | UserTime
+	event.System.Execution.UserTime = e.EventRec.EventHeader.UserTime // NOTE: for private session use Time
 	event.System.Correlation.ActivityID = e.EventRec.EventHeader.ActivityId.String()
 	event.System.Correlation.RelatedActivityID = e.EventRec.RelatedActivityID()
 	event.System.EventID = e.TraceInfo.EventID()
