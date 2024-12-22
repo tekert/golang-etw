@@ -9,7 +9,7 @@ import (
 	"unsafe"
 )
 
-//
+
 // WNODE_HEADER flags are defined as follows
 /*
 #define WNODE_FLAG_ALL_DATA        0x00000001 // set for WNODE_ALL_DATA
@@ -84,7 +84,7 @@ import (
 // Mask for event severity level. Level 0xff is the most severe type of event
 #define WNODE_FLAG_SEVERITY_MASK 0xff000000
 */
-// v10.0.16299.0 wmistr.h
+// v10.0.16299.0 /wmistr.h
 // More info at // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wmistr/ns-wmistr-_wnode_header
 const (
 	WNODE_FLAG_ALL_DATA              = 0x00000001
@@ -644,14 +644,33 @@ type EventTraceProperties2 struct {
 	LogFileNameOffset   uint32      // Offset to LogFileName
 	LoggerNameOffset    uint32      // Offset to LoggerName
     // Added on v2:
-    Union1              uint32      // VersionNumber ( Should be set to 2 for this version.)  or V2Control (Not used.)
+    V2Control           uint32      // VersionNumber ( Should be set to 2 for this version.)
     FilterDescCount     uint32      // Number of filters
     FilterDesc          *EventFilterDescriptor // Only applicable for Private Loggers
-    V2Options           uint64      // Check C Interface, access the values like this:
-                                    // wow := (v2Options >> 0) & 1               // Bit 0
-                                    // qpcDeltaTracking := (v2Options >> 1) & 1   // Bit 1
-                                    // largeMdlPages := (v2Options >> 2) & 1      // Bit 2
-                                    // excludeKernelStack := (v2Options >> 3) & 1 // Bit 3
+    V2Options           uint64      // (Wow, QpcDeltaTracking, LargeMdlPages, ExcludeKernelStack)
+}
+
+// V2Control
+func (e *EventTraceProperties2) GetVersionNumber() uint8 {
+    // ( Should be set to 2 for this version.)
+    return uint8(e.V2Control & 0xFF)
+}
+
+// V2Options
+func (e *EventTraceProperties2) GetWow() bool {
+    return (e.V2Options >> 0) & 1 == 1 // Bit 0
+}
+
+func (e *EventTraceProperties2) GetQpcDeltaTracking() bool {
+    return (e.V2Options >> 1) & 1 == 1 // Bit 1
+}
+
+func (e *EventTraceProperties2) GetLargeMdlPages() bool {
+    return (e.V2Options >> 2) & 1 == 1 // Bit 2
+}
+
+func (e *EventTraceProperties2) GetExcludeKernelStack() bool {
+    return (e.V2Options >> 3) & 1 == 1 // Bit 3
 }
 
 func NewEventTraceSessionProperties(sessionName string) (*EventTraceProperties, uint32) {
@@ -667,7 +686,7 @@ func NewRealTimeEventTraceSessionProperties(logSessionName string) *EventTracePr
 	sessionProperties.Wnode.BufferSize = size // this is optimized by ETWframework
 	sessionProperties.Wnode.Guid = GUID{}     //To set
 	sessionProperties.Wnode.ClientContext = 1 // QPC
-	sessionProperties.Wnode.Flags = WNODE_FLAG_TRACED_GUID // *NOTE(tekert) changed from original: WNODE_FLAG_ALL_DATA
+	sessionProperties.Wnode.Flags = WNODE_FLAG_ALL_DATA // *NOTE(tekert) should this be WNODE_FLAG_TRACED_GUID ?
 	sessionProperties.LogFileMode = EVENT_TRACE_REAL_TIME_MODE
 	sessionProperties.LogFileNameOffset = 0
 	// ETW event can be up to 64KB size so if the buffer size is not at least
@@ -811,55 +830,77 @@ type FileTime struct {
 	dwHighDateTime uint32
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilew
+// v10.0.16299.0 /evntrace.h
 /*
-    typedef struct _EVENT_TRACE_LOGFILEW {
-    LPWSTR                        LogFileName;
-    LPWSTR                        LoggerName;
-    LONGLONG                      CurrentTime;
-    ULONG                         BuffersRead;
+struct _EVENT_TRACE_LOGFILEW {
+    LPWSTR                  LogFileName;      // Logfile Name
+    LPWSTR                  LoggerName;       // LoggerName
+    LONGLONG                CurrentTime;      // timestamp of last event
+    ULONG                   BuffersRead;      // buffers read to date
     union {
-        ULONG LogFileMode;
-        ULONG ProcessTraceMode;
+        // Mode of the logfile
+        ULONG               LogFileMode;
+        // Processing flags used on Vista and above
+        ULONG               ProcessTraceMode;
     } DUMMYUNIONNAME;
-    EVENT_TRACE                   CurrentEvent;
-    TRACE_LOGFILE_HEADER          LogfileHeader;
-    PEVENT_TRACE_BUFFER_CALLBACKW BufferCallback;
-    ULONG                         BufferSize;
-    ULONG                         Filled;
-    ULONG                         EventsLost;
+    EVENT_TRACE             CurrentEvent;     // Current Event from this stream.
+    TRACE_LOGFILE_HEADER    LogfileHeader;    // logfile header structure
+    PEVENT_TRACE_BUFFER_CALLBACKW             // callback before each buffer
+                            BufferCallback;   // is read
+    //
+    // following variables are filled for BufferCallback.
+    //
+    ULONG                   BufferSize;
+    ULONG                   Filled;
+    ULONG                   EventsLost;
+    //
+    // following needs to be propagated to each buffer
+    //
     union {
-        PEVENT_CALLBACK        EventCallback;
-        PEVENT_RECORD_CALLBACK EventRecordCallback;
+        // Callback with EVENT_TRACE
+        PEVENT_CALLBACK         EventCallback;
+        // Callback with EVENT_RECORD on Vista and above
+        PEVENT_RECORD_CALLBACK  EventRecordCallback;
     } DUMMYUNIONNAME2;
-    ULONG                         IsKernelTrace;
-    PVOID                         Context;
-    } EVENT_TRACE_LOGFILEW, *PEVENT_TRACE_LOGFILEW;
+
+    ULONG                   IsKernelTrace;    // TRUE for kernel logfile
+
+    PVOID                   Context;          // reserved for internal use
+};
 */
 
 type EventTraceLogfile struct {
-	LogFileName   *uint16
-	LoggerName    *uint16
-	CurrentTime   int64
-	BuffersRead   uint32
-	Union1        uint32
-	CurrentEvent  EventTrace
-	LogfileHeader TraceLogfileHeader
+	LogFileName   *uint16               // Logfile Name
+	LoggerName    *uint16               // LoggerName
+	CurrentTime   int64                 // timestamp of last event
+	BuffersRead   uint32                // buffers read to date
+	Union1        uint32                // (LogFileMode | ProcessTraceMode) // Mode of the logfile or // Processing flags used on Vista and above
+	CurrentEvent  EventTrace            // Current Event from this stream.
+	LogfileHeader TraceLogfileHeader    // logfile header structure
 	//BufferCallback *EventTraceBufferCallback
-	BufferCallback uintptr
+	BufferCallback uintptr              // callback before each buffer is read
+
+    // following variables are filled for BufferCallback.
 	BufferSize     uint32
 	Filled         uint32
 	EventsLost     uint32
-	Callback       uintptr
-	IsKernelTrace  uint32
-	Context        uintptr
+
+    // following needs to be propagated to each buffer
+	Callback       uintptr              // (EventCallback | EventRecordCallback) // Callback with EVENT_TRACE or // Callback with EVENT_RECORD on Vista and above
+
+	IsKernelTrace  uint32               // TRUE for kernel logfile
+
+	Context        uintptr              // reserved for internal use
 }
 
 func (e *EventTraceLogfile) SetProcessTraceMode(ptm uint32) {
 	e.Union1 = ptm
 }
 
+//* NOTE(tekert): Not used, instead they are using uintptr, wonder why
 type EventCallback func(*EventTrace)
-type EventRecordCallback func(*EventRecord) uintptr
+type EventRecordCallback func(*EventRecord) uintptr  // New, replaces EventCallback
 type EventTraceBufferCallback func(*EventTraceLogfile) uint32
 
 
@@ -1040,7 +1081,7 @@ type EventHeaderExtendedDataItem struct {
 	DataPtr        uintptr      // Pointer to extended info data
 }
 
-// https://learn.microsoft.com/en-us/windows/win32/etw/eventtrace-header
+// https://learn.microsoft.com/es-es/windows/win32/api/evntcons/ns-evntcons-event_header
 // v10.0.19041.0 /evntcons.h
 /*
 typedef struct _EVENT_HEADER {
@@ -1098,7 +1139,7 @@ func (e *EventHeader) UTCTimeStamp() time.Time {
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_descriptor
-// v10.0.16299.0 /evntprov.h
+// v10.0.19041.0 /evntprov.h
 /*
     EVENT_DESCRIPTOR describes and categorizes an event.
     Note that for TraceLogging events, the Id and Version fields are not
@@ -1327,16 +1368,75 @@ typedef struct _EVENT_TRACE_HEADER {        // overlays WNODE_HEADER
 */
 // sizeof: 0x30 (48)
 type EventTraceHeader struct {
-	Size      uint16    // Size of entire record
-	Union1    uint16    // [Check C interface]
-	Union2    uint32    // [Check C interface]
-	ThreadId  uint32    // Thread Id
-	ProcessId uint32    // Process Id
-	TimeStamp int64     // time when event happens
-	Union3    [16]byte  // [Check C interface]
-	Union4    uint64    // [Check C interface]
+	Size         uint16    // Size of entire record
+	Union1       uint16    // (HeaderType, MarkerFlags)
+	Union2       uint32    // (Type, Level, Version)
+	ThreadId     uint32    // Thread Id
+	ProcessId    uint32    // Process Id
+	TimeStamp    int64     // time when event happens
+	Union3       [16]byte  // (Guid | GuidPtr)
+    Union4       uint64    // (KernelTime, UserTime | ProcessorTime | ClientContext, Flags)
 }
 
+func (e *EventTraceHeader) GetHeaderType() uint8 {
+    // Extract HeaderType (higher 8 bits)
+    return uint8(e.Union1 >> 8)
+}
+
+func (e *EventTraceHeader) GetMarkerFlags() uint8 {
+    // Extract MarkerFlags (lower 8 bits)
+    return uint8(e.Union1 & 0xFF)
+}
+
+func (e *EventTraceHeader) GetType() uint8 {
+    // Extract Type (higher 8 bits)
+    return uint8(e.Union2 >> 24)
+}
+
+func (e *EventTraceHeader) GetLevel() uint8 {
+    // Extract Level (middle 8 bits)
+    return uint8(e.Union2 >> 16)
+}
+
+func (e *EventTraceHeader) GetVersion() uint16 {
+    // Extract Version (lower 16 bits)
+    return uint16(e.Union2 & 0xFFFF)
+}
+
+func (e *EventTraceHeader) GetGuid() GUID {
+    // Extract Guid
+    return *(*GUID)(unsafe.Pointer(&e.Union3))
+}
+
+func (e *EventTraceHeader) GetGuidPtr() *GUID {
+    // Extract GuidPtr
+    return (*GUID)(unsafe.Pointer(&e.Union3))
+}
+
+func (e *EventTraceHeader) GetKernelTime() uint32 {
+    // Extract KernelTime (higher 32 bits)
+    return uint32(e.Union4 >> 32)
+}
+
+func (e *EventTraceHeader) GetUserTime() uint32 {
+    // Extract UserTime (lower 32 bits)
+    return uint32(e.Union4 & 0xFFFFFFFF)
+}
+
+func (e *EventTraceHeader) GetProcessorTime() uint64 {
+    // Extract ProcessorTime
+    return e.Union4
+}
+
+func (e *EventTraceHeader) GetClientContext() uint32 {
+    // Extract ClientContext (higher 32 bits)
+    return uint32(e.Union4 >> 32)
+}
+
+func (e *EventTraceHeader) GetFlags() uint32 {
+    // Extract Flags (lower 32 bits)
+    return uint32(e.Union4 & 0xFFFFFFFF)
+}
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-trace_logfile_header
 //
@@ -1403,7 +1503,7 @@ type TraceLogfileHeader struct {
 	MaximumFileSize    uint32               // Maximum in Mbytes
 	LogFileMode        uint32               // specify logfile mode
 	BuffersWritten     uint32               // used to file start of Circular File
-	Union1             [16]byte             // [Check C interface]
+	Union2             [16]byte             // (LogInstanceGuid | StartBuffers, PointerSize, EventsLost, CpuSpeedInMHz)
 	LoggerName         *uint16
 	LogFileName        *uint16
 	TimeZone           TimeZoneInformation
@@ -1412,6 +1512,35 @@ type TraceLogfileHeader struct {
 	StartTime          int64                // Reserved
 	ReservedFlags      uint32               // ClockType
 	BuffersLost        uint32
+}
+
+func (t *TraceLogfileHeader) GetVersion() (major, minor, sub, subMinor uint8) {
+    major = uint8(t.VersionUnion >> 24)
+    minor = uint8(t.VersionUnion >> 16)
+    sub = uint8(t.VersionUnion >> 8)
+    subMinor = uint8(t.VersionUnion)
+    return
+}
+
+func (t *TraceLogfileHeader) GetLogInstanceGuid() GUID {
+    return *(*GUID)(unsafe.Pointer(&t.Union2))
+}
+
+// TODO(tekert): Check performance in these functions
+func (t *TraceLogfileHeader) GetStartBuffers() uint32 {
+    return (uint32(t.Union2[15]) << 24) | (uint32(t.Union2[14]) << 16) | (uint32(t.Union2[13]) << 8) | uint32(t.Union2[12])
+}
+
+func (t *TraceLogfileHeader) GetPointerSize() uint32 {
+    return (uint32(t.Union2[11]) << 24) | (uint32(t.Union2[10]) << 16) | (uint32(t.Union2[9]) << 8) | uint32(t.Union2[8])
+}
+
+func (t *TraceLogfileHeader) GetEventsLost() uint32 {
+    return (uint32(t.Union2[7]) << 24) | (uint32(t.Union2[6]) << 16) | (uint32(t.Union2[5]) << 8) | uint32(t.Union2[4])
+}
+
+func (t *TraceLogfileHeader) GetCpuSpeedInMHz() uint32 {
+    return (uint32(t.Union2[3]) << 24) | (uint32(t.Union2[2]) << 16) | (uint32(t.Union2[1]) << 8) | uint32(t.Union2[0])
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/timezoneapi/ns-timezoneapi-time_zone_information

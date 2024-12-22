@@ -51,6 +51,7 @@ func StopTrace(
 	return syscall.Errno(r1)
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-enabletraceex2
 /*
 EnableTraceEx2 API wrapper generated from prototype
 EXTERN_C ULONG WMIAPI EnableTraceEx2 (

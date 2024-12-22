@@ -58,6 +58,24 @@ func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	return
 }
 
+/*
+// * NOTE needs Windows 10 SDK build 20348 or later
+//
+// https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-a-systemtraceprovider-session
+//
+// Starting a SystemTraceProvider Session using guids and keywords
+//
+// How to use it:
+//   - GUIDs and Keywords defined here: https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+//   - Write the keywords you want and put them in MustParseProvider() wich uses it in EnableTraceEx2
+// NOTE* The keywords are too new and are not defined on most systems.
+func NewSystemTraceProviderSession(name string) (p *RealTimeSession) {
+	p = NewRealTimeSession(name)
+	p.properties.LogFileMode |= EVENT_TRACE_SYSTEM_LOGGER_MODE
+	return
+}
+*/
+
 // IsStarted returns true if the session is already started
 func (p *RealTimeSession) IsStarted() bool {
 	return p.sessionHandle != 0
