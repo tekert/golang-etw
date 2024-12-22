@@ -8,11 +8,13 @@ import (
 	"unsafe"
 )
 
+// KERNEL_LOGGER_NAME
 const (
 	NtKernelLogger = "NT Kernel Logger"
 	//  0x9e814aad, 0x3204, 0x11d2, 0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/etw/msnt-systemtrace
 var (
 	systemTraceControlGuid = MustParseGUIDFromString("{9E814AAD-3204-11D2-9A82-006008A86939}")
 )
@@ -41,7 +43,11 @@ func NewRealTimeSession(name string) (p *RealTimeSession) {
 }
 
 // NewKernelRealTimeSession creates a new ETW session to receive
-// NT Kernel Logger events in real time
+// NT Kernel Logger events in real time (only one session can be running at any time)
+//
+// Flags: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties EnableFlags section
+//
+// More info at: https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-the-nt-kernel-logger-session
 func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	p = NewRealTimeSession(NtKernelLogger)
 	// guid must be set for Kernel Session

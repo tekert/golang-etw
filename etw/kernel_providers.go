@@ -12,6 +12,7 @@ type ProviderDefinition struct {
 	Flags  uint32
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/etw/nt-kernel-logger-constants
 var (
 	KernelProviders = []ProviderDefinition{
 		// https://docs.microsoft.com/en-us/windows/win32/etw/alpc
@@ -126,6 +127,14 @@ var (
 			Flags: EVENT_TRACE_FLAG_NETWORK_TCPIP},
 
 		//{Name: "WmiEventLogger", Kernel: true, GUID: "{44608a51-1851-4456-98b2-b300e931ee41}"}
+
+		// Missing Providers for these flags, to use them pass them to NT Kernel Logger producer.
+		// like this: kernelSession := etw.NewKernelRealTimeSession(etw.EVENT_TRACE_FLAG_DISK_IO | EVENT_TRACE_FLAG_DISK_FILE_IO)
+		// EVENT_TRACE_FLAG_CSWITCH  (Important one, use NT Kernel Logger for these flags)
+		// EVENT_TRACE_FLAG_DISK_FILE_IO (needs EVENT_TRACE_FLAG_DISK_IO)
+		// EVENT_TRACE_FLAG_DISPATCHER
+		// EVENT_TRACE_FLAG_NO_SYSCONFIG (special, no Windows Kernel/SystemConfig/* events)
+		// EVENT_TRACE_FLAG_VAMAP
 	}
 )
 
