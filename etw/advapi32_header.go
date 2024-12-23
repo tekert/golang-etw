@@ -751,13 +751,13 @@ type EventHeader struct {
 }
 
 func (e *EventHeader) GetKernelTime() uint32 {
-	// Extract KernelTime (higher 32 bits)
-	return uint32(e.ProcessorTime >> 32)
+	// Extract KernelTime (lower 32 bits)
+	return uint32(e.ProcessorTime & 0xFFFFFFFF)
 }
 
 func (e *EventHeader) GetUserTime() uint32 {
-	// Extract UserTime (lower 32 bits)
-	return uint32(e.ProcessorTime & 0xFFFFFFFF)
+    // Extract UserTime (higher 32 bits)
+	return uint32(e.ProcessorTime >> 32)
 }
 
 func (e *EventHeader) UTCTimeStamp() time.Time {
