@@ -9,82 +9,132 @@ import (
 	"unsafe"
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-tdh_context
+// v10.0.19041.0 /tdh.h
 /*
-typedef struct _TDH_CONTEXT {
-  ULONGLONG        ParameterValue;
-  TDH_CONTEXT_TYPE ParameterType;
-  ULONG            ParameterSize;
-} TDH_CONTEXT;
-*/
+	Decoding configuration parameters used with TdhGetDecodingParameter,
+	TdhSetDecodingParameter, TdhGetEventInformation, TdhGetProperty,
+	TdhGetPropertySize, and TdhEnumerateProviderFilters.
 
+	Note that the TDH_CONTEXT_WPP_GMT and TDH_CONTEXT_PDB_PATH parameter types are
+	only used by TdhGetDecodingParameter and TdhSetDecodingParameter. They are
+	ignored by TdhGetEventInformation and TdhGetProperty.
+*/
+// typedef struct _TDH_CONTEXT {
+//     ULONGLONG ParameterValue; /* For GMT or POINTERSIZE, directly stores the
+//         parameter's integer value. For other types, stores an LPCWSTR pointing
+//         to a nul-terminated string with the parameter value. */
+//     TDH_CONTEXT_TYPE ParameterType;
+//     ULONG ParameterSize; /* Reserved. Set to 0. */
+// } TDH_CONTEXT;
 type TdhContext struct {
-	ParameterValue uint32
+	// For GMT or POINTERSIZE, directly stores the
+    // parameter's integer value. For other types, stores an LPCWSTR pointing
+    // to a nul-terminated string with the parameter value.
+	ParameterValue uint64 //! CHANGED(tekert) from 32 to 64 bits.
 	ParameterType  TdhContextType
-	ParameterSize  uint32
+	ParameterSize  uint32 // Reserved. Set to 0.
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ne-tdh-tdh_context_type
+// v10.0.19041.0 /tdh.h
 /*
 typedef enum _TDH_CONTEXT_TYPE {
-  TDH_CONTEXT_WPP_TMFFILE,
-  TDH_CONTEXT_WPP_TMFSEARCHPATH,
-  TDH_CONTEXT_WPP_GMT,
-  TDH_CONTEXT_POINTERSIZE,
-  TDH_CONTEXT_PDB_PATH,
-  TDH_CONTEXT_MAXIMUM
+	TDH_CONTEXT_WPP_TMFFILE,
+	TDH_CONTEXT_WPP_TMFSEARCHPATH,
+	TDH_CONTEXT_WPP_GMT,
+	TDH_CONTEXT_POINTERSIZE,
+	TDH_CONTEXT_PDB_PATH,
+	TDH_CONTEXT_MAXIMUM
 } TDH_CONTEXT_TYPE;
 */
-
 type TdhContextType int32
 
+// Defines the context type.
 const (
+	/* LPCWSTR path to the TMF file for a WPP event. */
 	TDH_CONTEXT_WPP_TMFFILE       = TdhContextType(0)
+
+	/* LPCWSTR semicolon-separated list of
+        directories to search for the TMF file for a WPP event. Only files
+        with the name [ProviderId].TMF will be found during the search. */
 	TDH_CONTEXT_WPP_TMFSEARCHPATH = TdhContextType(1)
+
+	/* Integer value. If set to 1, the TdhGetWppProperty
+        and TdhGetWppMessage functions will format a WPP event's timestamp in
+        UTC (GMT). By default, the timestamp is formatted in local time. */
 	TDH_CONTEXT_WPP_GMT           = TdhContextType(2)
+
+	/* Integer value, set to 4 or 8. Used when
+        decoding POINTER or SIZE_T fields on WPP events that do not set a
+        pointer size in the event header. If the event does not set a pointer
+        size in the event header and this context is not set, the decoder will
+        use the pointer size of the current process. */
 	TDH_CONTEXT_POINTERSIZE       = TdhContextType(3)
-	TDH_CONTEXT_MAXIMUM           = TdhContextType(4)
+
+	/* LPCWSTR semicolon-separated list of PDB files
+		to be search for decoding information when decoding an event using
+		TdhGetWppProperty or TdhGetWppMessage. (Not used by TdhGetProperty
+		or TdhGetEventInformation.) */
+	TDH_CONTEXT_PDB_PATH  		 =  TdhContextType(4)
+
+	TDH_CONTEXT_MAXIMUM           = TdhContextType(5)
 )
 
+
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-property_data_descriptor
+// v10.0.19041.0 /tdh.h
 /*
 typedef struct _PROPERTY_DATA_DESCRIPTOR {
-  ULONGLONG PropertyName;
-  ULONG     ArrayIndex;
-  ULONG     Reserved;
+    ULONGLONG PropertyName;                // Pointer to property name.
+    ULONG ArrayIndex;                      // Array Index.
+    ULONG Reserved;
 } PROPERTY_DATA_DESCRIPTOR;
 */
 
+// Defines the property to retrieve.
 type PropertyDataDescriptor struct {
-	PropertyName uint64
-	ArrayIndex   uint32
+	PropertyName uint64 	// Pointer to property name.
+	ArrayIndex   uint32 	// Array Index.
 	Reserved     uint32
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-provider_field_infoarray
+// v10.0.19041.0 /tdh.h
 /*
 typedef struct _PROVIDER_FIELD_INFOARRAY {
-  ULONG               NumberOfElements;
-  EVENT_FIELD_TYPE    FieldType;
-  PROVIDER_FIELD_INFO FieldInfoArray[ANYSIZE_ARRAY];
+    ULONG NumberOfElements;
+    EVENT_FIELD_TYPE FieldType;
+    PROVIDER_FIELD_INFO FieldInfoArray[ANYSIZE_ARRAY];
 } PROVIDER_FIELD_INFOARRAY;
 */
 
+// Defines metadata information about the requested field.
 type ProviderFieldInfoArray struct {
 	NumberOfElements uint32
-	FieldType        EventFieldType // This field is initially an enum so I guess it has the size of an int
-	FieldInfoArray   [1]ProviderFieldInfo
+	FieldType        EventFieldType // This field is initially an enum so I guess it has the size of an int; NOTE(tekert): correct
+	FieldInfoArray   [1]ProviderFieldInfo // This is a variable size array in C
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-provider_field_info
+// v10.0.19041.0 /tdh.h
 /*
 typedef struct _PROVIDER_FIELD_INFO {
-  ULONG     NameOffset;
-  ULONG     DescriptionOffset;
-  ULONGLONG Value;
+    ULONG NameOffset;                  // English only.
+    ULONG DescriptionOffset;           // Localizable String.
+    ULONGLONG Value;
 } PROVIDER_FIELD_INFO;
 */
+
+// Defines the field information.
 type ProviderFieldInfo struct {
-	NameOffset        uint32
-	DescriptionOffset uint32
+	NameOffset        uint32   // English only.
+	DescriptionOffset uint32   // Localizable String.
 	Value             uint64
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ne-tdh-event_field_type
+// v10.0.19041.0 /tdh.h (expanded with numbers)
 /*
 typedef enum _EVENT_FIELD_TYPE {
   EventKeywordInformation   = 0,
@@ -95,9 +145,9 @@ typedef enum _EVENT_FIELD_TYPE {
   EventInformationMax       = 5
 } EVENT_FIELD_TYPE;
 */
-
 type EventFieldType int32
 
+// Defines the provider information to retrieve.
 const (
 	EventKeywordInformation = EventFieldType(0)
 	EventLevelInformation   = EventFieldType(1)
@@ -107,34 +157,43 @@ const (
 	EventInformationMax     = EventFieldType(5)
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-provider_enumeration_info
+// v10.0.19041.0 /tdh.h
 /*
 typedef struct _PROVIDER_ENUMERATION_INFO {
-  ULONG               NumberOfProviders;
-  ULONG               Reserved;
-  TRACE_PROVIDER_INFO TraceProviderInfoArray[ANYSIZE_ARRAY];
+    ULONG NumberOfProviders;
+    ULONG Reserved;
+    _Field_size_(NumberOfProviders) TRACE_PROVIDER_INFO TraceProviderInfoArray[ANYSIZE_ARRAY];
 } PROVIDER_ENUMERATION_INFO;
 */
 
+// Defines the array of providers that have registered a MOF or manifest on the computer.
 type ProviderEnumerationInfo struct {
 	NumberOfProviders      uint32
 	Reserved               uint32
-	TraceProviderInfoArray [1]TraceProviderInfo
+	TraceProviderInfoArray [1]TraceProviderInfo // This is a variable size array in C
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-trace_provider_info
+// v10.0.19041.0 /tdh.h
 /*
 typedef struct _TRACE_PROVIDER_INFO {
-  GUID  ProviderGuid;
-  ULONG SchemaSource;
-  ULONG ProviderNameOffset;
+    GUID ProviderGuid;
+    ULONG SchemaSource;
+    ULONG ProviderNameOffset;
 } TRACE_PROVIDER_INFO;
 */
 
+// Defines the GUID and name for a provider.
 type TraceProviderInfo struct {
 	ProviderGuid       GUID
 	SchemaSource       uint32
 	ProviderNameOffset uint32
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-trace_event_info
+// v10.0.19041.0 /tdh.h (comments from source where moved to go interface)
+// sizeof(TRACE_EVENT_INFO) = 136 bytes
 /*
 typedef struct _TRACE_EVENT_INFO {
   GUID                ProviderGuid;
@@ -170,53 +229,125 @@ typedef struct _TRACE_EVENT_INFO {
   };
   EVENT_PROPERTY_INFO EventPropertyInfoArray[ANYSIZE_ARRAY];
 } TRACE_EVENT_INFO;
-
-typedef struct _TRACE_EVENT_INFO {
-  GUID                ProviderGuid;
-  GUID                EventGuid;
-  EVENT_DESCRIPTOR    EventDescriptor;
-  DECODING_SOURCE     DecodingSource;
-  ULONG               ProviderNameOffset;
-  ULONG               LevelNameOffset;
-  ULONG               ChannelNameOffset;
-  ULONG               KeywordsNameOffset;
-  ULONG               TaskNameOffset;
-  ULONG               OpcodeNameOffset;
-  ULONG               EventMessageOffset;
-  ULONG               ProviderMessageOffset;
-  ULONG               BinaryXMLOffset;
-  ULONG               BinaryXMLSize;
-  ULONG               ActivityIDNameOffset;
-  ULONG               RelatedActivityIDNameOffset;
-  ULONG               PropertyCount;
-  ULONG               TopLevelPropertyCount;
-  TEMPLATE_FLAGS      Flags;
-  EVENT_PROPERTY_INFO EventPropertyInfoArray[ANYSIZE_ARRAY];
-} TRACE_EVENT_INFO, *PTRACE_EVENT_INFO;
-
 */
 
 type TraceEventInfo struct {
+	/* The meaning of this field depends on DecodingSource.
+        - XMLFile: ProviderGuid contains the decode GUID (the provider GUID of
+          the manifest).
+        - Wbem: If EventGuid is GUID_NULL, ProviderGuid contains the decode
+          GUID. Otherwise, ProviderGuid contains the control GUID.
+        - WPP: ProviderGuid is not used (always GUID_NULL).
+        - Tlg: ProviderGuid contains the control GUID. */
 	ProviderGUID                GUID
+
+	/* The meaning of this field depends on DecodingSource.
+        - XMLFile: If the provider specifies a controlGuid, EventGuid contains
+          the controlGuid and Flags contains TEMPLATE_CONTROL_GUID. Otherwise,
+          if the event's Task specifies an eventGUID, EventGuid contains the
+          eventGUID. Otherwise, EventGuid is GUID_NULL.
+        - Wbem: If EventGuid is not GUID_NULL, it is the decode GUID.
+        - WPP: EventGuid contains the decode GUID.
+        - Tlg: EventGuid is not used (always GUID_NULL). */
 	EventGUID                   GUID
+
 	EventDescriptor             EventDescriptor
 	DecodingSource              DecodingSource
 	ProviderNameOffset          uint32
 	LevelNameOffset             uint32
 	ChannelNameOffset           uint32
 	KeywordsNameOffset          uint32
+
+	/* Meaning of this field depends on DecodingSource.
+        - XMLFile: The offset to the name of the associated task.
+        - Wbem: The offset to the event's MOF "DisplayName" property. For many
+          Wbem providers, ProviderName is a provider category and TaskName is
+          the provider subcategory.
+        - WPP: Not used.
+        - Tlg: The offset to the name of the event. */
 	TaskNameOffset              uint32
+
+	/* Meaning of this field depends on DecodingSource.
+        - XMLFile: The offset to the name of the associated opcode.
+        - Wbem: The offset to the event's MOF "EventTypeName" property. For
+          many Wbem providers, OpcodeName is the event's name.
+        - WPP: Not used.
+        - Tlg: The offset to the name of the associated opcode. */
 	OpcodeNameOffset            uint32
+
 	EventMessageOffset          uint32
 	ProviderMessageOffset       uint32
 	BinaryXMLOffset             uint32
 	BinaryXMLSize               uint32
-	ActivityIDNameOffset        uint32
-	RelatedActivityIDNameOffset uint32
+
+	/* - EventNameOffset */
+	/* Event name for manifest-based events.
+		This field is valid only if DecodingSource is set to
+		DecodingSourceXMLFile or DecodingSourceTlg.
+
+		EventNameOffset contains the offset from the beginning of this
+		structure to a nul-terminated Unicode string that contains the
+		event's name.
+
+		This field will be 0 if the event does not have an assigned name or
+		if this event is decoded on a system that does not support decoding
+		manifest event names. Event name decoding is supported on Windows
+		10 Fall Creators Update (2017) and later. */
+	// OR
+	/* - ActivityIDNameOffset */
+	/* Activity ID name for WBEM events.
+		This field is valid only if DecodingSource is set to
+		DecodingSourceWbem.
+
+		ActivityIDNameOffset contains the offset from the beginning of this
+		structure to a nul-terminated Unicode string that contains the
+		property name of the activity identifier in the MOF class. */
+	Union1       				uint32 // (EventNameOffset | ActivityIDNameOffset)
+
+	/* - EventAttributesOffset */
+	/* Attributes for manifest-based events.
+		This field is valid only if DecodingSource is set to
+		DecodingSourceXMLFile.
+
+		EventAttributesOffset contains the offset from the beginning of
+		this structure to a nul-terminated Unicode string that contains a
+		semicolon-separated list of name=value attributes associated with
+		the event.
+
+		This field will be 0 if the event does not have attributes or if
+		this event is decoded on a system that does not support decoding
+		manifest event attributes. Attribute decoding is supported on
+		Windows 10 Fall Creators Update (2017) and later.
+
+		Defined attributes include:
+		FILE=Filename of source code associated with event;
+		LINE=Line number of source code associated with event;
+		COL=Column of source code associated with event;
+		FUNC=Function name associated with event;
+		MJ=Major component associated with event;
+		MN=Minor component associated with event.
+
+		Values containing semicolons or double-quotes should be quoted
+		using double-quotes. Double-quotes within the value should be
+		doubled. Example string:
+		FILE=source.cpp;LINE=123;MJ="Value; ""Quoted""" */
+	// OR
+	/* - RelatedActivityIDNameOffset */
+	/* Related activity ID name (WBEM).
+		This field is valid only if DecodingSource is set to
+		DecodingSourceWbem.
+
+		RelatedActivityIDNameOffset contains the offset from the beginning
+		of this structure to a nul-terminated Unicode string that contains
+		the property name of the related activity identifier in the MOF
+		class. */
+	Union2       				uint32 // (EventAttributesOffset | RelatedActivityIDNameOffset)
+
 	PropertyCount               uint32
 	TopLevelPropertyCount       uint32
+
 	Flags                       TemplateFlags
-	EventPropertyInfoArray      [1]EventPropertyInfo
+	EventPropertyInfoArray      [1]EventPropertyInfo // This is a variable size array in C
 }
 
 func (t *TraceEventInfo) pointer() uintptr {
@@ -241,7 +372,8 @@ func (t *TraceEventInfo) cleanStringAt(offset uintptr) string {
 	return ""
 }
 
-// Seems to be always empty
+// !Seems to be always empty
+// TODO(tekert): investigate this
 func (t *TraceEventInfo) EventMessage() string {
 	return t.cleanStringAt(uintptr(t.EventMessageOffset))
 }
@@ -270,14 +402,75 @@ func (t *TraceEventInfo) ChannelName() string {
 	return t.cleanStringAt(uintptr(t.ChannelNameOffset))
 }
 
-// Seems to be always empty
+// !Seems to be always empty
+// TODO(tekert): investigate this
+/*  Activity ID name for WBEM events.
+	This field is valid only if DecodingSource is set to
+	DecodingSourceWbem.
+
+	ActivityIDNameOffset contains the offset from the beginning of this
+	structure to a nul-terminated Unicode string that contains the
+	property name of the activity identifier in the MOF class. */
 func (t *TraceEventInfo) ActivityIDName() string {
-	return t.stringAt(uintptr(t.ActivityIDNameOffset))
+	return t.stringAt(uintptr(t.Union1))
+}
+/*	Event name for manifest-based events.
+	This field is valid only if DecodingSource is set to
+	DecodingSourceXMLFile or DecodingSourceTlg.
+
+	EventNameOffset contains the offset from the beginning of this
+	structure to a nul-terminated Unicode string that contains the
+	event's name.
+
+	This field will be 0 if the event does not have an assigned name or
+	if this event is decoded on a system that does not support decoding
+	manifest event names. Event name decoding is supported on Windows
+	10 Fall Creators Update (2017) and later. */
+func (t *TraceEventInfo) EventName() string {
+	return t.stringAt(uintptr(t.Union1))
 }
 
-// Seems to be always empty
+// !Seems to be always empty
+// TODO(tekert): investigate this
+/* Related activity ID name (WBEM).
+	This field is valid only if DecodingSource is set to
+	DecodingSourceWbem.
+
+	RelatedActivityIDNameOffset contains the offset from the beginning
+	of this structure to a nul-terminated Unicode string that contains
+	the property name of the related activity identifier in the MOF
+	class. */
 func (t *TraceEventInfo) RelatedActivityIDName() string {
-	return t.stringAt(uintptr(t.RelatedActivityIDNameOffset))
+	return t.stringAt(uintptr(t.Union2))
+}
+/*  Attributes for manifest-based events.
+	This field is valid only if DecodingSource is set to
+	DecodingSourceXMLFile.
+
+	EventAttributesOffset contains the offset from the beginning of
+	this structure to a nul-terminated Unicode string that contains a
+	semicolon-separated list of name=value attributes associated with
+	the event.
+
+	This field will be 0 if the event does not have attributes or if
+	this event is decoded on a system that does not support decoding
+	manifest event attributes. Attribute decoding is supported on
+	Windows 10 Fall Creators Update (2017) and later.
+
+	Defined attributes include:
+	FILE=Filename of source code associated with event;
+	LINE=Line number of source code associated with event;
+	COL=Column of source code associated with event;
+	FUNC=Function name associated with event;
+	MJ=Major component associated with event;
+	MN=Minor component associated with event.
+
+	Values containing semicolons or double-quotes should be quoted
+	using double-quotes. Double-quotes within the value should be
+	doubled. Example string:
+	FILE=source.cpp;LINE=123;MJ="Value; ""Quoted""" */
+func (t *TraceEventInfo) EventAttributes() string {
+	return t.stringAt(uintptr(t.Union2))
 }
 
 func (t *TraceEventInfo) IsMof() bool {
@@ -307,6 +500,7 @@ func (t *TraceEventInfo) GetEventPropertyInfoAt(i uint32) *EventPropertyInfo {
 		// this line triggers checkptr
 		// I guess that is because TraceInfo is variable size C
 		// struct we had to hack with to make it compatible with Go
+		// !TODO(tekert): check if this is a problem
 		return ((*EventPropertyInfo)(unsafe.Pointer(pEpi)))
 	}
 	panic(fmt.Errorf("index out of range"))
@@ -316,55 +510,71 @@ func (t *TraceEventInfo) PropertyNameOffset(i uint32) uintptr {
 	return t.pointer() + uintptr(t.GetEventPropertyInfoAt(i).NameOffset)
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ne-tdh-decoding_source
+// v10.0.19041.0 /tdh.h
 /*
 typedef enum _DECODING_SOURCE {
   DecodingSourceXMLFile   = 0,
   DecodingSourceWbem      = 1,
-  DecodingSourceWPP       = 2
+  DecodingSourceWPP       = 2,
+  DecodingSourceTlg       = 3,
+  DecodingSourceMax       = 4
 } DECODING_SOURCE;
 */
-
+// Defines the source of the event data.
 type DecodingSource int32
 
 const (
 	DecodingSourceXMLFile = DecodingSource(0)
 	DecodingSourceWbem    = DecodingSource(1)
 	DecodingSourceWPP     = DecodingSource(2)
+	DecodingSourceTlg     = DecodingSource(3)
+	DecodingSourceMax     = DecodingSource(4)
 )
 
+
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ne-tdh-template_flags
+// v10.0.19041.0 /tdh.h (comments from source where moved to go interface)
 /*
 typedef enum _TEMPLATE_FLAGS {
-  TEMPLATE_EVENT_DATA   = 1,
-  TEMPLATE_USER_DATA    = 2
+  TEMPLATE_EVENT_DATA = 1,
+  TEMPLATE_USER_DATA = 2,
+  TEMPLATE_CONTROL_GUID = 4
 } TEMPLATE_FLAGS;
 */
-
+// Defines constant values that indicates the layout of the event data.
 type TemplateFlags int32
 
 const (
-	TEMPLATE_EVENT_DATA = TemplateFlags(1)
-	TEMPLATE_USER_DATA  = TemplateFlags(2)
+	TEMPLATE_EVENT_DATA = TemplateFlags(1)   // Used when custom xml is not specified.
+	TEMPLATE_USER_DATA  = TemplateFlags(2)   // Used when custom xml is specified.
+	TEMPLATE_CONTROL_GUID = TemplateFlags(4) // EventGuid contains the manifest control GUID.
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-event_map_info
+// v10.0.19041.0 /tdh.h
+// sizeof(EVENT_MAP_INFO): 24 bytes
 /*
 typedef struct _EVENT_MAP_INFO {
-  ULONG           NameOffset;
-  MAP_FLAGS       Flag;
-  ULONG           EntryCount;
-  union {
-    MAP_VALUETYPE MapEntryValueType;
-    ULONG         FormatStringOffset;
-  };
-  EVENT_MAP_ENTRY MapEntryArray[ANYSIZE_ARRAY];
+    ULONG NameOffset;
+    MAP_FLAGS Flag;
+    ULONG EntryCount;
+    union {
+        MAP_VALUETYPE MapEntryValueType;
+        ULONG FormatStringOffset;
+    };
+    _Field_size_(EntryCount) EVENT_MAP_ENTRY MapEntryArray[ANYSIZE_ARRAY];
 } EVENT_MAP_INFO;
+typedef EVENT_MAP_INFO *PEVENT_MAP_INFO;
 */
 
+// Defines the metadata about the event map.
 type EventMapInfo struct {
 	NameOffset    uint32
 	Flag          MapFlags
 	EntryCount    uint32
 	Union         uint32 // Not sure about size of union depends on size of enum MAP_VALUETYPE
-	MapEntryArray [1]EventMapEntry
+	MapEntryArray [1]EventMapEntry // This is a variable size array in C
 }
 
 func (e *EventMapInfo) GetEventMapEntryAt(i int) *EventMapEntry {
@@ -402,18 +612,20 @@ func (e *EventMapInfo) RemoveTrailingSpace() {
 	}
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ne-tdh-map_flags
+// v10.0.19041.0 /tdh.h
 /*
 typedef enum _MAP_FLAGS {
-  EVENTMAP_INFO_FLAG_MANIFEST_VALUEMAP     = 1,
-  EVENTMAP_INFO_FLAG_MANIFEST_BITMAP       = 2,
-  EVENTMAP_INFO_FLAG_MANIFEST_PATTERNMAP   = 4,
-  EVENTMAP_INFO_FLAG_WBEM_VALUEMAP         = 8,
-  EVENTMAP_INFO_FLAG_WBEM_BITMAP           = 16,
-  EVENTMAP_INFO_FLAG_WBEM_FLAG             = 32,
-  EVENTMAP_INFO_FLAG_WBEM_NO_MAP           = 64
+    EVENTMAP_INFO_FLAG_MANIFEST_VALUEMAP = 0x1,
+    EVENTMAP_INFO_FLAG_MANIFEST_BITMAP = 0x2,
+    EVENTMAP_INFO_FLAG_MANIFEST_PATTERNMAP = 0x4,
+    EVENTMAP_INFO_FLAG_WBEM_VALUEMAP = 0x8,
+    EVENTMAP_INFO_FLAG_WBEM_BITMAP = 0x10,
+    EVENTMAP_INFO_FLAG_WBEM_FLAG = 0x20,
+    EVENTMAP_INFO_FLAG_WBEM_NO_MAP = 0x40
 } MAP_FLAGS;
 */
-
+// Defines constant values that indicate if the map is a value map, bitmap, or pattern map.
 type MapFlags int32
 
 const (
@@ -426,6 +638,8 @@ const (
 	EVENTMAP_INFO_FLAG_WBEM_NO_MAP         = MapFlags(64)
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ne-tdh-map_valuetype
+// v10.0.19041.0 /tdh.h
 /*
 typedef enum _MAP_VALUETYPE
 {
@@ -433,7 +647,7 @@ typedef enum _MAP_VALUETYPE
   EVENTMAP_ENTRY_VALUETYPE_STRING = 1
 } MAP_VALUETYPE;
 */
-
+// Defines if the value map value is in a ULONG data type or a string.
 type MapValueType int32
 
 const (
@@ -441,21 +655,38 @@ const (
 	EVENTMAP_ENTRY_VALUETYPE_STRING = MapValueType(1)
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-event_map_entry
+// v10.0.19041.0 /tdh.h
 /*
 typedef struct _EVENT_MAP_ENTRY {
-  ULONG OutputOffset;
-  __C89_NAMELESS union {
-    ULONG Value;
-    ULONG InputOffset;
-  };
-} EVENT_MAP_ENTRY, *PEVENT_MAP_ENTRY;
+    ULONG OutputOffset;
+    union {
+        ULONG Value;        // For ULONG value (valuemap and bitmap).
+        ULONG InputOffset;  // For String value (patternmap or valuemap in WBEM).
+    };
+} EVENT_MAP_ENTRY;
 */
-
+// Defines a single value map entry.
 type EventMapEntry struct {
 	OutputOffset uint32
 	Union        uint32
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ne-tdh-property_flags
+// v10.0.19041.0 /tdh.h
+/*
+typedef enum _PROPERTY_FLAGS {
+  PropertyStruct = 0x1,
+  PropertyParamLength = 0x2,
+  PropertyParamCount = 0x4,
+  PropertyWBEMXmlFragment = 0x8,
+  PropertyParamFixedLength = 0x10,
+  PropertyParamFixedCount = 0x20,
+  PropertyHasTags = 0x40,
+  PropertyHasCustomSchema = 0x80
+} PROPERTY_FLAGS;
+*/
+// Defines if the property is contained in a structure or array.
 type PropertyFlags int32
 
 const (
@@ -464,46 +695,64 @@ const (
 	PropertyParamCount       = PropertyFlags(0x4)
 	PropertyWBEMXmlFragment  = PropertyFlags(0x8)
 	PropertyParamFixedLength = PropertyFlags(0x10)
+	PropertyParamFixedCount  = PropertyFlags(0x20)
+	PropertyHasTags          = PropertyFlags(0x40)
+	PropertyHasCustomSchema  = PropertyFlags(0x80)
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ns-tdh-event_property_info
+// v10.0.19041.0 /tdh.h
+// sizeof(EVENT_PROPERTY_INFO): 24 bytes
 /*
 typedef struct _EVENT_PROPERTY_INFO {
-  PROPERTY_FLAGS Flags;
-  ULONG          NameOffset;
-  union {
-    struct {
-      USHORT InType;
-      USHORT OutType;
-      ULONG  MapNameOffset;
-    } nonStructType;
-    struct {
-      USHORT StructStartIndex;
-      USHORT NumOfStructMembers;
-      ULONG  padding;
-    } structType;
-    struct {
-      USHORT InType;
-      USHORT OutType;
-      ULONG  CustomSchemaOffset;
-    } customSchemaType;
-  };
-  union {
-    USHORT count;
-    USHORT countPropertyIndex;
-  };
-  union {
-    USHORT length;
-    USHORT lengthPropertyIndex;
-  };
-  union {
-    ULONG Reserved;
-    struct {
-      ULONG Tags : 28;
+    PROPERTY_FLAGS Flags;
+    ULONG NameOffset;
+    union {
+        struct _nonStructType {
+            USHORT InType;
+            USHORT OutType;
+            ULONG MapNameOffset;
+        } nonStructType;
+        struct _structType {
+            USHORT StructStartIndex;
+            USHORT NumOfStructMembers;
+            ULONG padding;
+        } structType;
+        struct _customSchemaType {
+            // Data of this field is described by a user-defined serialization
+            // protocol such as Bond or Protocol Buffers. InType and OutType
+            // should be set for best-effort decoding by decoders that do not
+            // understand the schema, e.g. InType could be set to
+            // TDH_INTYPE_BINARY so that a decoder can properly extract or skip
+            // the raw serialized data even if it can't parse it. The
+            // CustomSchemaOffset points at a structure laid out as:
+            // UINT16 Protocol; // User-defined value from 5..31
+            // UINT16 Length;
+            // BYTE SchemaData[Length];
+            USHORT InType;
+            USHORT OutType;
+            ULONG CustomSchemaOffset;
+        } customSchemaType;
     };
-  };
+    union {
+        USHORT count;
+        USHORT countPropertyIndex;
+    };
+    union {
+        USHORT length;
+        USHORT lengthPropertyIndex;
+    };
+    union {
+        ULONG Reserved;
+        struct {
+            ULONG Tags : 28;
+        };
+    };
 } EVENT_PROPERTY_INFO;
+typedef EVENT_PROPERTY_INFO *PEVENT_PROPERTY_INFO;
 */
 
+// Provides information about a single property of the event or filter.
 type EventPropertyInfo struct {
 	Flags      PropertyFlags
 	NameOffset uint32
@@ -556,90 +805,386 @@ func (i *EventPropertyInfo) Length() uint16 {
 	return i.LengthUnion
 }
 
+
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/ne-tdh-_tdh_in_type
+// The relevant info is inside tdh.h on WinSDK
+// Here are the comments from the header file. v10.0.19041.0 /tdh.h ported to golang
+//
+/*
+	InType provides basic information about the raw encoding of the data in the
+	field of an ETW event. An event field's InType tells the event decoder how to
+	determine the size of the field. In the case that a field's OutType is
+	NULL/unspecified/unrecognized, the InType also provides a default OutType for
+	the data (an OutType refines how the data should be interpreted). For example,
+	InType = INT32 indicates that the field's data is 4 bytes in length. If the
+	field's OutType is NULL/unspecified/unrecognized, the InType of INT32 also
+	provides the default OutType, TDH_OUTTYPE_INT, indicating that the field's data
+	should be interpreted as a Win32 INT value.
+
+	Note that there are multiple ways for the size of a field to be determined.
+
+	- Some InTypes have a fixed size. For example, InType UINT16 is always 2 bytes.
+	For these fields, the length property of the EVENT_PROPERTY_INFO structure
+	can be ignored by decoders.
+	- Some InTypes support deriving the size from the data content. For example,
+	the size of a COUNTEDSTRING field is determined by reading the first 2 bytes
+	of the data, which contain the size of the remaining string. For these
+	fields, the length property of the EVENT_PROPERTY_INFO structure must be
+	ignored.
+	- Some InTypes use the Flags and length properties of the EVENT_PROPERTY_INFO
+	structure associated with the field. Details on how to do this are provided
+	for each type.
+
+	For ETW InType values, the corresponding default OutType and the list of
+	applicable OutTypes can be found in winmeta.xml. For legacy WBEM InType values
+	(i.e. values not defined in winmeta.xml), the details for each InType are
+	included below.
+*/
 type TdhInType uint32
 
-// found info there: https://github.com/microsoft/ETW2JSON/blob/6721e0438733b316d316d36c488166853a05f836/Deserializer/Tdh.cs
 const (
-	TdhInTypeNull = TdhInType(iota)
-	TdhInTypeUnicodestring
-	TdhInTypeAnsistring
-	TdhInTypeInt8
-	TdhInTypeUint8
-	TdhInTypeInt16
-	TdhInTypeUint16
-	TdhInTypeInt32
-	TdhInTypeUint32
-	TdhInTypeInt64
-	TdhInTypeUint64
-	TdhInTypeFloat
-	TdhInTypeDouble
-	TdhInTypeBoolean
-	TdhInTypeBinary
-	TdhInTypeGUID
-	TdhInTypePointer
-	TdhInTypeFiletime
-	TdhInTypeSystemtime
-	TdhInTypeSid
-	TdhInTypeHexint32
-	TdhInTypeHexint64 // End of winmeta types
+	TdhInTypeNull = TdhInType(iota) /* Invalid InType value. */
+	TdhInTypeUnicodestring /*
+		Field size depends on the Flags and length fields of the corresponding
+		EVENT_PROPERTY_INFO structure (epi) as follows:
+		- If ((epi.Flags & PropertyParamLength) != 0), the
+		epi.lengthPropertyIndex field contains the index of the property that
+		contains the number of WCHARs in the string.
+		- Else if ((epi.Flags & PropertyLength) != 0 || epi.length != 0), the
+		epi.length field contains number of WCHARs in the string.
+		- Else the string is nul-terminated (terminated by (WCHAR)0).
+		Note that some event providers do not correctly nul-terminate the last
+		string field in the event. While this is technically invalid, event
+		decoders may silently tolerate such behavior instead of rejecting the
+		event as invalid. */
+	TdhInTypeAnsistring /*
+		Field size depends on the Flags and length fields of the corresponding
+		EVENT_PROPERTY_INFO structure (epi) as follows:
+		- If ((epi.Flags & PropertyParamLength) != 0), the
+		epi.lengthPropertyIndex field contains the index of the property that
+		contains the number of BYTEs in the string.
+		- Else if ((epi.Flags & PropertyLength) != 0 || epi.length != 0), the
+		epi.length field contains number of BYTEs in the string.
+		- Else the string is nul-terminated (terminated by (CHAR)0).
+		Note that some event providers do not correctly nul-terminate the last
+		string field in the event. While this is technically invalid, event
+		decoders may silently tolerate such behavior instead of rejecting the
+		event as invalid. */
+	TdhInTypeInt8 		/* Field size is 1 byte. */
+	TdhInTypeUint8 		/* Field size is 1 byte. */
+	TdhInTypeInt16 		/* Field size is 2 bytes. */
+	TdhInTypeUint16 	/* Field size is 2 bytes. */
+	TdhInTypeInt32 		/* Field size is 4 bytes. */
+	TdhInTypeUint32 	/* Field size is 4 bytes. */
+	TdhInTypeInt64 		/* Field size is 8 bytes. */
+	TdhInTypeUint64 	/* Field size is 8 bytes. */
+	TdhInTypeFloat 		/* Field size is 4 bytes. */
+	TdhInTypeDouble 	/* Field size is 8 bytes. */
+	TdhInTypeBoolean 	/* Field size is 4 bytes. */ /* note: not 1 */
+	TdhInTypeBinary /*
+		Field size depends on the OutType, Flags, and length fields of the
+		corresponding EVENT_PROPERTY_INFO structure (epi) as follows:
+		- If ((epi.Flags & PropertyParamLength) != 0), the
+		epi.lengthPropertyIndex field contains the index of the property that
+		contains the number of BYTEs in the field.
+		- Else if ((epi.Flags & PropertyLength) != 0 || epi.length != 0), the
+		epi.length field contains number of BYTEs in the field.
+		- Else if (epi.OutType == IPV6), the field size is 16 bytes.
+		- Else the field is incorrectly encoded. */
+	TdhInTypeGUID 		/* Field size is 16 bytes. */
+	TdhInTypePointer /*
+		Field size depends on the eventRecord.EventHeader.Flags value. If the
+		EVENT_HEADER_FLAG_32_BIT_HEADER flag is set, the field size is 4 bytes.
+		If the EVENT_HEADER_FLAG_64_BIT_HEADER flag is set, the field size is 8
+		bytes. Default OutType is HEXINT64. Other usable OutTypes include
+		CODE_POINTER, LONG, UNSIGNEDLONG.
+		*/
+	TdhInTypeFiletime  	/* Field size is 8 bytes. */
+	TdhInTypeSystemtime /* Field size is 16 bytes. */
+	TdhInTypeSid /*
+		Field size is determined by reading the first few bytes of the field
+		value to determine the number of relative IDs. */
+	TdhInTypeHexint32 	/* Field size is 4 bytes. */
+	TdhInTypeHexint64   /* Field size is 8 bytes. */
+	TdhIntypeManifestCountedString /*
+        Supported in Windows 2018 Fall Update or later. This is the same as
+        TDH_INTYPE_COUNTEDSTRING, but can be used in manifests.
+        Field contains a little-endian 16-bit bytecount followed by a WCHAR
+        (16-bit character) string. Default OutType is STRING. Other usable
+        OutTypes include XML, JSON. Field size is determined by reading the
+        first two bytes of the payload, which are then interpreted as a
+        little-endian 16-bit integer which gives the number of additional bytes
+        (not characters) in the field. */
+	TdhIntypeManifestCountedAnsiString /*
+        Supported in Windows 2018 Fall Update or later. This is the same as
+        TDH_INTYPE_COUNTEDANSISTRING, but can be used in manifests.
+        Field contains a little-endian 16-bit bytecount followed by a CHAR
+        (8-bit character) string. Default OutType is STRING. Other usable
+        OutTypes include XML, JSON, UTF8. Field size is determined by reading
+        the first two bytes of the payload, which are then interpreted as a
+        little-endian 16-bit integer which gives the number of additional bytes
+        (not characters) in the field. */
+	TdhIntypeReserved24
+	TdhIntypeManifestCountedBinary /*
+        Supported in Windows 2018 Fall Update or later.
+        Field contains a little-endian 16-bit bytecount followed by binary
+        data. Default OutType is HEXBINARY. Other usable
+        OutTypes include IPV6, SOCKETADDRESS, PKCS7_WITH_TYPE_INFO. Field size
+        is determined by reading the first two bytes of the payload, which are
+        then interpreted as a little-endian 16-bit integer which gives the
+        number of additional bytes in the field. */
+
+    // End of winmeta intypes.
 )
 
+// Start of TDH intypes for WBEM. These types cannot be used in manifests.
 const (
-	TdhInTypeCountedstring = TdhInType(iota + 300) // Start of TDH intypes for WBEM.
-	TdhInTypeCountedansistring
-	TdhInTypeReversedcountedstring
-	TdhInTypeReversedcountedansistring
-	TdhInTypeNonnullterminatedstring
-	TdhInTypeNonnullterminatedansistring
-	TdhInTypeUnicodechar
-	TdhInTypeAnsichar
-	TdhInTypeSizet
-	TdhInTypeHexdump
-	TdhInTypeWbemsid
+	TdhInTypeCountedstring = TdhInType(iota + 300) /*
+		Field contains a little-endian 16-bit bytecount followed by a WCHAR
+		(16-bit character) string. Default OutType is STRING. Other usable
+		OutTypes include XML, JSON. Field size is determined by reading the
+		first two bytes of the payload, which are then interpreted as a
+		little-endian 16-bit integer which gives the number of additional bytes
+		(not characters) in the field. */
+	TdhInTypeCountedansistring /*
+		Field contains a little-endian 16-bit bytecount followed by a CHAR
+		(8-bit character) string. Default OutType is STRING. Other usable
+		OutTypes include XML, JSON, UTF8. Field size is determined by reading
+		the first two bytes of the payload, which are then interpreted as a
+		little-endian 16-bit integer which gives the number of additional bytes
+		(not characters) in the field. */
+	TdhInTypeReversedcountedstring /*
+		Deprecated. Prefer TDH_INTYPE_COUNTEDSTRING.
+		Field contains a big-endian 16-bit bytecount followed by a WCHAR
+		(16-bit little-endian character) string. Default OutType is STRING.
+		Other usable OutTypes include XML, JSON. Field size is determined by
+		reading the first two bytes of the payload, which are then interpreted
+		as a big-endian 16-bit integer which gives the number of additional
+		bytes (not characters) in the field. */
+	TdhInTypeReversedcountedansistring /*
+		Deprecated. Prefer TDH_INTYPE_COUNTEDANSISTRING.
+		Field contains a big-endian 16-bit bytecount followed by a CHAR (8-bit
+		character) string. Default OutType is STRING. Other usable OutTypes
+		include XML, JSON, UTF8. Field size is determined by reading the first
+		two bytes of the payload, which are then interpreted as a big-endian
+		16-bit integer which gives the number of additional bytes in the
+		field. */
+	TdhInTypeNonnullterminatedstring /*
+		Deprecated. Prefer TDH_INTYPE_COUNTEDSTRING.
+		Field contains a WCHAR (16-bit character) string. Default OutType is
+		STRING. Other usable OutTypes include XML, JSON. Field size is the
+		remaining bytes of data in the event. */
+	TdhInTypeNonnullterminatedansistring /*
+		Deprecated. Prefer TDH_INTYPE_COUNTEDANSISTRING.
+		Field contains a CHAR (8-bit character) string. Default OutType is
+		STRING. Other usable OutTypes include XML, JSON, UTF8. Field size is
+		the remaining bytes of data in the event. */
+	TdhInTypeUnicodechar /*
+		Deprecated. Prefer TDH_INTYPE_UINT16 with TDH_OUTTYPE_STRING.
+		Field contains a WCHAR (16-bit character) value. Default OutType is
+		STRING. Field size is 2 bytes. */
+	TdhInTypeAnsichar /*
+		Deprecated. Prefer TDH_INTYPE_UINT8 with TDH_OUTTYPE_STRING.
+		Field contains a CHAR (8-bit character) value. Default OutType is
+		STRING. Field size is 1 byte. */
+	TdhInTypeSizet /*
+		Deprecated. Prefer TDH_INTYPE_POINTER with TDH_OUTTYPE_UNSIGNEDLONG.
+		Field contains a SIZE_T (UINT_PTR) value. Default OutType is HEXINT64.
+		Field size depends on the eventRecord.EventHeader.Flags value. If the
+		EVENT_HEADER_FLAG_32_BIT_HEADER flag is set, the field size is 4 bytes.
+		If the EVENT_HEADER_FLAG_64_BIT_HEADER flag is set, the field size is
+		8 bytes. */
+	TdhInTypeHexdump /*
+		Deprecated. Prefer TDH_INTYPE_BINARY.
+		Field contains binary data. Default OutType is HEXBINARY. Field size is
+		determined by reading the first four bytes of the payload, which are
+		then interpreted as a little-endian UINT32 which gives the number of
+		additional bytes in the field. */
+	TdhInTypeWbemsid /*
+		Deprecated. Prefer TDH_INTYPE_SID.
+		Field contains an SE_TOKEN_USER (security identifier) value. Default
+		OutType is STRING (i.e. the SID will be converted to a string during
+		decoding using ConvertSidToStringSid or equivalent). Field size is
+		determined by reading the first few bytes of the field value to
+		determine the number of relative IDs. Because the SE_TOKEN_USER
+		structure includes pointers, decoding this structure requires accurate
+		knowledge of the event provider's pointer size (i.e. from
+		eventRecord.EventHeader.Flags). */
 )
 
+/*
+	OutType describes how to interpret a field's data. If a field's OutType is
+	not specified in the manifest, it defaults to TDH_OUTTYPE_NULL. If the field's
+	OutType is NULL, decoding should use the default OutType associated with the
+	field's InType.
+
+	Not all combinations of InType and OutType are valid, and event decoding tools
+	will only recognize a small set of InType+OutType combinations. If an
+	InType+OutType combination is not recognized by a decoder, the decoder should
+	use the default OutType associated with the field's InType (i.e. the decoder
+	should behave as if the OutType were NULL).
+*/
 type TdhOutType uint32
 
 const (
-	TdhOutTypeNull = TdhOutType(iota)
-	TdhOutTypeString
-	TdhOutTypeDatetime
-	TdhOutTypeByte
-	TdhOutTypeUnsignedbyte
-	TdhOutTypeShort
-	TdhOutTypeUnsignedshort
-	TdhOutTypeInt
-	TdhOutTypeUnsignedint
-	TdhOutTypeLong
-	TdhOutTypeUnsignedlong
-	TdhOutTypeFloat
-	TdhOutTypeDouble
-	TdhOutTypeBoolean
-	TdhOutTypeGUID
-	TdhOutTypeHexbinary
-	TdhOutTypeHexint8
-	TdhOutTypeHexint16
-	TdhOutTypeHexint32
-	TdhOutTypeHexint64
-	TdhOutTypePid
-	TdhOutTypeTid
-	TdhOutTypePort
-	TdhOutTypeIpv4
-	TdhOutTypeIpv6
-	TdhOutTypeSocketaddress
-	TdhOutTypeCimdatetime
-	TdhOutTypeEtwtime
-	TdhOutTypeXML
-	TdhOutTypeErrorcode
-	TdhOutTypeWin32error
-	TdhOutTypeNtstatus
-	TdhOutTypeHresult                    // End of winmeta outtypes.
-	TdhOutTypeCultureInsensitiveDatetime // Culture neutral datetime string.
-	TdhOutTypeJSON
+	TdhOutTypeNull = TdhOutType(iota) /*
+		Default OutType value. If a field's OutType is set to this value, the
+		decoder should determine the default OutType corresponding to the
+		field's InType and use that OutType when decoding the field. */
+	TdhOutTypeString /*
+		Implied by the STRING, CHAR, and SID InType values. Applicable to the
+		INT8, UINT8, UINT16 InType values. Specifies that the field should be
+		decoded as text. Decoding depends on the InType. For INT8, UINT8, and
+		ANSISTRING InTypes, the data is decoded using the ANSI code page of the
+		event provider. For UINT16 and UNICODESTRING InTypes, the data is
+		decoded as UTF-16LE. For SID InTypes, the data is decoded using
+		ConvertSidToStringSid or equivalent. */
+	TdhOutTypeDatetime /*
+		Implied by the FILETIME and SYSTEMTIME InType values. Data is decoded
+		as a date/time. FILETIME is decoded as a 64-bit integer representing
+		the number of 100-nanosecond intervals since January 1, 1601.
+		SYSTEMTIME is decoded as the Win32 SYSTEMTIME structure. In both cases,
+		the time zone must be determined using other methods. (FILETIME is
+		usually but not always UTC.) */
+	TdhOutTypeByte /*
+		Implied by the INT8 InType value. Data is decoded as a signed integer. */
+	TdhOutTypeUnsignedbyte /*
+		Implied by the UINT8 InType value. Data is decoded as an unsigned
+		integer. */
+	TdhOutTypeShort /*
+		Implied by the INT16 InType value. Data is decoded as a signed
+		little-endian integer. */
+	TdhOutTypeUnsignedshort /*
+		Implied by the UINT16 InType value. Data is decoded as an unsigned
+		little-endian integer. */
+	TdhOutTypeInt /*
+		Implied by the INT32 InType value. Data is decoded as a signed
+		little-endian integer. */
+	TdhOutTypeUnsignedint /*
+		Implied by the UINT32 InType value. Data is decoded as an unsigned
+		little-endian integer. */
+	TdhOutTypeLong /*
+		Implied by the INT64 InType value. Applicable to the INT32 InType value
+		(i.e. to distinguish between the C data types "long int" and "int").
+		Data is decoded as a signed little-endian integer. */
+	TdhOutTypeUnsignedlong /*
+		Implied by the UINT64 InType value. Applicable to the UINT32 InType
+		value (i.e. to distinguish between the C data types "long int" and
+		"int"). Data is decoded as an unsigned little-endian integer. */
+	TdhOutTypeFloat /*
+		Implied by the FLOAT InType value. Data is decoded as a
+		single-precision floating-point number. */
+	TdhOutTypeDouble  /*
+		Implied by the DOUBLE InType value. Data is decoded as a
+		double-precision floating-point number. */
+	TdhOutTypeBoolean /*
+		Implied by the BOOL InType value. Applicable to the UINT8 InType value.
+		Data is decoded as a Boolean (false if zero, true if non-zero). */
+	TdhOutTypeGUID /*
+		Implied by the GUID InType value. Data is decoded as a GUID. */
+	TdhOutTypeHexbinary /*
+		Not commonly used. Implied by the BINARY and HEXDUMP InType values. */
+	TdhOutTypeHexint8 /*
+		Specifies that the field should be formatted as a hexadecimal integer.
+		Applicable to the UINT8 InType value. */
+	TdhOutTypeHexint16 /*
+		Specifies that the field should be formatted as a hexadecimal integer.
+		Applicable to the UINT16 InType value. */
+	TdhOutTypeHexint32 /*
+		Not commonly used. Implied by the HEXINT32 InType value. Applicable to
+		the UINT32 InType value. */
+	TdhOutTypeHexint64 /*
+		Not commonly used. Implied by the HEXINT64 InType value. Applicable to
+		the UINT64 InType value. */
+	TdhOutTypePid /*
+		Specifies that the field is a process identifier. Applicable to the
+		UINT32 InType value. */
+	TdhOutTypeTid /*
+		Specifies that the field is a thread identifier. Applicable to the
+		UINT32 InType value. */
+	TdhOutTypePort /*
+		Specifies that the field is an Internet Protocol port number, specified
+		in network byte order (big-endian). Applicable to the UINT16 InType
+		value. */
+	TdhOutTypeIpv4  /*
+		Specifies that the field is an Internet Protocol V4 address. Applicable
+		to the UINT32 InType value. */
+	TdhOutTypeIpv6  /*
+		Specifies that the field is an Internet Protocol V6 address. Applicable
+		to the BINARY InType value. If the length of a field is unspecified in
+		the EVENT_PROPERTY_INFO but the field's InType is BINARY and its
+		OutType is IPV6, the field's length should be assumed to be 16 bytes. */
+	TdhOutTypeSocketaddress /*
+		Specifies that the field is a SOCKADDR structure. Applicable to the
+		BINARY InType value. Note that different address types have different
+		sizes. */
+	TdhOutTypeCimdatetime /*
+		Not commonly used. */
+	TdhOutTypeEtwtime /*
+		Not commonly used. Applicable to the UINT32 InType value. */
+	TdhOutTypeXML /*
+		Specifies that the field should be treated as XML text. Applicable to
+		the *STRING InType values. When this OutType is used, decoders should
+		use standard XML decoding rules (i.e. assume a Unicode encoding unless
+		the document specifies a different encoding in its encoding
+		attribute). */
+	TdhOutTypeErrorcode /*
+		Not commonly used. Specifies that the field is an error code of
+		some type. Applicable to the UINT32 InType value. */
+	TdhOutTypeWin32error /*
+		Specifies that the field is a Win32 error code. Applicable to the
+		UINT32 and HEXINT32 InType values. */
+	TdhOutTypeNtstatus /*
+		Specifies that the field is an NTSTATUS code. Applicable to the UINT32
+		and HEXINT32 InType values. */
+	TdhOutTypeHresult  /*
+		Specifies that the field is an HRESULT error code. Applicable to the
+		INT32 InType value. */
+	TdhOutTypeCultureInsensitiveDatetime /*
+		Specifies that a date/time value should be formatted in a
+		locale-invariant format. Applicable to the FILETIME and SYSTEMTIME
+		InType values. */
+	TdhOutTypeJSON  /*
+		Specifies that the field should be treated as JSON text. Applicable to
+		the *STRING InType values. When this OutType is used with the ANSI
+		string InType values, decoders should decode the data as UTF-8. */
+
+	TdhOutTypeUtf8 /*
+		Specifies that the field should be treated as UTF-8 text. Applicable to
+		the *ANSISTRING InType values. */
+
+	TdhOutTypePkcs7WithTypeInfo /*
+		Specifies that the field should be treated as a PKCS#7 message (e.g.
+		encrypted and/or signed). Applicable to the BINARY InType value. One
+		or more bytes of TraceLogging-compatible type information (providing
+		the type of the inner content) may optionally be appended immediately
+		after the PKCS#7 message. For example, the byte 0x01
+		(TlgInUNICODESTRING = 0x01) might be appended to indicate that the
+		inner content is to be interpreted as InType = UNICODESTRING; the bytes
+		0x82 0x22 (TlgInANSISTRING + TlgInChain = 0x82, TlgOutJSON = 0x22)
+		might be appended to indicate that the inner content is to be
+		interpreted as InType = ANSISTRING, OutType = JSON. */
+	TdhOutTypeCodePointer /*
+		Specifies that the field should be treated as an address that can
+		potentially be decoded into a symbol name. Applicable to InTypes
+		UInt32, UInt64, HexInt32, HexInt64, and Pointer. */
+	TdhOutTypeDateTimeUtc /*
+		Usable with the FILETIME and SYSTEMTIME InType values. Data is decoded
+		as a date/time. FILETIME is decoded as a 64-bit integer representing
+		the number of 100-nanosecond intervals since January 1, 1601.
+		SYSTEMTIME is decoded as the Win32 SYSTEMTIME structure. In both cases,
+		the time zone is assumed to be UTC.) */
+
+	// End of winmeta outtypes.
 )
 
 const (
 	// Start of TDH outtypes for WBEM.
-	TdhOutTypeREDUCEDSTRING = TdhOutType(iota + 300)
-	TdhOutTypeNOPRINT
+	TdhOutTypeREDUCEDSTRING = TdhOutType(iota + 300) /*
+		Not commonly used. */
+	TdhOutTypeNOPRINT /*
+		Not commonly used. Specifies that the field should not be shown in the
+		output of the decoding tool. This might be applied to a Count or a
+		Length field. Applicable to all InType values. Most decoders ignore
+		this value. */
 )

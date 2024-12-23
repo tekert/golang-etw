@@ -544,6 +544,9 @@ typedef struct _EVENT_TRACE_PROPERTIES {
     ULONG LoggerNameOffset;             // Offset to LoggerName
 } EVENT_TRACE_PROPERTIES, *PEVENT_TRACE_PROPERTIES;
 */
+
+// The EVENT_TRACE_PROPERTIES structure contains information about an event tracing session.
+// You use this structure with APIs such as StartTrace and ControlTrace when defining, updating, or querying the properties of a session.
 type EventTraceProperties struct {
 	Wnode               WnodeHeader // https://learn.microsoft.com/en-us/windows/win32/etw/wnode-header
 
@@ -1439,6 +1442,7 @@ func (e *EventTraceHeader) GetFlags() uint32 {
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-trace_logfile_header
+// v10.0.19041.0 /evntrace.h
 //
 // This is the header for every logfile. The memory for LoggerName
 // and LogFileName must be contiguous adjacent to this structure
@@ -1473,7 +1477,7 @@ typedef struct _TRACE_LOGFILE_HEADER {
         struct {
             ULONG   StartBuffers;       // Count of buffers written at start.
             ULONG   PointerSize;        // Size of pointer type in bits
-            ULONG   EventsLost;         // Events losts during log session
+            ULONG   EventsLost;         // Events lost during log session
             ULONG   CpuSpeedInMHz;      // Cpu Speed in MHz
         } DUMMYSTRUCTNAME;
     } DUMMYUNIONNAME2;
@@ -1503,7 +1507,7 @@ type TraceLogfileHeader struct {
 	MaximumFileSize    uint32               // Maximum in Mbytes
 	LogFileMode        uint32               // specify logfile mode
 	BuffersWritten     uint32               // used to file start of Circular File
-	Union2             [16]byte             // (LogInstanceGuid | StartBuffers, PointerSize, EventsLost, CpuSpeedInMHz)
+	Union2             [16]byte             // (LogInstanceGuid) | (StartBuffers, PointerSize, EventsLost, CpuSpeedInMHz)
 	LoggerName         *uint16
 	LogFileName        *uint16
 	TimeZone           TimeZoneInformation
@@ -1522,23 +1526,28 @@ func (t *TraceLogfileHeader) GetVersion() (major, minor, sub, subMinor uint8) {
     return
 }
 
+// For RealTime Buffer Delivery
 func (t *TraceLogfileHeader) GetLogInstanceGuid() GUID {
     return *(*GUID)(unsafe.Pointer(&t.Union2))
 }
 
 // TODO(tekert): Check performance in these functions
+// Count of buffers written at start.
 func (t *TraceLogfileHeader) GetStartBuffers() uint32 {
     return (uint32(t.Union2[15]) << 24) | (uint32(t.Union2[14]) << 16) | (uint32(t.Union2[13]) << 8) | uint32(t.Union2[12])
 }
 
+// Size of pointer type in bits
 func (t *TraceLogfileHeader) GetPointerSize() uint32 {
     return (uint32(t.Union2[11]) << 24) | (uint32(t.Union2[10]) << 16) | (uint32(t.Union2[9]) << 8) | uint32(t.Union2[8])
 }
 
+// Events losts during log session
 func (t *TraceLogfileHeader) GetEventsLost() uint32 {
     return (uint32(t.Union2[7]) << 24) | (uint32(t.Union2[6]) << 16) | (uint32(t.Union2[5]) << 8) | uint32(t.Union2[4])
 }
 
+// Cpu Speed in MHz
 func (t *TraceLogfileHeader) GetCpuSpeedInMHz() uint32 {
     return (uint32(t.Union2[3]) << 24) | (uint32(t.Union2[2]) << 16) | (uint32(t.Union2[1]) << 8) | uint32(t.Union2[0])
 }

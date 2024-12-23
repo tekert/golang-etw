@@ -54,6 +54,7 @@ func TdhEnumerateProviders(
 	return syscall.Errno(r1)
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/nf-tdh-tdhgeteventinformation
 /*
 TdhGetEventInformation API wrapper generated from prototype
 ULONG __stdcall TdhGetEventInformation(
