@@ -9,83 +9,85 @@ import (
 	"unsafe"
 )
 
-
+// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wmistr/ns-wmistr-_wnode_header
+// v10.0.16299.0 /wmistr.h
+//
 // WNODE_HEADER flags are defined as follows
 /*
-#define WNODE_FLAG_ALL_DATA        0x00000001 // set for WNODE_ALL_DATA
-#define WNODE_FLAG_SINGLE_INSTANCE 0x00000002 // set for WNODE_SINGLE_INSTANCE
-#define WNODE_FLAG_SINGLE_ITEM     0x00000004 // set for WNODE_SINGLE_ITEM
-#define WNODE_FLAG_EVENT_ITEM      0x00000008 // set for WNODE_EVENT_ITEM
+    #define WNODE_FLAG_ALL_DATA        0x00000001 // set for WNODE_ALL_DATA
+    #define WNODE_FLAG_SINGLE_INSTANCE 0x00000002 // set for WNODE_SINGLE_INSTANCE
+    #define WNODE_FLAG_SINGLE_ITEM     0x00000004 // set for WNODE_SINGLE_ITEM
+    #define WNODE_FLAG_EVENT_ITEM      0x00000008 // set for WNODE_EVENT_ITEM
 
-                                              // Set if data block size is
-                                              // identical for all instances
-                                              // (used with  WNODE_ALL_DATA
-                                              // only)
-#define WNODE_FLAG_FIXED_INSTANCE_SIZE 0x00000010
+                                                // Set if data block size is
+                                                // identical for all instances
+                                                // (used with  WNODE_ALL_DATA
+                                                // only)
+    #define WNODE_FLAG_FIXED_INSTANCE_SIZE 0x00000010
 
-#define WNODE_FLAG_TOO_SMALL           0x00000020 // set for WNODE_TOO_SMALL
+    #define WNODE_FLAG_TOO_SMALL           0x00000020 // set for WNODE_TOO_SMALL
 
-                                 // Set when a data provider returns a
-                                 // WNODE_ALL_DATA in which the number of
-                                 // instances and their names returned
-                                 // are identical to those returned from the
-                                 // previous WNODE_ALL_DATA query. Only data
-                                 // blocks registered with dynamic instance
-                                 // names should use this flag.
-#define WNODE_FLAG_INSTANCES_SAME  0x00000040
+                                    // Set when a data provider returns a
+                                    // WNODE_ALL_DATA in which the number of
+                                    // instances and their names returned
+                                    // are identical to those returned from the
+                                    // previous WNODE_ALL_DATA query. Only data
+                                    // blocks registered with dynamic instance
+                                    // names should use this flag.
+    #define WNODE_FLAG_INSTANCES_SAME  0x00000040
 
-                                 // Instance names are not specified in
-                                 // WNODE_ALL_DATA; values specified at
-                                 // registration are used instead. Always
-                                 // set for guids registered with static
-                                 // instance names
-#define WNODE_FLAG_STATIC_INSTANCE_NAMES 0x00000080
+                                    // Instance names are not specified in
+                                    // WNODE_ALL_DATA; values specified at
+                                    // registration are used instead. Always
+                                    // set for guids registered with static
+                                    // instance names
+    #define WNODE_FLAG_STATIC_INSTANCE_NAMES 0x00000080
 
-#define WNODE_FLAG_INTERNAL      0x00000100  // Used internally by WMI
+    #define WNODE_FLAG_INTERNAL      0x00000100  // Used internally by WMI
 
-                                 // timestamp should not be modified by
-                                 // a historical logger
-#define WNODE_FLAG_USE_TIMESTAMP 0x00000200
+                                    // timestamp should not be modified by
+                                    // a historical logger
+    #define WNODE_FLAG_USE_TIMESTAMP 0x00000200
 
-#if (NTDDI_VERSION >= NTDDI_WINXP)
-#define WNODE_FLAG_PERSIST_EVENT 0x00000400
-#endif
+    #if (NTDDI_VERSION >= NTDDI_WINXP)
+    #define WNODE_FLAG_PERSIST_EVENT 0x00000400
+    #endif
 
-#define WNODE_FLAG_EVENT_REFERENCE 0x00002000
+    #define WNODE_FLAG_EVENT_REFERENCE 0x00002000
 
-// Set if Instance names are ansi. Only set when returning from
-// WMIQuerySingleInstanceA and WMIQueryAllDataA
-#define WNODE_FLAG_ANSI_INSTANCENAMES 0x00004000
+    // Set if Instance names are ansi. Only set when returning from
+    // WMIQuerySingleInstanceA and WMIQueryAllDataA
+    #define WNODE_FLAG_ANSI_INSTANCENAMES 0x00004000
 
-// Set if WNODE is a method call
-#define WNODE_FLAG_METHOD_ITEM     0x00008000
+    // Set if WNODE is a method call
+    #define WNODE_FLAG_METHOD_ITEM     0x00008000
 
-// Set if instance names originated from a PDO
-#define WNODE_FLAG_PDO_INSTANCE_NAMES  0x00010000
+    // Set if instance names originated from a PDO
+    #define WNODE_FLAG_PDO_INSTANCE_NAMES  0x00010000
 
-// The second byte, except the first bit is used exclusively for tracing
-#define WNODE_FLAG_TRACED_GUID   0x00020000 // denotes a trace
+    // The second byte, except the first bit is used exclusively for tracing
+    #define WNODE_FLAG_TRACED_GUID   0x00020000 // denotes a trace
 
-#define WNODE_FLAG_LOG_WNODE     0x00040000 // request to log Wnode
+    #define WNODE_FLAG_LOG_WNODE     0x00040000 // request to log Wnode
 
-#define WNODE_FLAG_USE_GUID_PTR  0x00080000 // Guid is actually a pointer
+    #define WNODE_FLAG_USE_GUID_PTR  0x00080000 // Guid is actually a pointer
 
-#define WNODE_FLAG_USE_MOF_PTR   0x00100000 // MOF data are dereferenced
+    #define WNODE_FLAG_USE_MOF_PTR   0x00100000 // MOF data are dereferenced
 
-#if (NTDDI_VERSION >= NTDDI_WINXP)
-#define WNODE_FLAG_NO_HEADER     0x00200000 // Trace without header
-#endif
+    #if (NTDDI_VERSION >= NTDDI_WINXP)
+    #define WNODE_FLAG_NO_HEADER     0x00200000 // Trace without header
+    #endif
 
-#if (NTDDI_VERSION >= NTDDI_VISTA)
-#define WNODE_FLAG_SEND_DATA_BLOCK  0x00400000 // Data Block delivery
-#endif
+    #if (NTDDI_VERSION >= NTDDI_VISTA)
+    #define WNODE_FLAG_SEND_DATA_BLOCK  0x00400000 // Data Block delivery
+    #endif
 
-// Set for events that are WNODE_EVENT_REFERENCE
-// Mask for event severity level. Level 0xff is the most severe type of event
-#define WNODE_FLAG_SEVERITY_MASK 0xff000000
+    // Set for events that are WNODE_EVENT_REFERENCE
+    // Mask for event severity level. Level 0xff is the most severe type of event
+    #define WNODE_FLAG_SEVERITY_MASK 0xff000000
 */
-// v10.0.16299.0 /wmistr.h
-// More info at // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wmistr/ns-wmistr-_wnode_header
+
+// The WNODE_HEADER structure is the first member of all other WNODE_XXX structures. It contains information common to all such structures.
 const (
 	WNODE_FLAG_ALL_DATA              = 0x00000001
 	WNODE_FLAG_SINGLE_INSTANCE       = 0x00000002
@@ -398,6 +400,7 @@ const (
 )
 
 // v10.0.16299.0 evntrace.h
+
 const (
     // Predefined Event Tracing Levels for Software/Debug Tracing
     //
@@ -407,6 +410,7 @@ const (
     // to mean everything at or below that level will be traced.
     //
     // Here are the possible Levels.
+
 	TRACE_LEVEL_NONE        = 0  // Tracing is not on
 	TRACE_LEVEL_CRITICAL    = 1  // Abnormal exit or termination
 	TRACE_LEVEL_FATAL       = 1  // Deprecated name for Abnormal exit or termination
@@ -431,6 +435,7 @@ const (
 )
 
 // evntcons.h
+
 const (
 	EVENT_HEADER_FLAG_EXTENDED_INFO   = 0x0001
 	EVENT_HEADER_FLAG_PRIVATE_SESSION = 0x0002
@@ -873,26 +878,40 @@ struct _EVENT_TRACE_LOGFILEW {
 };
 */
 
+// The EVENT_TRACE_LOGFILE structure stores information about a trace data source.
+//
+// The EVENT_TRACE_LOGFILE structure is used when calling OpenTrace.
+// The user provides an EVENT_TRACE_LOGFILE structure with information about the trace data source
+// (either the name of an ETL file or the name of an active real-time logger session),
+// trace processing flags, and the callback functions that will receive trace data.
+// On success, OpenTrace fills in the remaining fields of the structure to return
+// details about the trace data source.
+//
+// When ProcessTrace processes a buffer, it invokes the user-defined BufferCallback with a
+//  EVENT_TRACE_LOGFILE structure to provide information about the event processing session and the buffer.
 type EventTraceLogfile struct {
 	LogFileName   *uint16               // Logfile Name
 	LoggerName    *uint16               // LoggerName
-	CurrentTime   int64                 // timestamp of last event
-	BuffersRead   uint32                // buffers read to date
-	Union1        uint32                // (LogFileMode | ProcessTraceMode) // Mode of the logfile or // Processing flags used on Vista and above
-	CurrentEvent  EventTrace            // Current Event from this stream.
-	LogfileHeader TraceLogfileHeader    // logfile header structure
+	CurrentTime   int64                 // (on output) timestamp of last event
+	BuffersRead   uint32                // (on output) buffers read to date
+	Union1        uint32                // (LogFileMode [NOT USED] | ProcessTraceMode) // Mode of the logfile or // Processing flags used on Vista and above
+	CurrentEvent  EventTrace            // (on output) Current Event from this stream.
+	LogfileHeader TraceLogfileHeader    // (on output) logfile header structure
 	//BufferCallback *EventTraceBufferCallback
+
 	BufferCallback uintptr              // callback before each buffer is read
 
     // following variables are filled for BufferCallback.
-	BufferSize     uint32
-	Filled         uint32
-	EventsLost     uint32
+
+	BufferSize     uint32  // (on output) contains the size of each buffer, in bytes.
+	Filled         uint32  // (on output) contains the number of bytes in the buffer that contain valid information.
+	EventsLost     uint32  // NOT USED
 
     // following needs to be propagated to each buffer
+
 	Callback       uintptr              // (EventCallback | EventRecordCallback) // Callback with EVENT_TRACE or // Callback with EVENT_RECORD on Vista and above
 
-	IsKernelTrace  uint32               // TRUE for kernel logfile
+	IsKernelTrace  uint32               // (on output) TRUE for kernel logfile
 
 	Context        uintptr              // reserved for internal use
 }
@@ -1124,16 +1143,21 @@ type EventHeader struct {
 	ActivityId      GUID        // Activity Id
 }
 
-func (e *EventHeader) GetKernelTime() uint32 {
-	// Extract KernelTime (higher 32 bits)
-	return uint32(e.ProcessorTime >> 32)
-}
+// Low-order bytes are listed first in unions
+// Example, Kernel time is listed first in the union, so it is the lower 32 bits.
 
-func (e *EventHeader) GetUserTime() uint32 {
-	// Extract UserTime (lower 32 bits)
+func (e *EventHeader) GetKernelTime() uint32 {
+	// Extract KernelTime (lower 32 bits)
+    // (Little endian they are stored backwards)
 	return uint32(e.ProcessorTime & 0xFFFFFFFF)
 }
 
+func (e *EventHeader) GetUserTime() uint32 {
+    // Extract UserTime (higher 32 bits)
+	return uint32(e.ProcessorTime >> 32)
+}
+
+// TODO(tekert): check precision of this
 func (e *EventHeader) UTCTimeStamp() time.Time {
 	nano := int64(10000000)
 	sec := int64(float64(e.TimeStamp)/float64(nano) - 11644473600.0)
@@ -1381,19 +1405,12 @@ type EventTraceHeader struct {
     Union4       uint64    // (KernelTime, UserTime | ProcessorTime | ClientContext, Flags)
 }
 
-func (e *EventTraceHeader) GetHeaderType() uint8 {
-    // Extract HeaderType (higher 8 bits)
-    return uint8(e.Union1 >> 8)
-}
+// Low-order bytes are listed first, top to bottom in unions.
+// Example, Kernel time is listed first in the union, so it is the lower 32 bits.
 
-func (e *EventTraceHeader) GetMarkerFlags() uint8 {
-    // Extract MarkerFlags (lower 8 bits)
-    return uint8(e.Union1 & 0xFF)
-}
-
-func (e *EventTraceHeader) GetType() uint8 {
-    // Extract Type (higher 8 bits)
-    return uint8(e.Union2 >> 24)
+func (e *EventTraceHeader) GetType() uint16 {
+    // Extract Version (lower 16 bits)
+    return uint16(e.Union2 & 0xFFFF)
 }
 
 func (e *EventTraceHeader) GetLevel() uint8 {
@@ -1401,9 +1418,9 @@ func (e *EventTraceHeader) GetLevel() uint8 {
     return uint8(e.Union2 >> 16)
 }
 
-func (e *EventTraceHeader) GetVersion() uint16 {
-    // Extract Version (lower 16 bits)
-    return uint16(e.Union2 & 0xFFFF)
+func (e *EventTraceHeader) GetVersion() uint8 {
+    // Extract Type (higher 8 bits)
+    return uint8(e.Union2 >> 24)
 }
 
 func (e *EventTraceHeader) GetGuid() GUID {
@@ -1417,13 +1434,14 @@ func (e *EventTraceHeader) GetGuidPtr() *GUID {
 }
 
 func (e *EventTraceHeader) GetKernelTime() uint32 {
-    // Extract KernelTime (higher 32 bits)
-    return uint32(e.Union4 >> 32)
+    // Extract KernelTime (lower 32 bits)
+    // (Little endian they are stored backwards)
+	return uint32(e.Union4 & 0xFFFFFFFF)
 }
 
 func (e *EventTraceHeader) GetUserTime() uint32 {
-    // Extract UserTime (lower 32 bits)
-    return uint32(e.Union4 & 0xFFFFFFFF)
+    // Extract UserTime (higher 32 bits)
+	return uint32(e.Union4 >> 32)
 }
 
 func (e *EventTraceHeader) GetProcessorTime() uint64 {
@@ -1432,13 +1450,13 @@ func (e *EventTraceHeader) GetProcessorTime() uint64 {
 }
 
 func (e *EventTraceHeader) GetClientContext() uint32 {
-    // Extract ClientContext (higher 32 bits)
-    return uint32(e.Union4 >> 32)
+    // Extract Flags (lower 32 bits)
+    return uint32(e.Union4 & 0xFFFFFFFF)
 }
 
 func (e *EventTraceHeader) GetFlags() uint32 {
-    // Extract Flags (lower 32 bits)
-    return uint32(e.Union4 & 0xFFFFFFFF)
+    // Extract ClientContext (higher 32 bits)
+    return uint32(e.Union4 >> 32)
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-trace_logfile_header
@@ -1518,11 +1536,19 @@ type TraceLogfileHeader struct {
 	BuffersLost        uint32
 }
 
+// TODO(tekert): getters for unions.
+
+// Version number of the operating system where the trace was collected.
+// This is a roll-up of the members of VersionDetail.
+// Starting with the low-order bytes, the first two bytes contain MajorVersion,
+// the next two bytes contain MinorVersion, the next two bytes contain SubVersion,
+// and the last two bytes contain SubMinorVersion.
+// NOTE(tekert) (DOC is wrong, UCHAR = 1 byte)
 func (t *TraceLogfileHeader) GetVersion() (major, minor, sub, subMinor uint8) {
-    major = uint8(t.VersionUnion >> 24)
-    minor = uint8(t.VersionUnion >> 16)
-    sub = uint8(t.VersionUnion >> 8)
-    subMinor = uint8(t.VersionUnion)
+    major = uint8(t.VersionUnion)
+    minor = uint8(t.VersionUnion >> 8)
+    sub = uint8(t.VersionUnion >> 16)
+    subMinor = uint8(t.VersionUnion >> 24)
     return
 }
 
