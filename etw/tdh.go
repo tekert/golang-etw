@@ -8,6 +8,7 @@ import (
 	"unsafe"
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/nf-tdh-tdhenumerateproviderfieldinformation
 /*
 TdhEnumerateProviderFieldInformation API wrapper generated from prototype
 ULONG __stdcall TdhEnumerateProviderFieldInformation(
@@ -18,6 +19,8 @@ ULONG __stdcall TdhEnumerateProviderFieldInformation(
 
 Tested: NOK
 */
+
+// Retrieves the specified field metadata for a given provider.
 func TdhEnumerateProviderFieldInformation(
 	pGuid *GUID,
 	eventFieldType int,
@@ -34,6 +37,7 @@ func TdhEnumerateProviderFieldInformation(
 	return syscall.Errno(r1)
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/nf-tdh-tdhenumerateproviders
 /*
 TdhEnumerateProviders API wrapper generated from prototype
 ULONG __stdcall TdhEnumerateProviders(
@@ -42,6 +46,8 @@ ULONG __stdcall TdhEnumerateProviders(
 
 Tested: NOK
 */
+
+// Retrieves a list of all providers that have registered on the computer.
 func TdhEnumerateProviders(
 	pBuffer *ProviderEnumerationInfo,
 	pBufferSize *uint32) error {
@@ -66,6 +72,8 @@ ULONG __stdcall TdhGetEventInformation(
 
 Tested: OK
 */
+
+// Retrieves metadata about an event.
 func TdhGetEventInformation(pEvent *EventRecord,
 	tdhContextCount uint32,
 	pTdhContext *TdhContext,
@@ -83,6 +91,7 @@ func TdhGetEventInformation(pEvent *EventRecord,
 	return syscall.Errno(r1)
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/nf-tdh-tdhgeteventmapinformation
 /*
 TdhGetEventMapInformation API wrapper generated from prototype
 ULONG __stdcall TdhGetEventMapInformation(
@@ -93,6 +102,8 @@ ULONG __stdcall TdhGetEventMapInformation(
 
 Tested: OK
 */
+
+// Retrieves information about the event map contained in the event.
 func TdhGetEventMapInformation(pEvent *EventRecord,
 	pMapName *uint16,
 	pBuffer *EventMapInfo,
@@ -108,6 +119,7 @@ func TdhGetEventMapInformation(pEvent *EventRecord,
 	return syscall.Errno(r1)
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/nf-tdh-tdhgetproperty
 /*
 TdhGetProperty API wrapper generated from prototype
 ULONG __stdcall TdhGetProperty(
@@ -121,6 +133,8 @@ ULONG __stdcall TdhGetProperty(
 
 Tested: OK
 */
+
+// Retrieves a property value from the event data.
 func TdhGetProperty(pEvent *EventRecord,
 	tdhContextCount uint32,
 	pTdhContext *TdhContext,
@@ -142,6 +156,7 @@ func TdhGetProperty(pEvent *EventRecord,
 	return syscall.Errno(r1)
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/nf-tdh-tdhgetpropertysize
 /*
 TdhGetPropertySize API wrapper generated from prototype
 ULONG __stdcall TdhGetPropertySize(
@@ -154,6 +169,8 @@ ULONG __stdcall TdhGetPropertySize(
 
 Tested: OK
 */
+
+// Retrieves the size of one or more property values in the event data.
 func TdhGetPropertySize(pEvent *EventRecord,
 	tdhContextCount uint32,
 	pTdhContext *TdhContext,
@@ -173,6 +190,7 @@ func TdhGetPropertySize(pEvent *EventRecord,
 	return syscall.Errno(r1)
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/nf-tdh-tdhqueryproviderfieldinformation
 /*
 TdhQueryProviderFieldInformation API wrapper generated from prototype
 ULONG __stdcall TdhQueryProviderFieldInformation(
@@ -184,6 +202,8 @@ ULONG __stdcall TdhQueryProviderFieldInformation(
 
 Tested: NOK
 */
+
+// Retrieves information for the specified field from the event descriptions for those field values that match the given value.
 func TdhQueryProviderFieldInformation(
 	pGuid *GUID,
 	eventFieldValue uint64,
@@ -202,6 +222,7 @@ func TdhQueryProviderFieldInformation(
 	return syscall.Errno(r1)
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/tdh/nf-tdh-tdhformatproperty
 /*
 TdhFormatProperty API wrapper generated from prototype
 TDHSTATUS TdhFormatProperty(
@@ -219,6 +240,8 @@ TDHSTATUS TdhFormatProperty(
 
 Tested: OK
 */
+
+// Formats a property value for display.
 func TdhFormatProperty(
 	eventInfo *TraceEventInfo,
 	mapInfo *EventMapInfo,

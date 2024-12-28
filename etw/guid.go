@@ -28,6 +28,8 @@ typedef struct _GUID {
 */
 
 // GUID structure
+// Example: {9E814AAD-3204-11D2-9A82-006008A86939} =
+// GUID(0x9e814aad, 0x3204, 0x11d2, [8]byte{0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39})
 type GUID struct {
 	Data1 uint32
 	Data2 uint16
