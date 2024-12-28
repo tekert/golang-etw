@@ -23,7 +23,7 @@ func TestAutologger(t *testing.T) {
 
 	a := AutoLogger{
 		Name:        "AutologgerTest",
-		Guid:        guid,
+		GuidS:       guid,
 		LogFileMode: 0x8001c0,
 		BufferSize:  64,
 		ClockType:   2,

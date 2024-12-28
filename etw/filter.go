@@ -10,7 +10,7 @@ import (
 )
 
 type IEvent interface {
-	ProviderGUID() string
+	ProviderGUID() GUID
 	EventID() uint16
 }
 
@@ -23,10 +23,10 @@ type EventFilter interface {
 
 type baseFilter struct {
 	sync.RWMutex
-	m map[string]*datastructs.Set
+	m map[GUID]*datastructs.Set
 }
 
-func (f *baseFilter) matchKey(key string, e IEvent) bool {
+func (f *baseFilter) matchKey(key GUID, e IEvent) bool {
 	f.RLock()
 	defer f.RUnlock()
 
@@ -59,7 +59,7 @@ type ProviderFilter struct {
 // NewProviderFilter creates a new ProviderFilter structure
 func NewProviderFilter() *ProviderFilter {
 	f := ProviderFilter{}
-	f.m = make(map[string]*datastructs.Set)
+	f.m = make(map[GUID]*datastructs.Set)
 	return &f
 }
 

@@ -41,29 +41,29 @@ func TestGUIDEquality(t *testing.T) {
 
 	tt := toast.FromT(t)
 	p := MustParseProvider("Microsoft-Windows-Kernel-File")
-	g1 := MustParseGUIDFromString(p.GUID)
-	g2 := MustParseGUIDFromString(p.GUID)
+	g1 := p.GUID
+	g2 := p.GUID
 
-	tt.Assert(g1.Equals(g2))
+	tt.Assert(g1.Equals(&g2))
 
 	// testing Data1
 	g2.Data1++
-	tt.Assert(!g1.Equals(g2))
+	tt.Assert(!g1.Equals(&g2))
 
 	// testing Data2
-	g2 = MustParseGUIDFromString(p.GUID)
+	g2 = p.GUID
 	g2.Data2++
-	tt.Assert(!g1.Equals(g2))
+	tt.Assert(!g1.Equals(&g2))
 
 	// testing Data3
-	g2 = MustParseGUIDFromString(p.GUID)
+	g2 = p.GUID
 	g2.Data3++
-	tt.Assert(!g1.Equals(g2))
+	tt.Assert(!g1.Equals(&g2))
 
 	// testing Data4
 	for i := 0; i < 8; i++ {
-		g2 = MustParseGUIDFromString(p.GUID)
+		g2 = p.GUID
 		g2.Data4[i]++
-		tt.Assert(!g1.Equals(g2))
+		tt.Assert(!g1.Equals(&g2))
 	}
 }

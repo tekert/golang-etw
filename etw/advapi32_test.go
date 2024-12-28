@@ -17,7 +17,7 @@ func TestAccessString(t *testing.T) {
 
 	for _, p := range EnumerateProviders() {
 
-		_, err := GetAccessString(p.GUID)
+		_, err := GetAccessString(&p.GUID)
 
 		tt.CheckErr(err)
 

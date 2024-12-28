@@ -31,7 +31,7 @@ func hexStr(i interface{}) string {
 
 type AutoLogger struct {
 	Name        string
-	Guid        string
+	GuidS       string
 	LogFileMode uint32
 	BufferSize  uint32
 	ClockType   uint32
@@ -50,7 +50,7 @@ func (a *AutoLogger) Path() string {
 func (a *AutoLogger) Create() (err error) {
 	sargs := [][]string{
 		// ETWtrace parameters
-		{a.Path(), "GUID", regSz, a.Guid},
+		{a.Path(), "GUID", regSz, a.GuidS},
 		{a.Path(), "Start", regDword, "0x1"},
 		{a.Path(), "LogFileMode", regDword, hexStr(a.LogFileMode)},
 		// ETWevent can be up to 64KB so buffer needs to be at least this size
@@ -80,7 +80,7 @@ func binaryFilter(filter []uint16) (f string, err error) {
 }
 
 func (a *AutoLogger) EnableProvider(p Provider) (err error) {
-	path := fmt.Sprintf(`%s\%s`, a.Path(), p.GUID)
+	path := fmt.Sprintf(`%s\%s`, a.Path(), p.GUID.String())
 
 	sargs := [][]string{}
 

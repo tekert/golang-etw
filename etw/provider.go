@@ -22,7 +22,7 @@ var (
 type ProviderMap map[string]*Provider
 
 type Provider struct {
-	GUID            string
+	GUID            GUID
 	Name            string
 	EnableLevel     uint8
 	MatchAnyKeyword uint64
@@ -32,7 +32,7 @@ type Provider struct {
 
 // IsZero returns true if the provider is empty
 func (p *Provider) IsZero() bool {
-	return p.GUID == ""
+	return p.GUID.IsZero()
 }
 
 func (p *Provider) eventIDFilterDescriptor() (d EventFilterDescriptor) {
@@ -161,14 +161,14 @@ func EnumerateProviders() (m ProviderMap) {
 	it := uintptr(unsafe.Pointer(&buf.TraceProviderInfoArray[0]))
 	for i := uintptr(0); i < uintptr(buf.NumberOfProviders); i++ {
 		ptpi := (*TraceProviderInfo)(unsafe.Pointer(it + i*unsafe.Sizeof(buf.TraceProviderInfoArray[0])))
-		guid := ptpi.ProviderGuid.String()
+		guidString := ptpi.ProviderGuid.String()
 		name := UTF16AtOffsetToString(startProvEnumInfo, uintptr(ptpi.ProviderNameOffset))
 		// We use a default provider here
 		p := DefaultProvider
-		p.GUID = guid
+		p.GUID = ptpi.ProviderGuid
 		p.Name = name
 		m[name] = &p
-		m[guid] = &p
+		m[guidString] = &p
 	}
 	return
 }

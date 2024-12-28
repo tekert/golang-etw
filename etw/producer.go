@@ -16,7 +16,13 @@ const (
 
 // https://learn.microsoft.com/en-us/windows/win32/etw/msnt-systemtrace
 var (
-	systemTraceControlGuid = MustParseGUIDFromString("{9E814AAD-3204-11D2-9A82-006008A86939}")
+	//systemTraceControlGuid = MustParseGUIDFromString("{9E814AAD-3204-11D2-9A82-006008A86939}")
+	systemTraceControlGuid = &GUID{ /* {9E814AAD-3204-11D2-9A82-006008A86939} */
+    Data1: 0x9e814aad,
+    Data2: 0x3204,
+    Data3: 0x11d2,
+    Data4: [8]byte{0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39},
+}
 )
 
 type Session interface {
@@ -119,9 +125,7 @@ func (p *RealTimeSession) EnableProvider(prov Provider) (err error) {
 		}
 	}
 
-	if guid, err = ParseGUID(prov.GUID); err != nil {
-		return
-	}
+	guid = &prov.GUID
 
 	params := EnableTraceParameters{
 		Version: 2,

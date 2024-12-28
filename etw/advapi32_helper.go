@@ -7,9 +7,9 @@ import (
 	"unsafe"
 )
 
-func GetAccessString(guid string) (s string, err error) {
+func GetAccessString(guid *GUID) (s string, err error) {
 
-	g := MustParseGUIDFromString(guid)
+	g := guid
 	bSize := uint32(0)
 	// retrieves size
 	EventAccessQuery(g, nil, &bSize)
