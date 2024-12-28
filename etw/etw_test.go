@@ -68,7 +68,7 @@ func TestProducerConsumer(t *testing.T) {
 	defer prod.Stop()
 
 	// Consumer part
-	c := NewRealTimeConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
+	c := NewConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
 
 	// we have to declare a func otherwise c.Stop seems to be called
 	defer func() { tt.CheckErr(c.Stop()) }()
@@ -104,7 +104,7 @@ func TestProducerConsumer(t *testing.T) {
 	t.Logf("Received: %d events in %s (%d EPS)", eventCount, delta, int(eps))
 
 	// checking any consumer error
-	tt.CheckErr(c.Err())
+	tt.CheckErr(c.LastError())
 }
 
 func TestKernelSession(t *testing.T) {
@@ -131,7 +131,7 @@ func TestKernelSession(t *testing.T) {
 	tt.Assert(kp.IsStarted())
 
 	// consumer part
-	c := NewRealTimeConsumer(context.Background()).FromSessions(kp)
+	c := NewConsumer(context.Background()).FromSessions(kp)
 
 	// we have to declare a func otherwise c.Stop seems to be called
 	defer func() { tt.CheckErr(c.Stop()) }()
@@ -193,10 +193,10 @@ func TestEventMapInfo(t *testing.T) {
 	// consumer part
 	fakeError := fmt.Errorf("fake")
 
-	c := NewRealTimeConsumer(context.Background()).FromSessions(prod)
+	c := NewConsumer(context.Background()).FromSessions(prod)
 	// reducing size of channel so that we are obliged to skip events
 	c.Events = make(chan *Event)
-	c.PreparedCallback = func(erh *EventRecordHelper) error {
+	c.EventPreparedCallback = func(erh *EventRecordHelper) error {
 
 		erh.TraceInfo.EventMessage()
 		erh.TraceInfo.ActivityIDName()
@@ -254,7 +254,7 @@ func TestEventMapInfo(t *testing.T) {
 	eps := float64(eventCount) / delta.Seconds()
 	t.Logf("Received: %d events in %s (%d EPS)", eventCount, delta, int(eps))
 
-	tt.ExpectErr(c.Err(), fakeError)
+	tt.ExpectErr(c.LastError(), fakeError)
 }
 
 func TestLostEvents(t *testing.T) {
@@ -273,7 +273,7 @@ func TestLostEvents(t *testing.T) {
 	defer prod.Stop()
 
 	// Consumer part
-	c := NewRealTimeConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
+	c := NewConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
 	// we have to declare a func otherwise c.Stop does not seem to be called
 	defer func() { tt.CheckErr(c.Stop()) }()
 
@@ -321,12 +321,12 @@ func TestConsumerCallbacks(t *testing.T) {
 	// checking producer is running
 	tt.Assert(prod.IsStarted())
 	kernelFileProviderChannel := prov.Name + "/Analytic"
-	kernelProviderGUID := MustParseGUIDFromString(prov.GUID)
+	kernelProviderGUID := prov.GUID
 
 	defer prod.Stop()
 
 	// Consumer part
-	c := NewRealTimeConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
+	c := NewConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
 
 	c.EventRecordHelperCallback = func(erh *EventRecordHelper) (err error) {
 
@@ -349,11 +349,11 @@ func TestConsumerCallbacks(t *testing.T) {
 	}
 
 	fileObjectMapping := make(map[string]*file)
-	c.PreparedCallback = func(h *EventRecordHelper) error {
+	c.EventPreparedCallback = func(h *EventRecordHelper) error {
 		tt.Assert(h.Provider() == prov.Name)
 		tt.Assert(h.ProviderGUID() == prov.GUID)
-		tt.Assert(h.EventRec.EventHeader.ProviderId.Equals(kernelProviderGUID))
-		tt.Assert(h.TraceInfo.ProviderGUID.Equals(kernelProviderGUID))
+		tt.Assert(h.EventRec.EventHeader.ProviderId.Equals(&kernelProviderGUID))
+		tt.Assert(h.TraceInfo.ProviderGUID.Equals(&kernelProviderGUID))
 		tt.Assert(h.Channel() == kernelFileProviderChannel)
 
 		switch h.EventID() {
@@ -518,7 +518,7 @@ func TestConsumerCallbacks(t *testing.T) {
 	t.Logf("Received: %d events in %s (%d EPS)", eventCount, delta, int(eps))
 
 	// checking any consumer error
-	tt.CheckErr(c.Err())
+	tt.CheckErr(c.LastError())
 }
 
 func TestParseProvider(t *testing.T) {

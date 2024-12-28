@@ -1,6 +1,8 @@
 package etw
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -18,6 +20,7 @@ type Event struct {
 		Channel     string
 		Computer    string
 		EventID     uint16
+		Version     uint8  `json:",omitempty"`
 		EventType   string `json:",omitempty"`
 		EventGuid   string `json:",omitempty"`
 		Correlation struct {
@@ -25,16 +28,17 @@ type Event struct {
 			RelatedActivityID string
 		}
 		Execution struct {
-			ProcessID uint32
-			ThreadID  uint32
+			ProcessID   uint32
+			ThreadID    uint32
 			ProcessorID uint16
-			KernelTime uint32
-			UserTime uint32
+			KernelTime  uint32
+			UserTime    uint32
 		}
-		Keywords struct {
-			Value uint64
-			Name  string
-		}
+		Keywords Keywords  // Change this line to use Keywords type
+		// Keywords struct {
+		// 	Mask uint64
+		// 	Name []string
+		// }
 		Level struct {
 			Value uint8
 			Name  string
@@ -56,6 +60,23 @@ type Event struct {
 		}
 	}
 	ExtendedData []string `json:",omitempty"`
+}
+
+// So to print the mask in hex mode.
+type Keywords struct {
+    Mask uint64
+    Name []string
+}
+
+// Add custom MarshalJSON for Keywords
+func (k Keywords) MarshalJSON() ([]byte, error) {
+    return json.Marshal(&struct {
+        Mask string   `json:"Mask"`
+        Name []string `json:"Name"`
+    }{
+        Mask: fmt.Sprintf("0x%x", k.Mask),
+        Name: k.Name,
+    })
 }
 
 func NewEvent() (e *Event) {

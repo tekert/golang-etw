@@ -32,7 +32,7 @@ func main() {
 	}
 
 	// Consuming from the trace
-	c := etw.NewRealTimeConsumer(context.Background())
+	c := etw.NewConsumer(context.Background())
 
 	defer c.Stop()
 
@@ -58,8 +58,8 @@ func main() {
 
 	time.Sleep(5 * time.Second)
 
-	if c.Err() != nil {
-		panic(c.Err())
+	if c.LastError() != nil {
+		panic(c.LastError())
 	}
 
 }

@@ -36,17 +36,17 @@ type EventWrapper struct {
 	Event *etw.Event
 }
 
-func getAccessString(guid string) (s string) {
+func getAccessString(guid etw.GUID) (s string) {
 	var err error
 
-	if s, err = etw.GetAccessString(guid); err != nil {
+	if s, err = etw.GetAccessString(&guid); err != nil {
 		panic(err)
 	}
 
 	return
 }
 
-func setAccess(guid string) {
+func setAccess(guid etw.GUID) {
 	var sid *etw.SID
 	var err error
 
@@ -54,7 +54,7 @@ func setAccess(guid string) {
 		log.Errorf("Failed to convert string to sid%s", err)
 		return
 	}
-	g := etw.MustParseGUIDFromString(guid)
+	g := &guid
 
 	if err = etw.EventAccessControl(g,
 		uint32(etw.EVENT_SECURITY_SET_DACL),
@@ -223,7 +223,7 @@ func main() {
 	flag.BoolVar(&filemon, "filemon", filemon, "Monitor file read/writes")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s\n%s\n", copyright, license)
-		fmt.Fprintf(os.Stderr, "Version: %s (commit: %s)\n\n", version, commitID)
+		//fmt.Fprintf(os.Stderr, "Version: %s (commit: %s)\n\n", version, commitID)
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] PROVIDERS...\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
@@ -265,7 +265,7 @@ func main() {
 		maxLen := 0
 		for name, prov := range pmap {
 			// we don't want do display GUID keys
-			if name == prov.GUID {
+			if name == prov.GUID.String() {
 				continue
 			}
 			if cregex != nil {
@@ -280,7 +280,7 @@ func main() {
 		}
 		sort.Strings(names)
 		for _, name := range names {
-			fmt.Printf("%s%s %s\n", name, strings.Repeat(" ", maxLen-len(name)), pmap[name].GUID)
+			fmt.Printf("%s%s %s\n", name, strings.Repeat(" ", maxLen-len(name)), pmap[name].GUID.String())
 		}
 		os.Exit(0)
 	}
@@ -295,7 +295,7 @@ func main() {
 		fmt.Println("Listing access rights")
 		for _, provider := range providers {
 			//fmt.Printf("%s: %s\n", provider, getAccessString(providerOrFail(provider).GUID))
-			fmt.Printf("%s: %s\n", provider, getAccessString(provider))
+			fmt.Printf("%s: %s\n", provider, getAccessString(*etw.MustParseGUIDFromString(provider)))
 		}
 		os.Exit(0)
 	}
@@ -312,7 +312,7 @@ func main() {
 	if autologger != "" {
 		a := etw.AutoLogger{
 			Name:        autologger,
-			Guid:        unsafeRandomGuid().String(),
+			GuidS:       unsafeRandomGuid().String(),
 			LogFileMode: 0x8001c0,
 			BufferSize:  64,
 			ClockType:   2,
@@ -390,7 +390,7 @@ func main() {
 		sessions = append(sessions, strings.Split(attach, ",")...)
 	}
 
-	c := etw.NewRealTimeConsumer(context.Background()).
+	c := etw.NewConsumer(context.Background()).
 		FromSessions(etw.SessionSlice(producers)...).
 		FromTraceNames(sessions...)
 
@@ -399,7 +399,7 @@ func main() {
 	if filemon {
 		c.EventRecordCallback = filemonEventRecordCB
 
-		c.PreparedCallback = filemonPreparedCB
+		c.EventPreparedCallback = filemonPreparedCB
 		if cregex != nil {
 			filemonRegex = cregex
 			// don't use it to filter events

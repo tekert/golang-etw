@@ -40,7 +40,7 @@ func main() {
 	}
 
 	// Consuming from the trace
-	c := etw.NewRealTimeConsumer(context.Background())
+	c := etw.NewConsumer(context.Background())
 
 	defer c.Stop()
 
