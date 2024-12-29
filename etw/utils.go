@@ -23,10 +23,11 @@ func UTF16BytesToString(utf16 []byte) string {
 	return syscall.UTF16ToString(*(*[]uint16)(unsafe.Pointer(&utf16)))
 }
 
-// UTF16PtrToString transforms a *uint16 to a Go string
-func UTF16PtrToString(utf16 *uint16) string {
-	return UTF16AtOffsetToString(uintptr(unsafe.Pointer(utf16)), 0)
-}
+// // UTF16PtrToString transforms a *uint16 to a Go string
+// DEPRECATED (ported from go syscall package): 48% faster than this
+// func UTF16PtrToString(utf16 *uint16) string {
+// 	return UTF16AtOffsetToString(uintptr(unsafe.Pointer(utf16)), 0)
+// }
 
 func Wcslen(uintf16 *uint16) (len uint64) {
 	for it := uintptr((unsafe.Pointer(uintf16))); ; it += 2 {
@@ -38,7 +39,31 @@ func Wcslen(uintf16 *uint16) (len uint64) {
 	}
 }
 
+// Ported from from go syscall package: 25% faster than the original
+//
+// utf16PtrToStringGO is like UTF16ToString, but takes *uint16
+// as a parameter instead of []uint16.
+func UTF16PtrToString(p *uint16) string {
+	if p == nil {
+		return ""
+	}
+	end := unsafe.Pointer(p)
+	n := 0
+	for *(*uint16)(end) != 0 {
+		end = unsafe.Pointer(uintptr(end) + unsafe.Sizeof(*p))
+		n++
+	}
+
+	return syscall.UTF16ToString(unsafe.Slice(p, n))
+}
+
 func UTF16AtOffsetToString(pstruct uintptr, offset uintptr) string {
+	ptr := (*uint16)(unsafe.Pointer(pstruct + offset))
+    return UTF16PtrToString(ptr)
+}
+
+// too many allocations - DEPRECATED
+func UTF16AtOffsetToString_slow(pstruct uintptr, offset uintptr) string {
 	out := make([]uint16, 0, 64)
 	wc := (*uint16)(unsafe.Pointer(pstruct + offset))
 	for i := uintptr(2); *wc != 0; i += 2 {
