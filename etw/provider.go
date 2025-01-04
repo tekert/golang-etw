@@ -75,6 +75,7 @@ func IsKnownProvider(p string) bool {
 // The returned provider is initialized from DefaultProvider.
 // Format (Name|GUID) string:EnableLevel uint8:Event IDs comma sep string:MatchAnyKeyword uint16:MatchAllKeyword uint16
 // Example: Microsoft-Windows-Kernel-File:0xff:13,14:0x80
+//
 // You can check the keywords using this command in console: logman query providers "<provider_name>"
 func ParseProvider(s string) (p Provider, err error) {
 	var u uint64

@@ -894,7 +894,7 @@ type EventTraceLogfile struct {
 	LoggerName    *uint16               // LoggerName
 	CurrentTime   int64                 // (on output) timestamp of last event
 	BuffersRead   uint32                // (on output) buffers read to date
-	Union1        uint32                // (LogFileMode [NOT USED] | ProcessTraceMode) // Mode of the logfile or // Processing flags used on Vista and above
+	Union1        uint32                // (LogFileMode [NOT USED] | ProcessTraceMode)
 	CurrentEvent  EventTrace            // (on output) Current Event from this stream.
 	LogfileHeader TraceLogfileHeader    // (on output) logfile header structure
 	//BufferCallback *EventTraceBufferCallback
@@ -909,7 +909,8 @@ type EventTraceLogfile struct {
 
     // following needs to be propagated to each buffer
 
-	Callback       uintptr              // (EventCallback | EventRecordCallback) // Callback with EVENT_TRACE or // Callback with EVENT_RECORD on Vista and above
+	Callback       uintptr              // (EventCallback | EventRecordCallback)
+                                        // Callback with EVENT_TRACE or // Callback with EVENT_RECORD on Vista and above
 
 	IsKernelTrace  uint32               // (on output) TRUE for kernel logfile
 

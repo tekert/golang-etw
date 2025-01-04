@@ -412,7 +412,7 @@ func (t *TraceEventInfo) OpcodeName() string {
 
 // Returs a list of keyword names (2x faster)
 func (t *TraceEventInfo) KeywordsName() []string {
-	var names []string = []string{}
+	var names []string
 	if t.KeywordsNameOffset > 0 {
 		var pKeyword = (*uint16)(unsafe.Add(unsafe.Pointer(t), t.KeywordsNameOffset))
 		// The list is terminated with two null characters.
@@ -424,7 +424,6 @@ func (t *TraceEventInfo) KeywordsName() []string {
 			pKeyword = (*uint16)(unsafe.Add(unsafe.Pointer(pKeyword), strLen))
 		}
 	}
-
 	return names
 }
 

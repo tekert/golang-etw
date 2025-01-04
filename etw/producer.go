@@ -64,9 +64,10 @@ func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	return
 }
 
-/*
+
 // * NOTE needs Windows 10 SDK build 20348 or later
-//
+// Disabled for now
+/*
 // https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-a-systemtraceprovider-session
 //
 // Starting a SystemTraceProvider Session using guids and keywords

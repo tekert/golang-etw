@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"sync"
 	"syscall"
-	"time"
 )
 
 var (
@@ -218,7 +217,7 @@ func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 
 		if c.EventRecordHelperCallback != nil {
 			if err = c.EventRecordHelperCallback(h); err != nil {
-				c.lastError = err
+				c.lastError = fmt.Errorf("EventRecordHelperCallback failed: %w", err)
 			}
 		}
 		// if event must be skipped we do not further process it
@@ -226,7 +225,7 @@ func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 			return
 		}
 
-		slog.Debug("Decoding source", "source", aSource[h.TraceInfo.DecodingSource])
+		slog.Debug("Decoding source", "source", lazyDecodeSource{h.TraceInfo.DecodingSource})
 
 		// initialize record helper
 		h.initialize()
@@ -235,12 +234,12 @@ func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 		// prepareProperties_old is inneficient and uses old funcions.
 		if c.useOld {
 			if err := h.prepareProperties_old(); err != nil {
-				c.lastError = err
+				c.lastError = fmt.Errorf("prepareProperties_old failed: %w", err)
 				return
 			}
 		} else {
 			if err := h.prepareProperties(); err != nil {
-				c.lastError = err
+				c.lastError = fmt.Errorf("prepareProperties failed: %w", err)
 				return
 			}
 		}
@@ -248,7 +247,7 @@ func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 		// running a hook before parsing event properties
 		if c.EventPreparedCallback != nil {
 			if err := c.EventPreparedCallback(h); err != nil {
-				c.lastError = err
+				c.lastError = fmt.Errorf("EventPreparedCallback failed: %w", err)
 			}
 		}
 
@@ -258,11 +257,11 @@ func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 		}
 
 		if event, err = h.buildEvent(); err != nil {
-			c.lastError = err
+			c.lastError = fmt.Errorf("buildEvent failed: %w", err)
 		}
 
 		if err := c.EventCallback(event); err != nil {
-			c.lastError = err
+			c.lastError = fmt.Errorf("EventCallback failed: %w", err)
 		}
 	}
 
@@ -420,7 +419,7 @@ func (c *Consumer) DefaultEventCallback(event *Event) (err error) {
 // Also opens any trace session not already opened.
 func (c *Consumer) Start() (err error) {
 
-	// opening all traces that are not opened first, key = trace name, value = opened?
+	// opening all traces that are not opened first, key = trace name, value = opened state
 	for n, open := range c.traces {
 		// if trace is already opened skip
 		if open {
@@ -440,12 +439,9 @@ func (c *Consumer) Start() (err error) {
 			// ProcessTrace can contain only ONE handle to a real-time processing session
 			// src: https://docs.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-processtrace
 			if err := ProcessTrace(&c.traceHandles[i], 1, nil, nil); err != nil {
-				c.lastError = err
-			}
-
-			// Wait for events channel to empty
-			for len(c.Events) > 0 {
-				time.Sleep(10 * time.Millisecond)
+				loggerName := UTF16PtrToString(c.traceLoggerInfo[c.traceHandles[i]].LoggerName)
+				c.lastError = fmt.Errorf(
+					"ProcessTrace failed: %w, handle: %v, LoggerName: %s", err, c.traceHandles[i], loggerName)
 			}
 		}()
 	}
