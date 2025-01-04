@@ -4,6 +4,8 @@
 package etw
 
 import (
+	"fmt"
+	"os/user"
 	"unsafe"
 )
 
@@ -45,3 +47,16 @@ func GetAccessString(guid *GUID) (s string, err error) {
 		true,
 	)
 }*/
+
+func currentUserIs(sidString string) (r bool, err error) {
+	currentUser, err := user.Current()
+	if err != nil {
+		return false, fmt.Errorf("failed to get current user: %w", err)
+	}
+	// ensure this is a valid sid
+	_, err = ConvertStringSidToSidW(sidString)
+	if err != nil {
+		return false, fmt.Errorf("invalid sid: %w", err)
+	}
+	return (currentUser.Uid == sidString), nil
+}
