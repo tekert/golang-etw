@@ -769,6 +769,7 @@ const (
 	MAX_EVENT_FILTER_EVENT_ID_COUNT = 64
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_filter_event_id
 /*
 EVENT_FILTER_EVENT_ID is used to pass EventId filter for
 stack walk filters.

@@ -24,9 +24,47 @@ type ProviderMap map[string]*Provider
 type Provider struct {
 	GUID            GUID
 	Name            string
+
+	// The logging level specified. Standard logging levels are:
+	// 0 — Log Always; 1 — Critical; 2 — Error; 3 — Warning; 4 — Informational; 5 — Verbose.
+	// Custom logging levels can also be defined, but levels 6–15 are reserved.
+	// More than one logging level can be captured by ORing respective levels;
+	// supplying 255 (0xFF) is the standard method of capturing all supported logging levels.
+	// Note that if you set the Level to LogAlways, it ensures that all error events will always be written.
 	EnableLevel     uint8
+
+	// 64-bit bitmask of keywords that determine the categories of events that you want the provider to write.
+	// The provider typically writes an event if the event's keyword bits match any of the bits set in this
+	// value or if the event has no keyword bits set, in addition to meeting the Level and MatchAllKeyword criteria.
+	//
+	// When used with modern (manifest-based or TraceLogging) providers, a MatchAnyKeyword value of 0 is treated
+	// the same as a MatchAnyKeyword value of 0xFFFFFFFFFFFFFFFF, i.e. it enables all event keywords.
+	// However, this behavior does not apply to legacy (MOF or TMF-based WPP) providers.
+	// To enable all event keywords from a legacy provider, set MatchAnyKeyword to 0xFFFFFFFF.
+	// To enable all event keywords from both legacy and modern providers, set MatchAnyKeyword to 0xFFFFFFFFFFFFFFFF.
+	//
+	// Filtering at kernel level is inherently faster than user mode filtering (following the parsing process).
 	MatchAnyKeyword uint64
+
+	// 64-bit bitmask of keywords that restricts the events that you want the provider to write.
+	// The provider typically writes an event if the event's keyword bits match all of the bits
+	// set in this value or if the event has no keyword bits set, in addition to meeting the Level
+	//and MatchAnyKeyword criteria.
+	//
+	// This value is frequently set to 0.
+	//
+	// Note that this mask is not used if Keywords(Any) is set to zero.
 	MatchAllKeyword uint64
+
+	// This is used only for filtering Event IDs for now.
+	//
+	// For more info read:
+	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-enabletraceex2#remarks
+	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-enable_trace_parameters EnableFilterDesc
+	// https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_filter_descriptor EVENT_FILTER_TYPE_EVENT_ID
+	//
+	// (This kind of filtering is only effective in reducing trace data volume and is not as effective
+	// for reducing trace CPU overhead)
 	Filter          []uint16
 }
 
@@ -38,6 +76,7 @@ func (p *Provider) IsZero() bool {
 func (p *Provider) eventIDFilterDescriptor() (d EventFilterDescriptor) {
 
 	efeid := AllocEventFilterEventID(p.Filter)
+	// Enable this event ID (0x0 disables events with this id)
 	efeid.FilterIn = 0x1
 
 	d = EventFilterDescriptor{
@@ -74,9 +113,16 @@ func IsKnownProvider(p string) bool {
 // ParseProvider parses a string and returns a provider.
 // The returned provider is initialized from DefaultProvider.
 // Format (Name|GUID) string:EnableLevel uint8:Event IDs comma sep string:MatchAnyKeyword uint16:MatchAllKeyword uint16
+//
 // Example: Microsoft-Windows-Kernel-File:0xff:13,14:0x80
 //
-// You can check the keywords using this command in console: logman query providers "<provider_name>"
+// (0xff here means any Level, 13 and 14 are the event IDs and 0x80 is the MatchAnyKeyword)
+//
+// You can check the keywords and level using this command in console: logman query providers "<provider_name>"
+//
+// For events ID the best way is to check the manifest in your system. Use https://github.com/zodiacon/EtwExplorer
+//
+// More info at: https://learn.microsoft.com/en-us/windows/win32/wes/defining-keywords-used-to-classify-types-of-events
 func ParseProvider(s string) (p Provider, err error) {
 	var u uint64
 
@@ -145,7 +191,7 @@ func ParseProvider(s string) (p Provider, err error) {
 	return
 }
 
-// EnumerateProviders returns a ProviderMap containing available providers
+// EnumerateProviders returns a ProviderMap containing available providers,
 // keys are both provider's GUIDs and provider's names
 func EnumerateProviders() (m ProviderMap) {
 	var buf *ProviderEnumerationInfo
