@@ -18,11 +18,11 @@ const (
 var (
 	//systemTraceControlGuid = MustParseGUIDFromString("{9E814AAD-3204-11D2-9A82-006008A86939}")
 	systemTraceControlGuid = &GUID{ /* {9E814AAD-3204-11D2-9A82-006008A86939} */
-    Data1: 0x9e814aad,
-    Data2: 0x3204,
-    Data3: 0x11d2,
-    Data4: [8]byte{0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39},
-}
+		Data1: 0x9e814aad,
+		Data2: 0x3204,
+		Data3: 0x11d2,
+		Data4: [8]byte{0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39},
+	}
 )
 
 // Trace Session interface
@@ -72,18 +72,18 @@ func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 //
 // https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-a-systemtraceprovider-session
 //
-// Starting a SystemTraceProvider Session using guids and keywords
+// # Starting a SystemTraceProvider Session using guids and keywords
 //
 // How to use it:
 //   - GUIDs and Keywords defined here: https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
 //   - Write the keywords you want and put them in MustParseProvider() wich go to EnableTraceEx2
+//
 // NOTE* The keywords are too new and are not defined on most systems.
 func newSystemTraceProviderSession(name string) (p *RealTimeSession) {
 	p = NewRealTimeSession(name)
 	p.properties.LogFileMode |= EVENT_TRACE_SYSTEM_LOGGER_MODE
 	return
 }
-
 
 // IsStarted returns true if the session is already started
 func (p *RealTimeSession) IsStarted() bool {

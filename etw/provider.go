@@ -22,8 +22,8 @@ var (
 type ProviderMap map[string]*Provider
 
 type Provider struct {
-	GUID            GUID
-	Name            string
+	GUID GUID
+	Name string
 
 	// The logging level specified. Standard logging levels are:
 	// 0 — Log Always; 1 — Critical; 2 — Error; 3 — Warning; 4 — Informational; 5 — Verbose.
@@ -31,7 +31,7 @@ type Provider struct {
 	// More than one logging level can be captured by ORing respective levels;
 	// supplying 255 (0xFF) is the standard method of capturing all supported logging levels.
 	// Note that if you set the Level to LogAlways, it ensures that all error events will always be written.
-	EnableLevel     uint8
+	EnableLevel uint8
 
 	// 64-bit bitmask of keywords that determine the categories of events that you want the provider to write.
 	// The provider typically writes an event if the event's keyword bits match any of the bits set in this
@@ -65,7 +65,7 @@ type Provider struct {
 	//
 	// (This kind of filtering is only effective in reducing trace data volume and is not as effective
 	// for reducing trace CPU overhead)
-	Filter          []uint16
+	Filter []uint16
 }
 
 // IsZero returns true if the provider is empty

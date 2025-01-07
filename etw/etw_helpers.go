@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -24,16 +25,82 @@ var (
 	ErrUnknownProperty = fmt.Errorf("unknown property")
 )
 
+// Memory Pools
+var (
+	// Reuse memory for TraceEventInfo when calling GetEventInformation()
+	// Can be reused for every new event record.
+	eventRecordHelperPool = sync.Pool{
+		New: func() interface{} {
+			return &EventRecordHelper{}
+		},
+	}
+
+	// Property buffer pool to reuse Property structs
+	// Can be reused multiple times for every new event record.
+	propertyPool = sync.Pool{
+		New: func() interface{} {
+			return &Property{}
+		},
+	}
+
+	propertyMapPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string]*Property)
+		},
+	}
+	arrayPropertyMapPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string][]*Property)
+		},
+	}
+	structuresSlicePool = sync.Pool{
+		New: func() interface{} {
+			s := make([]map[string]*Property, 0)
+			return &s // Return pointer
+		},
+	}
+
+	selectedPropertiesPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string]bool)
+		},
+	}
+
+	integerValuesPool = sync.Pool{
+		New: func() interface{} {
+			s := make([]uint16, 0)
+			return &s
+		},
+	}
+
+	epiArrayPool = sync.Pool{
+		New: func() interface{} {
+			s := make([]*EventPropertyInfo, 0)
+			return &s
+		},
+	}
+)
+
 type Property struct {
 	evtRecordHelper *EventRecordHelper
 	evtPropInfo     *EventPropertyInfo
 
 	name   string
 	value  string
-	length uint32
+	length uint16
 
 	pValue         uintptr
 	userDataLength uint16
+}
+
+// Sets all fields of the struct to zero/empty values
+func (p *Property) reset() {
+	*p = Property{}
+}
+
+func (p *Property) release() {
+	//p.reset() // Better to reset before use and not release.
+	propertyPool.Put(p)
 }
 
 func maxu32(a, b uint32) uint32 {
@@ -63,7 +130,7 @@ func (p *Property) parse() (value string, err error) {
 	var udc uint16
 	var buff []uint16
 
-	formattedDataSize := maxu32(16, p.length)
+	formattedDataSize := maxu32(16, uint32(p.length))
 
 	// Get the name/value mapping if the property specifies a value map.
 	if p.evtPropInfo.MapNameOffset() > 0 {
@@ -154,6 +221,10 @@ type EventRecordHelper struct {
 	integerValues []uint16
 	epiArray      []*EventPropertyInfo
 
+	// Buffer that contains the memory for TraceEventInfo
+	// used internally to reuse the memory allocation.
+	teiPoolBuffer *[]byte
+
 	// Position of the next byte of event data to be consumed.
 	// increments after each call to prepareProperty
 	userDataIt uintptr
@@ -165,16 +236,90 @@ type EventRecordHelper struct {
 	selectedProperties map[string]bool
 }
 
+func (e *EventRecordHelper) reset() {
+	*e = EventRecordHelper{}
+	// maps and slices are already reseted when released
+}
+
 func (e *EventRecordHelper) remainingUserDataLength() uint16 {
 	return uint16(e.userDataEnd - e.userDataIt)
 }
 
 // Creates a new EventRecordHelper that has the EVENT_RECORD and gets a TRACE_EVENT_INFO for that event.
 func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
+	erh = eventRecordHelperPool.Get().(*EventRecordHelper)
+	// reset fields to avoid stale data
+	erh.reset()
+
+	erh.EventRec = er
+
+	if erh.TraceInfo, erh.teiPoolBuffer, err = er.GetEventInformation(); err != nil {
+		err = fmt.Errorf("TdhGetEventInformation failed with 0x : %s", err)
+	}
+
+	return
+}
+
+// Release EventRecordHelper back to mem pool
+// Including all the memory allocations that were made during the processing of the event
+// (helps reduce memory allocations by reusing this memory)
+func (e *EventRecordHelper) release() {
+	// Since we have to release the property struct memory by iterating we may as well
+	// reset the memory of the maps and slices while doing it
+
+	// 1. Reset/Clear and return to the pool Properties map
+	for k, p := range e.Properties {
+		p.release()
+		delete(e.Properties, k)
+	}
+	propertyMapPool.Put(e.Properties)
+
+	// 2. Reset/Clear and return ArrayProperties to the pool
+	for k, p := range e.ArrayProperties {
+		for _, p := range p {
+			p.release()
+		}
+		delete(e.ArrayProperties, k)
+	}
+	arrayPropertyMapPool.Put(e.ArrayProperties)
+
+	// 3. Reset/Clear and return Structures to the pool
+	for i := range e.Structures {
+		for k, p := range e.Structures[i] {
+			p.release()
+			delete(e.Structures[i], k)
+		}
+		// Return inner map to pool
+		propertyMapPool.Put(e.Structures[i])
+	}
+	e.Structures = e.Structures[:0] // Reset length, keep capacity
+	structuresSlicePool.Put(&e.Structures)
+
+	// 4. Clear and return selectedProperties
+	clear(e.selectedProperties)
+	selectedPropertiesPool.Put(e.selectedProperties)
+
+	// 5. Reset integerValues slice (keep capacity) and return to pool
+	e.integerValues = e.integerValues[:0]
+	integerValuesPool.Put(&e.integerValues)
+
+	// 6. Reset epiArray slice (keep capacity) and return to pool
+	e.epiArray = e.epiArray[:0]
+	epiArrayPool.Put(&e.epiArray)
+
+	// 7. Release back into the pool the mem allocation for TraceEventInfo
+	tdhInfoPool.Put(e.teiPoolBuffer)
+
+	// Last. Finally, Release this object memory
+	eventRecordHelperPool.Put(e)
+}
+
+// [OLD] Creates a new EventRecordHelper that has the EVENT_RECORD and gets a TRACE_EVENT_INFO for that event.
+func newEventRecordHelper_old(er *EventRecord) (erh *EventRecordHelper, err error) {
 	erh = &EventRecordHelper{}
 	erh.EventRec = er
 
-	if erh.TraceInfo, err = er.GetEventInformation(); err != nil {
+	if erh.TraceInfo, err = er.GetEventInformation_old(); err != nil {
 		err = fmt.Errorf("TdhGetEventInformation failed with 0x : %s", err)
 	}
 
@@ -182,12 +327,36 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 }
 
 func (e *EventRecordHelper) initialize() {
-	e.Properties = make(map[string]*Property)
-	e.ArrayProperties = make(map[string][]*Property)
-	e.Structures = make([]map[string]*Property, 0)
-	e.selectedProperties = make(map[string]bool)
-	e.integerValues = make([]uint16, e.TraceInfo.PropertyCount)
-	e.epiArray = make([]*EventPropertyInfo, e.TraceInfo.PropertyCount)
+	//e.Properties = make(map[string]*Property, e.TraceInfo.TopLevelPropertyCount)
+	//e.ArrayProperties = make(map[string][]*Property)
+	//e.Structures = make([]map[string]*Property, 0)
+
+	// This memory was already reseted when it was released.
+	e.Properties = propertyMapPool.Get().(map[string]*Property)
+	e.ArrayProperties = arrayPropertyMapPool.Get().(map[string][]*Property)
+	e.Structures = *(structuresSlicePool.Get().(*[]map[string]*Property))
+
+	// e.selectedProperties = make(map[string]bool)
+	// e.integerValues = make([]uint16, e.TraceInfo.PropertyCount)
+	// e.epiArray = make([]*EventPropertyInfo, e.TraceInfo.PropertyCount)
+
+	e.selectedProperties = selectedPropertiesPool.Get().(map[string]bool)
+
+	// Get and resize integer values
+	e.integerValues = *integerValuesPool.Get().(*[]uint16)
+	if cap(e.integerValues) < int(e.TraceInfo.PropertyCount) {
+		e.integerValues = make([]uint16, e.TraceInfo.PropertyCount)
+	} else {
+		e.integerValues = e.integerValues[0:e.TraceInfo.PropertyCount]
+	}
+
+	// Get and resize epi array
+	e.epiArray = *epiArrayPool.Get().(*[]*EventPropertyInfo)
+	if cap(e.epiArray) < int(e.TraceInfo.PropertyCount) {
+		e.epiArray = make([]*EventPropertyInfo, e.TraceInfo.PropertyCount)
+	} else {
+		e.epiArray = e.epiArray[0:e.TraceInfo.PropertyCount]
+	}
 
 	// userDataIt iterator will be incremented for each queried property by length
 	e.userDataIt = e.EventRec.UserData
@@ -238,13 +407,13 @@ func (e *EventRecordHelper) setEventMetadata(event *Event) {
 // If the length is available, retrieve it here. In some cases, the length is 0.
 // This can signify that we are dealing with a variable length field such as a structure
 // or a string.
-func (e *EventRecordHelper) getPropertyLength_old(i uint32) (uint32, error) {
+func (e *EventRecordHelper) getPropertyLength_old(i uint32) (uint16, error) {
 	// If the property is a buffer, the property can define the buffer size or it can
 	// point to another property whose value defines the buffer size. The PropertyParamLength
 	// flag tells you where the buffer size is defined.
 	epi := e.TraceInfo.GetEventPropertyInfoAt(i)
 	if (epi.Flags & PropertyParamLength) == PropertyParamLength {
-		length := uint32(0)
+		length := uint16(0)
 		j := uint32(epi.LengthPropertyIndex())
 		dataDescriptor := PropertyDataDescriptor{}
 		// Get pointer to property name
@@ -264,7 +433,7 @@ func (e *EventRecordHelper) getPropertyLength_old(i uint32) (uint32, error) {
 	}
 
 	if epi.Length() > 0 {
-		return uint32(epi.Length()), nil
+		return epi.Length(), nil
 	} else {
 		switch {
 		// if there is an error returned here just try to add a switch case
@@ -296,7 +465,7 @@ func (e *EventRecordHelper) getPropertyLength_old(i uint32) (uint32, error) {
 	}
 }
 
-func (e *EventRecordHelper) getPropertySize_old(i uint32) (size uint32, err error) {
+func (e *EventRecordHelper) getPropertySize(i uint32) (size uint32, err error) {
 	dataDesc := PropertyDataDescriptor{}
 	dataDesc.PropertyName = uint64(e.TraceInfo.PropertyNameOffset(i))
 	dataDesc.ArrayIndex = math.MaxUint32
@@ -344,7 +513,7 @@ func (e *EventRecordHelper) prepareProperty_old(i uint32) (p *Property, err erro
 	}
 
 	// size is different from length
-	if size, err = e.getPropertySize_old(i); err != nil {
+	if size, err = e.getPropertySize(i); err != nil {
 		return
 	}
 
@@ -357,7 +526,7 @@ func (e *EventRecordHelper) prepareProperty_old(i uint32) (p *Property, err erro
 // =========================================================================================================================
 // =========================================================================================================================
 
-// Just caches pointer values NOTE(tekert): check if the use of this improves performance
+// Caches pointer values NOTE(tekert): check if the use of this improves performance
 func (e *EventRecordHelper) getEpiAt(i uint32) *EventPropertyInfo {
 	if e.epiArray[i] == nil {
 		e.epiArray[i] = e.TraceInfo.GetEventPropertyInfoAt(i)
@@ -402,7 +571,7 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) uint16 {
 
 	// We recorded the values of all previous integer properties just
 	// in case we need to determine the property length or count.
-	// integerValues will have our lenght or count number.
+	// integerValues will have our length or count number.
 	// Size of the property, in bytes
 	var propLength uint16
 	if epi.OutType() == TDH_OUTTYPE_IPV6 &&
@@ -416,49 +585,56 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) uint16 {
 		propLength = epi.Length()
 	}
 
+	if propLength == 0 {
+		// For details on every encoded size, read comments below TdhInType in 'tdh_headers.go'
+		// The Intypes that can have a length of 0 are:
+		// (taken from source comments)
+		switch {
+		case epi.InType() == TDH_INTYPE_UNICODESTRING:
+			break
+		case epi.InType() == TDH_INTYPE_ANSISTRING:
+			break
+		case epi.InType() == TDH_INTYPE_SID:
+			break // First few bytes... It's the only type that doesn't specify details.
+		case epi.InType() == TDH_INTYPE_WBEMSID:
+			break // Deprecated but same as SID.
+		case epi.Flags&PropertyStruct == PropertyStruct:
+			break
+		case (epi.InType()&(TDH_INTYPE_BINARY|TDH_INTYPE_HEXDUMP)) != 0 &&
+			epi.OutType() == TDH_OUTTYPE_HEXBINARY:
+			break // the field is incorrectly encoded.
+		default:
+			slog.Warn("unexpected length of 0", "intype", epi.InType(), "outtype", epi.OutType())
+		}
+
+		// *NOTE(tekert): We could get the sizes coding a new parser, we have all the data in the sources
+		// It could improve performance, a heavy syscall less for every variadic property processed...
+		// this can be called multiple times per event... if there are string for example.
+		// we could skip a call to getPropertySize here in other words.
+		if size, err := e.getPropertySize(i); err != nil {
+			propLength = uint16(size)
+		}
+	}
+
 	return propLength
 }
 
 func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
-	p = &Property{}
+	//p = &Property{}
+	// Get from pool instead of allocating
+	p = propertyPool.Get().(*Property)
+	p.reset() // Important. Reset the property to avoid stale data
 
 	p.evtPropInfo = e.getEpiAt(i)
 	p.evtRecordHelper = e
+	// the complexity of maintaining that stringCache is larger than the small cost it saves
 	p.name = UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(p.evtPropInfo.NameOffset))
 	p.pValue = e.userDataIt
 	p.userDataLength = e.remainingUserDataLength()
+	p.length = e.getPropertyLength(i)
 
-	p.length = uint32(e.getPropertyLength(i))
-
-	var offset uintptr = uintptr(p.length)
-	if offset == 0 {
-		// TODO(tekert): this scans the entire memory of the event just to extract the size
-		// and we do it two times, one here and another when thdFormatProperty is called
-		// is there a way to optimize this?
-
-		// This can signify that we are dealing with a variable length
-		// field such as a structure or a string.
-		// Get the size in bytes
-		var size uint32
-		if size, err = e.getPropertySize_old(i); err != nil {
-			return
-		}
-		offset = uintptr(size)
-	}
-
-	e.userDataIt += offset
+	e.userDataIt += uintptr(p.length)
 	return
-}
-
-func (e *EventRecordHelper) getArrayCount(i uint32) (arrayCount uint16) {
-	var epi = e.getEpiAt(i)
-
-	// Number of elements in the array of EventPropertyInfo.
-	if (epi.Flags & PropertyParamCount) != 0 {
-		return e.integerValues[epi.CountPropertyIndex()] // Look up the value of a previous property
-	} else {
-		return epi.Count()
-	}
 }
 
 // There is a lot of information available in the event even without decoding,
@@ -471,7 +647,14 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 	for i := uint32(0); i < e.TraceInfo.TopLevelPropertyCount; i++ {
 		epi := e.getEpiAt(i)
 
-		arrayCount := e.getArrayCount(i)
+		// Number of elements in the array of EventPropertyInfo.
+		var arrayCount uint16
+		if (epi.Flags & PropertyParamCount) != 0 {
+			// Look up the value of a previous property
+			arrayCount = e.integerValues[epi.CountPropertyIndex()]
+		} else {
+			arrayCount = epi.Count()
+		}
 
 		// Note that PropertyParamFixedCount is a new flag and is ignored
 		// by many decoders. Without the PropertyParamFixedCount flag,
@@ -482,7 +665,6 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 		isArray := arrayCount != 1 ||
 			(epi.Flags&(PropertyParamCount|PropertyParamFixedCount)) != 0
 
-		//var	pMapInfo EventMapInfo;
 		var array []*Property = make([]*Property, 0)
 		var arrayName string
 
@@ -495,16 +677,20 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 				}
 				slog.Debug("Processing array element", "name", p.name, "index", arrayIndex)
 
+				arrayName = p.name
 				array = append(array, p)
 			}
 
 			if epi.Flags&PropertyStruct != 0 {
 				// If this property is a struct, process the child properties
-				slog.Debug("Processing struct property")
+				slog.Debug("Processing struct property", "index", arrayIndex)
 				startIndex := epi.StructStartIndex()
 				numMembers := epi.NumOfStructMembers()
 
-				propStruct := make(map[string]*Property)
+				//propStruct := make(map[string]*Property)
+				propStruct := propertyMapPool.Get().(map[string]*Property)
+				//clear(propStruct) // memory is already reseted when it was released
+
 				lastMember := startIndex + numMembers
 
 				for j := startIndex; j < lastMember; j++ {
@@ -522,7 +708,7 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 				continue
 			}
 
-			// Single scalar value
+			// Single value that is not a struct.
 			if arrayCount == 1 && !isArray {
 				slog.Debug("parsing scalar property", "index", i)
 				if p, last = e.prepareProperty(i); last != nil {
@@ -531,7 +717,7 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 				e.Properties[p.name] = p
 			}
 
-			// MapInfo will be taken when parsing, not when preparing.
+			// MapInfo is needed when parsing using thd, not when preparing.
 			/*
 				// If the property has an associated map (i.e. an enumerated type),
 				// try to look up the map data. (If this is an array, we only need

@@ -86,16 +86,16 @@ type Consumer struct {
 	// with the event (printed, sent to a channel ...)
 	EventCallback func(*Event) error
 
-	// Trace names to open (used when specifying sessions to consume from)
-	// true if the trace is open.
-	// TODO(tekert): uhmm refactor this.
-	traces map[string]bool
-
 	Filter EventFilter
 
 	// The used default callback [DefaultEventCallback] outputs parsed events to this channel.
 	// This channel can be used to consume events in a non-blocking way.
 	Events chan *Event
+
+	// Trace names to open (used when specifying sessions to consume from)
+	// true if the trace is open.
+	// TODO(tekert): uhmm refactor this?
+	traces map[string]bool
 
 	// EventTraceLogfile used when opening the trace, filled with aditional info if the trace already opened.
 	traceLoggerInfo map[syscall.Handle]*EventTraceLogfile
@@ -142,11 +142,6 @@ type Trace struct {
 //     return c.outputTraceLogFile
 // }
 
-type ConsumerOptions struct {
-	UseOld bool
-	// Add future options here
-}
-
 // Uses the old version using tdhGetProperty (inneficient)
 func NewConsumer_old(ctx context.Context) (c *Consumer) {
 	c = NewConsumer(ctx)
@@ -169,8 +164,6 @@ func NewConsumer(ctx context.Context) (c *Consumer) {
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	c.EventRecordHelperCallback = c.DefaultEventRecordHelperCallback
 	c.EventCallback = c.DefaultEventCallback
-
-	c.useOld = false
 
 	return c
 }
@@ -212,8 +205,11 @@ func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 	}
 
 	// we get the consumer from EventRecord.UserContext, NOTE(tekert): where? i don't see it
-	// parse TRACE_EVENT_INFO from the event record
+	// Parse TRACE_EVENT_INFO from the event record
 	if h, err := newEventRecordHelper(er); err == nil {
+		// initialize the helper later if not skipped.
+
+		defer h.release() // return mem to pool when done
 
 		if c.EventRecordHelperCallback != nil {
 			if err = c.EventRecordHelperCallback(h); err != nil {
@@ -230,7 +226,7 @@ func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 		// initialize record helper
 		h.initialize()
 
-		//! TODO(tekert): prepareProperties_old check for WPP events,
+		//! TODO(tekert): prepareProperties check for WPP events,
 		// prepareProperties_old is inneficient and uses old funcions.
 		if c.useOld {
 			if err := h.prepareProperties_old(); err != nil {

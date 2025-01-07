@@ -420,7 +420,7 @@ func (t *TraceEventInfo) KeywordsName() []string {
 			utf8Key := UTF16PtrToString(pKeyword)
 			names = append(names, utf8Key)
 			// Advance pointer by string length + 1 (null terminator)
-			strLen := uintptr(Wcslen(pKeyword)+1)*2 // *2 for UTF16
+			strLen := uintptr(Wcslen(pKeyword)+1) * 2 // *2 for UTF16
 			pKeyword = (*uint16)(unsafe.Add(unsafe.Pointer(pKeyword), strLen))
 		}
 	}
