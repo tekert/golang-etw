@@ -1,6 +1,6 @@
 module github.com/0xrawsec/golang-etw
 
-go 1.19
+go 1.23
 
 require (
 	github.com/0xrawsec/golang-utils v1.3.1
