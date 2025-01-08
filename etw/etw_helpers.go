@@ -170,7 +170,7 @@ func (p *Property) parse() (value string, err error) {
 				p.evtRecordHelper.EventRec.PointerSize(),
 				uint16(p.evtPropInfo.InType()),
 				uint16(p.evtPropInfo.OutType()),
-				uint16(p.length),
+				p.length,
 				p.userDataLength,
 				(*byte)(unsafe.Pointer(p.pValue)),
 				&formattedDataSize,
@@ -566,14 +566,14 @@ func (e *EventRecordHelper) getEpiAt(i uint32) *EventPropertyInfo {
 	return e.epiArray[i]
 }
 
-func (e *EventRecordHelper) getPropertyLength(i uint32) uint16 {
+func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size uint32, err error) {
 	var epi = e.getEpiAt(i)
+	size = 0
 
 	// We recorded the values of all previous integer properties just
 	// in case we need to determine the property length or count.
 	// integerValues will have our length or count number.
 	// Size of the property, in bytes
-	var propLength uint16
 	if epi.OutType() == TDH_OUTTYPE_IPV6 &&
 		epi.InType() == TDH_INTYPE_BINARY &&
 		epi.Length() == 0 &&
@@ -610,16 +610,19 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) uint16 {
 		// *NOTE(tekert): We could get the sizes coding a new parser, we have all the data in the sources
 		// It could improve performance, a heavy syscall less for every variadic property processed...
 		// this can be called multiple times per event... if there are string for example.
-		// we could skip a call to getPropertySize here in other words.
-		if size, err := e.getPropertySize(i); err != nil {
-			propLength = uint16(size)
+		// in other words we could skip a call to getPropertySize here.
+		size, err = e.getPropertySize(i)
+		if err != nil {
+			return
 		}
 	}
 
-	return propLength
+	return
 }
 
 func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
+	var userOffset uintptr
+	var size uint32
 	//p = &Property{}
 	// Get from pool instead of allocating
 	p = propertyPool.Get().(*Property)
@@ -627,13 +630,24 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 
 	p.evtPropInfo = e.getEpiAt(i)
 	p.evtRecordHelper = e
-	// the complexity of maintaining that stringCache is larger than the small cost it saves
+	// the complexity of maintaining a stringCache is larger than the small cost it saves
 	p.name = UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(p.evtPropInfo.NameOffset))
 	p.pValue = e.userDataIt
 	p.userDataLength = e.remainingUserDataLength()
-	p.length = e.getPropertyLength(i)
+	p.length, size, err = e.getPropertyLength(i)
+	if (err != nil) {
+		return
+	}
 
-	e.userDataIt += uintptr(p.length)
+	// p.length has to be 0 on strings and structures
+	// so we use size instead to advance when p.length is 0.
+	if (size > 0) {
+		userOffset = uintptr(size)
+	} else {
+		userOffset = uintptr(p.length)
+	}
+	e.userDataIt += userOffset
+
 	return
 }
 
