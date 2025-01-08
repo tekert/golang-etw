@@ -194,7 +194,24 @@ func (p *Property) parse() (value string, err error) {
 			break
 		}
 
-		err = fmt.Errorf("failed to format property : %s", err)
+		err = fmt.Errorf("failed to format property: Event Details:\n"+
+			"Property Name: %s\n"+
+			"Property Type: InType=%d, OutType=%d\n"+
+			"Property Length: %d\n"+
+			"Provider: %s\n"+
+			"Event ID: %d\n"+
+			"Original Error: %s\n",
+			//"Last Props: %s",
+			p.name,
+			p.evtPropInfo.InType(),
+			p.evtPropInfo.OutType(),
+			p.length,
+			p.evtRecordHelper.Provider(),
+			p.evtRecordHelper.EventID(),
+			err)
+		//history.String()) // Add history to error message)
+
+		//err = fmt.Errorf("failed to format property : %s", err)
 		return
 	}
 
@@ -304,6 +321,9 @@ func (e *EventRecordHelper) release() {
 	integerValuesPool.Put(&e.integerValues)
 
 	// 6. Reset epiArray slice (keep capacity) and return to pool
+	for i := range e.epiArray { // important
+		e.epiArray[i] = nil
+	}
 	e.epiArray = e.epiArray[:0]
 	epiArrayPool.Put(&e.epiArray)
 
@@ -371,7 +391,12 @@ func (e *EventRecordHelper) setEventMetadata(event *Event) {
 	event.System.Execution.KernelTime = e.EventRec.EventHeader.GetKernelTime() // NOTE: for private session use e.EventRec.EventHeader.ProcessorTime
 	event.System.Execution.UserTime = e.EventRec.EventHeader.GetUserTime()     // NOTE: for private session use e.EventRec.EventHeader.ProcessorTime
 	event.System.Correlation.ActivityID = e.EventRec.EventHeader.ActivityId.String()
-	event.System.Correlation.RelatedActivityID = e.EventRec.RelatedActivityID()
+	relatedActivityID := e.EventRec.RelatedActivityID()
+	if relatedActivityID.IsZero() {
+		event.System.Correlation.RelatedActivityID = nullGUIDStr
+	} else {
+		event.System.Correlation.RelatedActivityID = relatedActivityID.String()
+	}
 	event.System.EventID = e.TraceInfo.EventID()
 	event.System.Version = e.TraceInfo.EventVersion()
 	event.System.Channel = e.TraceInfo.ChannelName()
@@ -526,42 +551,49 @@ func (e *EventRecordHelper) prepareProperty_old(i uint32) (p *Property, err erro
 // =========================================================================================================================
 // =========================================================================================================================
 
-// Caches pointer values NOTE(tekert): check if the use of this improves performance
-func (e *EventRecordHelper) getEpiAt(i uint32) *EventPropertyInfo {
-	if e.epiArray[i] == nil {
-		e.epiArray[i] = e.TraceInfo.GetEventPropertyInfoAt(i)
+// Helps when a nested property length needs to be calculated using a previous property value
+// This had to be called on every TopLevelProperty of the EventPropertyInfo array
+func (e *EventRecordHelper) cacheIntergerValues(i uint32) {
+	// If this property is a scalar integer, remember the value in case it
+	// is needed for a subsequent property's length or count.
+	// This is a Single Value property, not a struct and it doesn't have a param count
+	// Basically: if !isStruct && !hasParamCount && isSingleValue
+	if (e.epiArray[i].Flags&(PropertyStruct|PropertyParamCount)) == 0 &&
+		e.epiArray[i].Count() == 1 {
 
-		// If this property is a scalar integer, remember the value in case it
-		// is needed for a subsequent property's length or count.
-		// This is a Single Value property, not a struct and it doesn't have a param count
-		// Basically: if !isStruct && !hasParamCount && isSingleValue
-		if (e.epiArray[i].Flags&(PropertyStruct|PropertyParamCount)) == 0 &&
-			e.epiArray[i].Count() == 1 {
-
-			switch inType := TdhInType(e.epiArray[i].InType()); inType {
-			case TDH_INTYPE_INT8:
-			case TDH_INTYPE_UINT8:
-				if (e.userDataEnd - e.userDataIt) >= 1 {
-					e.integerValues[i] = uint16(*(*uint8)(unsafe.Pointer(e.userDataIt)))
-				}
-			case TDH_INTYPE_INT16:
-			case TDH_INTYPE_UINT16:
-				if (e.userDataEnd - e.userDataIt) >= 2 {
-					e.integerValues[i] = *(*uint16)(unsafe.Pointer(e.userDataIt))
-				}
-			case TDH_INTYPE_INT32:
-			case TDH_INTYPE_UINT32:
-			case TDH_INTYPE_HEXINT32:
-				if (e.userDataEnd - e.userDataIt) >= 4 {
-					val := *(*uint32)(unsafe.Pointer(e.userDataIt))
-					if val > 0xffff {
-						e.integerValues[i] = 0xffff
-					} else {
-						e.integerValues[i] = uint16(val)
-					}
+		// integerValues is used secuentally, so we can reuse it without reseting
+		switch inType := TdhInType(e.epiArray[i].InType()); inType {
+		case TDH_INTYPE_INT8:
+		case TDH_INTYPE_UINT8:
+			if (e.userDataEnd - e.userDataIt) >= 1 {
+				e.integerValues[i] = uint16(*(*uint8)(unsafe.Pointer(e.userDataIt)))
+			}
+		case TDH_INTYPE_INT16:
+		case TDH_INTYPE_UINT16:
+			if (e.userDataEnd - e.userDataIt) >= 2 {
+				e.integerValues[i] = *(*uint16)(unsafe.Pointer(e.userDataIt))
+			}
+		case TDH_INTYPE_INT32:
+		case TDH_INTYPE_UINT32:
+		case TDH_INTYPE_HEXINT32:
+			if (e.userDataEnd - e.userDataIt) >= 4 {
+				val := *(*uint32)(unsafe.Pointer(e.userDataIt))
+				if val > 0xffff {
+					e.integerValues[i] = 0xffff
+				} else {
+					e.integerValues[i] = uint16(val)
 				}
 			}
 		}
+	}
+}
+
+// Caches pointer values
+// TODO(tekert): check if the use of e.epiArray improves performance
+func (e *EventRecordHelper) getEpiAt(i uint32) *EventPropertyInfo {
+	// (epiArray mem is reused, make sure the elements are set to nil before use)
+	if e.epiArray[i] == nil {
+		e.epiArray[i] = e.TraceInfo.GetEventPropertyInfoAt(i)
 	}
 	return e.epiArray[i]
 }
@@ -573,7 +605,7 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 	// We recorded the values of all previous integer properties just
 	// in case we need to determine the property length or count.
 	// integerValues will have our length or count number.
-	// Size of the property, in bytes
+	// (Size of the property is in bytes)
 	if epi.OutType() == TDH_OUTTYPE_IPV6 &&
 		epi.InType() == TDH_INTYPE_BINARY &&
 		epi.Length() == 0 &&
@@ -623,7 +655,6 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 	var userOffset uintptr
 	var size uint32
-	//p = &Property{}
 	// Get from pool instead of allocating
 	p = propertyPool.Get().(*Property)
 	p.reset() // Important. Reset the property to avoid stale data
@@ -635,13 +666,13 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 	p.pValue = e.userDataIt
 	p.userDataLength = e.remainingUserDataLength()
 	p.length, size, err = e.getPropertyLength(i)
-	if (err != nil) {
+	if err != nil {
 		return
 	}
 
 	// p.length has to be 0 on strings and structures
 	// so we use size instead to advance when p.length is 0.
-	if (size > 0) {
+	if size > 0 {
 		userOffset = uintptr(size)
 	} else {
 		userOffset = uintptr(p.length)
@@ -660,6 +691,7 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 
 	for i := uint32(0); i < e.TraceInfo.TopLevelPropertyCount; i++ {
 		epi := e.getEpiAt(i)
+		e.cacheIntergerValues(i)
 
 		// Number of elements in the array of EventPropertyInfo.
 		var arrayCount uint16

@@ -104,7 +104,7 @@ type Consumer struct {
 
 	Skipped uint64
 
-	// Testing
+	// TODO(tekert) For Testing, delete later
 	useOld bool
 }
 
@@ -180,6 +180,8 @@ func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 }
 
 // Called when ProcessTrace gets an event record.
+// This is always called sequentially on the same thread of ProcessTrace,
+// so it may block other events. Only one event is processed at a time.
 func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 	var event *Event
 
@@ -277,8 +279,6 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 		if err := CloseTrace(h); err != nil && err != ERROR_CTX_CLOSE_PENDING {
 			lastErr = err
 		}
-
-		delete(c.traceLoggerInfo, h)
 	}
 
 	if wait {

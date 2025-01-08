@@ -116,10 +116,11 @@ const (
 )
 
 //     10.0.16299.0 /evntrace.h
+
+//
+// predefined generic event types (0x00 to 0x09 reserved).
+//
 /*
-   //
-   // predefined generic event types (0x00 to 0x09 reserved).
-   //
    #define EVENT_TRACE_TYPE_INFO               0x00  // Info or point event
    #define EVENT_TRACE_TYPE_START              0x01  // Start event
    #define EVENT_TRACE_TYPE_END                0x02  // End event
@@ -424,8 +425,7 @@ const (
 )
 
 // evntcons.h
-
-// used as ProcessTraceMode for
+// used in ProcessTraceMode for
 // https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilew
 const (
 	PROCESS_TRACE_MODE_REAL_TIME     = 0x00000100
@@ -434,7 +434,8 @@ const (
 )
 
 // evntcons.h
-
+// used in Flags for EVENT_HEADER
+// https://learn.microsoft.com/es-es/windows/win32/api/evntcons/ns-evntcons-event_header
 const (
 	EVENT_HEADER_FLAG_EXTENDED_INFO   = 0x0001
 	EVENT_HEADER_FLAG_PRIVATE_SESSION = 0x0002
@@ -447,12 +448,9 @@ const (
 	EVENT_HEADER_FLAG_PROCESSOR_INDEX = 0x0200
 )
 
-const (
-	EVENT_HEADER_PROPERTY_XML             = 0x0001
-	EVENT_HEADER_PROPERTY_FORWARDED_XML   = 0x0002
-	EVENT_HEADER_PROPERTY_LEGACY_EVENTLOG = 0x0004
-)
-
+// evntcons.h
+// used in ExtType for EVENT_HEADER_EXTENDED_DATA_ITEM
+// https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header_extended_data_item
 const (
 	EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID = 0x0001
 	EVENT_HEADER_EXT_TYPE_SID                = 0x0002
@@ -473,6 +471,15 @@ const (
 	EVENT_HEADER_EXT_TYPE_STACK_KEY32        = 0x0011
 	EVENT_HEADER_EXT_TYPE_STACK_KEY64        = 0x0012
 	EVENT_HEADER_EXT_TYPE_MAX                = 0x0013
+)
+
+// evntcons.h
+// used in EventProperty for EVENT_HEADER
+// https://learn.microsoft.com/es-es/windows/win32/api/evntcons/ns-evntcons-event_header
+const (
+	EVENT_HEADER_PROPERTY_XML             = 0x0001
+	EVENT_HEADER_PROPERTY_FORWARDED_XML   = 0x0002
+	EVENT_HEADER_PROPERTY_LEGACY_EVENTLOG = 0x0004
 )
 
 //////////////////////////////////////////////////////////////////
@@ -969,15 +976,15 @@ func (e *EventRecord) ExtendedDataItem(i uint16) *EventHeaderExtendedDataItem {
 	panic("out of bound extended data item")
 }
 
-func (e *EventRecord) RelatedActivityID() string {
+func (e *EventRecord) RelatedActivityID() GUID {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
 		item := e.ExtendedDataItem(i)
 		if item.ExtType == EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID {
 			g := (*GUID)(unsafe.Pointer(item.DataPtr))
-			return g.String()
+			return *g
 		}
 	}
-	return nullGUIDStr
+	return nullGUID
 }
 
 // Helps reduce memory allocations by reusing a buffer for the event information
