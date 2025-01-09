@@ -552,7 +552,7 @@ func (e *EventRecordHelper) prepareProperty_old(i uint32) (p *Property, err erro
 // =========================================================================================================================
 
 // Helps when a nested property length needs to be calculated using a previous property value
-// This had to be called on every TopLevelProperty of the EventPropertyInfo array
+// This has to be called on every TopLevelProperty index or Structure index
 func (e *EventRecordHelper) cacheIntergerValues(i uint32) {
 	// If this property is a scalar integer, remember the value in case it
 	// is needed for a subsequent property's length or count.
@@ -594,6 +594,7 @@ func (e *EventRecordHelper) getEpiAt(i uint32) *EventPropertyInfo {
 	// (epiArray mem is reused, make sure the elements are set to nil before use)
 	if e.epiArray[i] == nil {
 		e.epiArray[i] = e.TraceInfo.GetEventPropertyInfoAt(i)
+		e.cacheIntergerValues(i)
 	}
 	return e.epiArray[i]
 }
@@ -655,7 +656,6 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 	var userOffset uintptr
 	var size uint32
-	// Get from pool instead of allocating
 	p = propertyPool.Get().(*Property)
 	p.reset() // Important. Reset the property to avoid stale data
 
@@ -672,7 +672,7 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 
 	// p.length has to be 0 on strings and structures
 	// so we use size instead to advance when p.length is 0.
-	if size > 0 {
+	if p.length == 0 {
 		userOffset = uintptr(size)
 	} else {
 		userOffset = uintptr(p.length)
@@ -691,7 +691,6 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 
 	for i := uint32(0); i < e.TraceInfo.TopLevelPropertyCount; i++ {
 		epi := e.getEpiAt(i)
-		e.cacheIntergerValues(i)
 
 		// Number of elements in the array of EventPropertyInfo.
 		var arrayCount uint16
@@ -730,14 +729,13 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 			if epi.Flags&PropertyStruct != 0 {
 				// If this property is a struct, process the child properties
 				slog.Debug("Processing struct property", "index", arrayIndex)
-				startIndex := epi.StructStartIndex()
-				numMembers := epi.NumOfStructMembers()
 
 				//propStruct := make(map[string]*Property)
 				propStruct := propertyMapPool.Get().(map[string]*Property)
 				//clear(propStruct) // memory is already reseted when it was released
 
-				lastMember := startIndex + numMembers
+				startIndex := epi.StructStartIndex()
+				lastMember := startIndex + epi.NumOfStructMembers()
 
 				for j := startIndex; j < lastMember; j++ {
 					slog.Debug("parsing struct property", "struct_index", j)
