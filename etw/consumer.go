@@ -14,6 +14,7 @@ import (
 
 var (
 	//rtLostEventGuid = MustParseGUIDFromString("{6A399AE0-4BC6-4DE9-870B-3657F8947E7E}") // don't use, not evaluated compile time.
+
 	rtLostEventGuid = &GUID{ /* {6A399AE0-4BC6-4DE9-870B-3657F8947E7E}*/
 		Data1: 0x6a399ae0,
 		Data2: 0x4bc6,
@@ -58,11 +59,11 @@ func SessionSlice(i interface{}) (out []Session) {
 
 type Consumer struct {
 	sync.WaitGroup
-	ctx          context.Context
-	cancel       context.CancelFunc
-	traceHandles []syscall.Handle // Opened trace handles
-	lastError    error
-	closed       bool
+	ctx       context.Context
+	cancel    context.CancelFunc
+	traces    map[string]*Trace // Trace names state
+	lastError error
+	closed    bool
 
 	// [1] First callback executed, it allows to filter out events
 	// based on fields of raw ETW EventRecord structure. When this callback
@@ -92,14 +93,6 @@ type Consumer struct {
 	// This channel can be used to consume events in a non-blocking way.
 	Events chan *Event
 
-	// Trace names to open (used when specifying sessions to consume from)
-	// true if the trace is open.
-	// TODO(tekert): uhmm refactor this?
-	traces map[string]bool
-
-	// EventTraceLogfile used when opening the trace, filled with aditional info if the trace already opened.
-	traceLoggerInfo map[syscall.Handle]*EventTraceLogfile
-
 	LostEvents uint64
 
 	Skipped uint64
@@ -111,27 +104,28 @@ type Consumer struct {
 // This is the logger info used to create the trace, after the trace is opened,
 // this struct is filled with more data.
 //
-// This can also be updated on each BufferCallback // *NOTE(tekert): not enabled yet
-func (c *Consumer) GetTraceLoggerInfo() *map[syscall.Handle]*EventTraceLogfile {
-
-	return &c.traceLoggerInfo
+// This is also be updated on each bufferCallback call.
+func (c *Consumer) GetTraceInfo(tname string) *EventTraceLogfile {
+	return c.traces[tname].outputTraceLogFile
 }
 
-// TODO(tekert): use or delete this
 // Information about the Trace
 type Trace struct {
 
-	// Can be a user session name, manifest session name, GUID, or full file name path.
-	Name string
+	// Can be a trace name or full file name path.
+	TraceName string
 
-	// Handle that OpenTrace returned.
+	// handle that OpenTrace returned if open = true.
 	handle syscall.Handle
 
 	// True is the trace is open
 	opened bool
 
+	// is a realtime trace session or evt file trace
+	realtime bool
+
 	// EventTraceLogfile that OpenTrace returned.
-	// Use [OutputTraceLogFile()]
+	// Use [Consumer.GetTraceInfo] to get the latest buffer trace info.
 	outputTraceLogFile *EventTraceLogfile
 }
 
@@ -154,11 +148,9 @@ func NewConsumer_old(ctx context.Context) (c *Consumer) {
 // NewConsumer creates a new Consumer to consume ETW
 func NewConsumer(ctx context.Context) (c *Consumer) {
 	c = &Consumer{
-		traceHandles:    make([]syscall.Handle, 0, 64),
-		traces:          make(map[string]bool),
-		Filter:          NewProviderFilter(),
-		Events:          make(chan *Event, 4096),
-		traceLoggerInfo: make(map[syscall.Handle]*EventTraceLogfile),
+		Filter: NewProviderFilter(),
+		Events: make(chan *Event, 4096),
+		traces: make(map[string]*Trace),
 	}
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
@@ -168,20 +160,49 @@ func NewConsumer(ctx context.Context) (c *Consumer) {
 	return c
 }
 
+func (c *Consumer) getTrace(name string) *Trace {
+    if t, exists := c.traces[name]; exists {
+        return t
+    }
+    t := &Trace{}
+    c.traces[name] = t
+    return t
+}
+
+func (c *Consumer) updateTraceOutput(e *EventTraceLogfile) {
+	var tname string
+	if e.LogFileName != nil {
+		tname = UTF16PtrToString(e.LogFileName)
+	} else {
+		tname = UTF16PtrToString(e.LoggerName)
+	}
+	trace := c.traces[tname]
+	trace.outputTraceLogFile = e
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nc-evntrace-pevent_trace_buffer_callbacka
+//
+// ETW event consumers implement this function to receive statistics about each buffer
+// of events that ETW delivers during a trace processing session.
+// ETW calls this function after the events for each trace session buffer are delivered.
 func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
-	// TODO(tekert): get updates stats from EventTraceLogfile in a performant way.
+	c.updateTraceOutput(e) // Update buffer stats (very low overhead, called less often)
 	if c.ctx.Err() != nil {
 		// if the consumer has been stopped we
 		// don't process event records anymore
+		// return 0 to stop ProcessTrace
 		return 0
 	}
 	// we keep processing event records
 	return 1
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nc-evntrace-pevent_record_callback
+//
 // Called when ProcessTrace gets an event record.
-// This is always called sequentially on the same thread of ProcessTrace,
-// so it may block other events. Only one event is processed at a time.
+// This is always called from the same thread as ProcessTrace,
+// so it may block other events in the trace session buffer until it returns.
+// Only one event record is passed at a time.
 func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 	var event *Event
 
@@ -228,7 +249,7 @@ func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 		// initialize record helper
 		h.initialize()
 
-		//! TODO(tekert): prepareProperties check for WPP events,
+		// TODO(tekert): prepareProperties check for WPP events,
 		// prepareProperties_old is inneficient and uses old funcions.
 		if c.useOld {
 			if err := h.prepareProperties_old(); err != nil {
@@ -266,19 +287,24 @@ func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 	return
 }
 
-// close closes the Consumer and eventually waits for ProcessTraces calls
-// to end
+// close closes the open handles and eventually waits for ProcessTrace calls to return
+// and end the goroutine
 func (c *Consumer) close(wait bool) (lastErr error) {
 	if c.closed {
 		return
 	}
 
 	// closing trace handles
-	for _, h := range c.traceHandles {
+	for _, t := range c.traces {
 		// if we don't wait for traces ERROR_CTX_CLOSE_PENDING is a valid error
-		if err := CloseTrace(h); err != nil && err != ERROR_CTX_CLOSE_PENDING {
-			lastErr = err
+		// means The ProcessTrace was previously closed by returning 0 from the bufferCallback
+		if t.handle != 0 {
+			if err := CloseTrace(t.handle); err != nil && err != ERROR_CTX_CLOSE_PENDING {
+				lastErr = err
+			}
 		}
+		t.opened = false
+		t.handle = 0
 	}
 
 	if wait {
@@ -297,6 +323,7 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 func (c *Consumer) OpenTraceFile(filename string) (err error) {
 	var traceHandle syscall.Handle
 
+	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilea
 	var loggerInfo *EventTraceLogfile = new(EventTraceLogfile)
 	loggerInfo.SetProcessTraceMode(PROCESS_TRACE_MODE_EVENT_RECORD)
 	loggerInfo.BufferCallback = syscall.NewCallbackCDecl(c.bufferCallback)
@@ -312,12 +339,14 @@ func (c *Consumer) OpenTraceFile(filename string) (err error) {
 	}
 
 	// Trace open,
-	// TODO(tekert): make new struct maybe? Trace, enabled, open, is file, is realtime, etc.
-	c.traces[filename] = true
-	// Add trace logger info to opentrace return stats
-	c.traceLoggerInfo[traceHandle] = loggerInfo
-
-	c.traceHandles = append(c.traceHandles, syscall.Handle(traceHandle))
+	trace := c.getTrace(filename)
+	*trace = Trace{
+		TraceName:          filename,
+		handle:             syscall.Handle(traceHandle),
+		opened:             true,
+		outputTraceLogFile: loggerInfo, // Add trace logger info to opentrace return stats
+		realtime:           false,
+	}
 	return nil
 }
 
@@ -326,7 +355,7 @@ func (c *Consumer) OpenTraceFile(filename string) (err error) {
 func (c *Consumer) OpenTraceRT(name string) (err error) {
 	var traceHandle syscall.Handle
 
-	//loggerInfo := c.newRealTimeLogfile()
+	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilea
 	var loggerInfo *EventTraceLogfile = new(EventTraceLogfile)
 	// PROCESS_TRACE_MODE_EVENT_RECORD to receive EventRecords (new format)
 	// PROCESS_TRACE_MODE_RAW_TIMESTAMP don't convert TimeStamp member of EVENT_HEADER and EVENT_TRACE_HEADER converted to system time
@@ -346,11 +375,15 @@ func (c *Consumer) OpenTraceRT(name string) (err error) {
 	}
 
 	// Trace open
-	c.traces[name] = true
-	// Add trace logger info to opentrace return stats
-	c.traceLoggerInfo[traceHandle] = loggerInfo
+	trace := c.getTrace(name)
+	*trace = Trace{
+		TraceName:          name,
+		handle:             syscall.Handle(traceHandle),
+		opened:             true,
+		outputTraceLogFile: loggerInfo, // Add trace logger info to opentrace return stats
+		realtime:           true,
+	}
 
-	c.traceHandles = append(c.traceHandles, syscall.Handle(traceHandle))
 	return nil
 }
 
@@ -359,7 +392,13 @@ func (c *Consumer) FromSessions(sessions ...Session) *Consumer {
 
 	for _, s := range sessions {
 		c.InitFilters(s.Providers())
-		c.traces[s.TraceName()] = false
+
+		t := c.getTrace(s.TraceName())
+		if t.opened {
+			continue
+		}
+		t.TraceName = s.TraceName()
+		t.opened = false
 	}
 
 	return c
@@ -368,7 +407,12 @@ func (c *Consumer) FromSessions(sessions ...Session) *Consumer {
 // FromTraceNames initializes consumer from existing traces
 func (c *Consumer) FromTraceNames(names ...string) *Consumer {
 	for _, n := range names {
-		c.traces[n] = false
+		t := c.getTrace(n)
+		if t.opened {
+			continue
+		}
+		t.TraceName = n
+		t.opened = false
 	}
 	return c
 }
@@ -416,9 +460,9 @@ func (c *Consumer) DefaultEventCallback(event *Event) (err error) {
 func (c *Consumer) Start() (err error) {
 
 	// opening all traces that are not opened first, key = trace name, value = opened state
-	for n, open := range c.traces {
+	for n, trace := range c.traces {
 		// if trace is already opened skip
-		if open {
+		if trace.opened {
 			continue
 		}
 
@@ -427,17 +471,15 @@ func (c *Consumer) Start() (err error) {
 		}
 	}
 
-	for i := range c.traceHandles {
-		i := i
+	for name, trace := range c.traces {
 		c.Add(1)
 		go func() {
 			defer c.Done()
 			// ProcessTrace can contain only ONE handle to a real-time processing session
 			// src: https://docs.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-processtrace
-			if err := ProcessTrace(&c.traceHandles[i], 1, nil, nil); err != nil {
-				loggerName := UTF16PtrToString(c.traceLoggerInfo[c.traceHandles[i]].LoggerName)
+			if err := ProcessTrace(&trace.handle, 1, nil, nil); err != nil {
 				c.lastError = fmt.Errorf(
-					"ProcessTrace failed: %w, handle: %v, LoggerName: %s", err, c.traceHandles[i], loggerName)
+					"ProcessTrace failed: %w, handle: %v, LoggerName: %s", err, trace.handle, name)
 			}
 		}()
 	}
@@ -450,19 +492,20 @@ func (c *Consumer) LastError() error {
 	return c.lastError
 }
 
-// Stop stops the Consumer and waits for the ProcessTrace calls
-// to be terminated
+// Stop stops the Consumer by gracefully closing the open traces with a CloseTrace
+// and waits for the ProcessTrace calls to return and exit the goroutine
 func (c *Consumer) Stop() (err error) {
-	// calling context cancel function
+	// calling context cancel will stop ProcessTrace gracefully in bufferCallback
 	c.cancel()
 	return c.close(true)
 }
 
 // Abort stops the Consumer and doesn't waits for the ProcessTrace calls
-// to be terminated, forcing the consumer to stop immediately, this can
-// cause some events to be lost.
+// to return, forcing the consumer to stop immediately, this can
+// cause some remaining events to be lost.
+// may not get an updated TraceEventInfo from session buffer updates on exit.
 func (c *Consumer) Abort() (err error) {
-	// calling context cancel function
+	// calling context cancel will stop ProcessTrace gracefully in bufferCallback
 	c.cancel()
 	return c.close(false)
 }
