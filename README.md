@@ -160,6 +160,11 @@ You can see the keywords used for filtering events.
 To log events you can use the keywords in `logman` like this:
 >logman start "NT Kernel Logger" –p "Windows Kernel Trace" (process,thread,img,disk,net,registry) –o systemevents.etl –ets
 
+And when you want to stop use:
+> logman stop "NT Kernel Logger"
+
+NOTE: Use filtering, some events can write a gigabyte of data in a few seconds.
+
 You can also create kernel etl traces using Performance Monitor -> System Performance but it select only a few keywords by default,   
 NOTE: events like context switches can only be read from the NT Kernel Logger trace (with its "Windows Kernel Trace" only provider). The Manifest "Kernel" providers don't have it.
 
