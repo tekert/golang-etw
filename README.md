@@ -221,9 +221,9 @@ I still don't know if there is any difference between the 3 methods apart from c
 
 #### Stopping ETW Traces
 To stop this, you have to stop two things.  
-`The Provider -> Trace Session` connection (aka `Session`)  
+`The Provider -> Trace` connection (aka `Session`)  
 and the  
-`Trace Session -> Consumer` connection  (aka `Consumer`)  
+`Trace -> Consumer` connection  (aka `Consumer`)  
 
 - `The Provider -> Trace Session` is usually a Real Time `Trace Session` meaning you want to receive events in real time as the provider outputs them, can also be a memory circular buffer, there are special Kernel/System trace sessions that only admit 1 consumer (`ProcessTrace`) at at time, For example the "NT Kernel Logger" `Trace` already exists and can't be connected to any providers except the "Windows Kernel Trace" provider wich is already connected by default.  
 To stop the connection you use the `ControlTrace` syscall.  
@@ -236,10 +236,10 @@ From the command line you can close a trace session with: (replace `<TRACE_NAME>
 You can also inspect the current opened traces with:
 > logman -ets
 
-- `The Trace Session -> Consumer` is Stopped when `ProcessTrace` blocking call ends, can be stopped using two methods, returning 0 from a the buffer callback or also using `CloseTrace` syscall, or termitating the `Trace Controller` (this library process).  
+- `The Trace -> Consumer` is Stopped when `ProcessTrace` blocking call ends, can be stopped using two methods, returning 0 from a the buffer callback or also using `CloseTrace` syscall, or termitating the `Trace Controller` (this library process).  
 In this library it the simple act of deferring a call to `Stop()` for a `Consumer`.
 
-- The `Log File -> Consumer` connection is a log file (etl trace file to consume from) -> Consumer, to close them you use `CloseTrace`  
+- The `Log File -> Consumer` connection is a Trace (etl trace file to consume from) -> Consumer, to close them you use the same `CloseTrace`  
 In this library it the simple act of deferring a call to `Stop()` for a `Consumer` or waiting to the file read to end.  
 
 --------------
