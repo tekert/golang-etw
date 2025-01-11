@@ -1,6 +1,6 @@
 [![GoDoc](https://pkg.go.dev/badge/github.com/0xrawsec/golang-etw)](https://pkg.go.dev/github.com/0xrawsec/golang-etw/etw?GOOS=windows)
 ![Version](https://img.shields.io/github/v/tag/0xrawsec/golang-etw?label=version)
-[![Coverage](https://raw.githubusercontent.com/0xrawsec/golang-etw/master/.github/coverage/badge.svg)](https://raw.githubusercontent.com/0xrawsec/golang-etw/master/.github/coverage/coverage.txt)
+[![Coverage](https://raw.githubusercontent.com/0xrawsec/golang-etw/master/.github/coverage/badge.svg)](https://raw.githubusercontent.com/tekert/golang-etw/refs/heads/fork/.github/coverage/coverage.txt)
 
 Pure Golang (no need to enable CGO) library to consume ETW logs.
 
@@ -244,7 +244,7 @@ In this library it the simple act of deferring a call to `Stop()` for a `Consume
 
 --------------
 
-Some sanitized IA definitions: (because not even microsoft docs and blogs defines this so clearly) except the deleted conceptual tutorial from microsoft, you can read it below [Best ETW Framework Conceptual Tutorial]
+Some sanitized IA definitions: (because not even microsoft docs and blogs defines this so clearly) except the deleted conceptual tutorial from microsoft, you can read it below [ETW Framework Conceptual Tutorial]
 
 ### Session
 - In ETW, "Session" often refers to a Trace Session, but it is a broader term that could include the conceptual idea of managing providers, consumers, and log files.
