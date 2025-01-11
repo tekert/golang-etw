@@ -1073,16 +1073,29 @@ cleanup:
 }
 */
 
+var eventMapInfoPool = sync.Pool{
+    New: func() interface{} {
+        b := make([]byte, 64)
+        return &b // Store pointer
+    },
+}
+
 func (e *EventRecord) GetMapInfo(pMapName *uint16, decodingSource uint32) (pMapInfo *EventMapInfo, err error) {
-	mapSize := uint32(64)
-	buff := make([]byte, mapSize)
-	pMapInfo = ((*EventMapInfo)(unsafe.Pointer(&buff[0])))
+	// Get buffer from pool (no need to clean it, it will be overwritten)
+	buffPtr := eventMapInfoPool.Get().(*[]byte)
+	defer eventMapInfoPool.Put(buffPtr)
+
+	mapSize := uint32(len(*buffPtr))
+	pMapInfo = (*EventMapInfo)(unsafe.Pointer(&(*buffPtr)[0]))
 	err = TdhGetEventMapInformation(e, pMapName, pMapInfo, &mapSize)
 
 	if err == syscall.ERROR_INSUFFICIENT_BUFFER {
-		buff := make([]byte, mapSize)
-		pMapInfo = ((*EventMapInfo)(unsafe.Pointer(&buff[0])))
-		err = TdhGetEventMapInformation(e, pMapName, pMapInfo, &mapSize)
+		// Need larger buffer
+        if mapSize > uint32(len(*buffPtr)) {
+            *buffPtr = make([]byte, mapSize)
+            pMapInfo = (*EventMapInfo)(unsafe.Pointer(&(*buffPtr)[0]))
+            err = TdhGetEventMapInformation(e, pMapName, pMapInfo, &mapSize)
+        }
 	}
 
 	if err == nil {
@@ -1129,7 +1142,7 @@ type EventHeaderExtendedDataItem struct {
 	DataPtr        uintptr // Pointer to extended info data
 }
 
-// https://learn.microsoft.com/es-es/windows/win32/api/evntcons/ns-evntcons-event_header
+// https://learn.microsoft.com/en-en/windows/win32/api/evntcons/ns-evntcons-event_header
 // v10.0.19041.0 /evntcons.h
 /*
 typedef struct _EVENT_HEADER {
@@ -1183,12 +1196,35 @@ func (e *EventHeader) GetUserTime() uint32 {
 	return uint32(e.ProcessorTime >> 32)
 }
 
-// TODO(tekert): check precision of this
-func (e *EventHeader) UTCTimeStamp() time.Time {
+// TODO(tekert): delete this, has worse performance when near second boundary
+// the new UTCTimeStamp() is has more consistent performance in all benchmark tests.
+// precision was the same for both.
+func (e *EventHeader) UTCTimeStamp_old() time.Time {
 	nano := int64(10000000)
 	sec := int64(float64(e.TimeStamp)/float64(nano) - 11644473600.0)
 	nsec := ((e.TimeStamp - 11644473600*nano) - sec*nano) * 100
 	return time.Unix(sec, nsec).UTC()
+}
+
+// Windows FILETIME is in 100-nanosecond intervals since Jan 1, 1601
+const (
+	WINDOWS_TICK     = 100         // 100-nanosecond intervals
+	EPOCH_DIFF       = 11644473600 // seconds between Windows epoch (1601) and Unix epoch (1970)
+	TICKS_PER_SECOND = 10000000    // 10^7 ticks per second
+)
+
+func (e *EventHeader) UTCTimeStamp() time.Time {
+	// Convert to Unix epoch
+	unixTime := e.TimeStamp - (EPOCH_DIFF * TICKS_PER_SECOND)
+
+	// Calculate seconds and remaining ticks
+	seconds := unixTime / TICKS_PER_SECOND
+	remaining := unixTime % TICKS_PER_SECOND
+
+	// Convert remaining ticks to nanoseconds (multiply by 100)
+	nanos := remaining * WINDOWS_TICK
+
+	return time.Unix(seconds, nanos).UTC()
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_descriptor
@@ -1433,19 +1469,19 @@ type EventTraceHeader struct {
 // Low-order bytes are listed first, top to bottom in unions.
 // Example, Kernel time is listed first in the union, so it is the lower 32 bits.
 
-func (e *EventTraceHeader) GetType() uint16 {
-	// Extract Version (lower 16 bits)
-	return uint16(e.Union2 & 0xFFFF)
+func (e *EventTraceHeader) GetType() uint8 {
+	// Extract Version (lower byte)
+	return uint8(e.Union2 & 0xFF)
 }
 
 func (e *EventTraceHeader) GetLevel() uint8 {
-	// Extract Level (middle 8 bits)
+	// Extract Level (middle byte)
 	return uint8(e.Union2 >> 16)
 }
 
-func (e *EventTraceHeader) GetVersion() uint8 {
-	// Extract Type (higher 8 bits)
-	return uint8(e.Union2 >> 24)
+func (e *EventTraceHeader) GetVersion() uint16 {
+	// Extract Type (upper 2 bytes)
+	return uint16((e.Union2 >> 16) & 0xFFFF)
 }
 
 func (e *EventTraceHeader) GetGuid() GUID {
@@ -1561,8 +1597,6 @@ type TraceLogfileHeader struct {
 	BuffersLost        uint32
 }
 
-// TODO(tekert): getters for unions.
-
 // Version number of the operating system where the trace was collected.
 // This is a roll-up of the members of VersionDetail.
 // Starting with the low-order bytes, the first two bytes contain MajorVersion,
@@ -1582,25 +1616,41 @@ func (t *TraceLogfileHeader) GetLogInstanceGuid() GUID {
 	return *(*GUID)(unsafe.Pointer(&t.Union2))
 }
 
-// TODO(tekert): Check performance in these functions
-// Count of buffers written at start.
+// Count of buffers written at start
 func (t *TraceLogfileHeader) GetStartBuffers() uint32 {
-	return (uint32(t.Union2[15]) << 24) | (uint32(t.Union2[14]) << 16) | (uint32(t.Union2[13]) << 8) | uint32(t.Union2[12])
+	// (offset 0..3).
+	return uint32(t.Union2[0]) |
+		(uint32(t.Union2[1]) << 8) |
+		(uint32(t.Union2[2]) << 16) |
+		(uint32(t.Union2[3]) << 24)
 }
 
 // Size of pointer type in bits
 func (t *TraceLogfileHeader) GetPointerSize() uint32 {
-	return (uint32(t.Union2[11]) << 24) | (uint32(t.Union2[10]) << 16) | (uint32(t.Union2[9]) << 8) | uint32(t.Union2[8])
+	// (offset 4..7).
+	return uint32(t.Union2[4]) |
+		(uint32(t.Union2[5]) << 8) |
+		(uint32(t.Union2[6]) << 16) |
+		(uint32(t.Union2[7]) << 24)
 }
 
 // Events losts during log session
 func (t *TraceLogfileHeader) GetEventsLost() uint32 {
-	return (uint32(t.Union2[7]) << 24) | (uint32(t.Union2[6]) << 16) | (uint32(t.Union2[5]) << 8) | uint32(t.Union2[4])
+	// The EventsLost field is at offset 8..11 in the union
+	// and is little-endian on Windows
+	return uint32(t.Union2[8]) |
+		(uint32(t.Union2[9]) << 8) |
+		(uint32(t.Union2[10]) << 16) |
+		(uint32(t.Union2[11]) << 24)
 }
 
-// Cpu Speed in MHz
+// CPU Speed in MHz
 func (t *TraceLogfileHeader) GetCpuSpeedInMHz() uint32 {
-	return (uint32(t.Union2[3]) << 24) | (uint32(t.Union2[2]) << 16) | (uint32(t.Union2[1]) << 8) | uint32(t.Union2[0])
+	// (offset 12..15).
+	return uint32(t.Union2[12]) |
+		(uint32(t.Union2[13]) << 8) |
+		(uint32(t.Union2[14]) << 16) |
+		(uint32(t.Union2[15]) << 24)
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/timezoneapi/ns-timezoneapi-time_zone_information
