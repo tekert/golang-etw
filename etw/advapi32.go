@@ -17,7 +17,7 @@ EXTERN_C ULONG WMIAPI StartTraceW (
 */
 func StartTrace(traceHandle *syscall.Handle,
 	instanceName *uint16,
-	properties *EventTraceProperties) error {
+	properties *EventTraceProperties2) error {
 	r1, _, _ := startTraceW.Call(
 		uintptr(unsafe.Pointer(traceHandle)),
 		uintptr(unsafe.Pointer(instanceName)),
@@ -135,7 +135,7 @@ EXTERN_C ULONG WMIAPI ControlTraceW (
 */
 func ControlTrace(traceHandle syscall.Handle,
 	instanceName *uint16,
-	properties *EventTraceProperties,
+	properties *EventTraceProperties2,
 	controlCode uint32) error {
 	r1, _, _ := controlTraceW.Call(
 		uintptr(traceHandle),

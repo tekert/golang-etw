@@ -106,7 +106,10 @@ type Consumer struct {
 //
 // This is also be updated on each bufferCallback call.
 func (c *Consumer) GetTraceInfo(tname string) *EventTraceLogfile {
-	return c.traces[tname].outputTraceLogFile
+	if t, exists := c.traces[tname]; exists {
+		return t.outputTraceLogFile
+	}
+	return nil
 }
 
 // Information about the Trace
@@ -121,7 +124,7 @@ type Trace struct {
 	// True is the trace is open
 	opened bool
 
-	// is a realtime trace session or evt file trace
+	// is a realtime trace session or etl file trace
 	realtime bool
 
 	// EventTraceLogfile that OpenTrace returned.
@@ -176,6 +179,7 @@ func (c *Consumer) updateTraceOutput(e *EventTraceLogfile) {
 	} else {
 		tname = UTF16PtrToString(e.LoggerName)
 	}
+	// trace key exists at this stage.
 	trace := c.traces[tname]
 	trace.outputTraceLogFile = e
 }

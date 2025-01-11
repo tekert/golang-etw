@@ -68,6 +68,13 @@ type Provider struct {
 	Filter []uint16
 }
 
+func (p *Provider) IsKernelProvider() bool {
+	// "Windows Kernel Trace" is the provider for the trace session "NT Kernel Logger"
+	// only one session can be running at any time, but Microsoft-Windows-Kernel- providers can be used
+	// in other sessions
+    return strings.Contains(p.Name, "Microsoft-Windows-Kernel-") || strings.Contains(p.Name, "Windows Kernel Trace")
+}
+
 // IsZero returns true if the provider is empty
 func (p *Provider) IsZero() bool {
 	return p.GUID.IsZero()

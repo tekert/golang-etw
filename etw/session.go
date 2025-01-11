@@ -29,24 +29,45 @@ var (
 type Session interface {
 	TraceName() string
 	Providers() []Provider
+	IsKernelSession() bool
 }
 
 // Real time Trace Session
 type RealTimeSession struct {
-	properties    *EventTraceProperties
+	properties    *EventTraceProperties2
 	sessionHandle syscall.Handle
 
 	traceName string
 	providers []Provider
 }
 
+func (p *RealTimeSession) IsKernelSession() bool {
+	return p.traceName == NtKernelLogger ||
+		(p.properties.LogFileMode&EVENT_TRACE_SYSTEM_LOGGER_MODE) != 0
+}
+
 // NewRealTimeSession creates a new ETW session to receive events
 // in real time
-func NewRealTimeSession(name string) (p *RealTimeSession) {
-	p = &RealTimeSession{}
-	p.properties = NewRealTimeEventTraceSessionProperties(name)
-	p.traceName = name
-	p.providers = make([]Provider, 0)
+func NewRealTimeSession(name string) (s *RealTimeSession) {
+	s = &RealTimeSession{}
+	s.properties = NewRealTimeEventTraceSessionProperties(name)
+	s.traceName = name
+	s.providers = make([]Provider, 0)
+	return
+}
+
+// Only use this if the providers that will be enabled are not kernel providers
+//
+// NewPagedRealTimeSession creates a new ETW session to receive events
+// in real time that uses paged memory.
+// This setting is recommended so that events do not use up the nonpaged memory.
+// Nonpaged buffers use nonpaged memory for buffer space.
+// Because nonpaged buffers are never paged out, a logging session performs well.
+// Using pageable buffers is less resource-intensive.
+// Kernel-mode providers and system loggers cannot log events to sessions that specify this logging mode.
+func NewPagedRealTimeSession(name string) (s *RealTimeSession) {
+	s = NewRealTimeSession(name)
+	s.properties.LogFileMode |= EVENT_TRACE_USE_PAGED_MEMORY
 	return
 }
 
@@ -79,35 +100,61 @@ func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 //   - Write the keywords you want and put them in MustParseProvider() wich go to EnableTraceEx2
 //
 // NOTE* The keywords are too new and are not defined on most systems.
-func newSystemTraceProviderSession(name string) (p *RealTimeSession) {
-	p = NewRealTimeSession(name)
-	p.properties.LogFileMode |= EVENT_TRACE_SYSTEM_LOGGER_MODE
+func newSystemTraceProviderSession(name string) (s *RealTimeSession) {
+	s = NewRealTimeSession(name)
+	s.properties.LogFileMode |= EVENT_TRACE_SYSTEM_LOGGER_MODE
 	return
 }
 
+func NewRealTimeEventTraceSessionProperties(logSessionName string) *EventTraceProperties2 {
+	sessionProperties, size := NewEventTraceSessionPropertiesV2(logSessionName)
+
+	// Necessary fields for SessionProperties struct
+	sessionProperties.Wnode.BufferSize = size // this is optimized by ETWframework
+	sessionProperties.Wnode.Guid = GUID{}     //To set
+	sessionProperties.Wnode.ClientContext = 1 // QPC
+	// *NOTE(tekert) should this be WNODE_FLAG_TRACED_GUID instead of WNODE_FLAG_ALL_DATA?
+	sessionProperties.Wnode.Flags = WNODE_FLAG_TRACED_GUID | WNODE_FLAG_VERSIONED_PROPERTIES
+	sessionProperties.LogFileMode = EVENT_TRACE_REAL_TIME_MODE
+	sessionProperties.LogFileNameOffset = 0
+	// ETW event can be up to 64KB size so if the buffer size is not at least
+	// big enough to contain such an event, the event will be lost
+	// source: https://docs.microsoft.com/en-us/message-analyzer/specifying-advanced-etw-session-configuration-settings
+	sessionProperties.BufferSize = 64
+	sessionProperties.LoggerNameOffset = uint32(unsafe.Sizeof(EventTraceProperties2{}))
+
+	return sessionProperties
+}
+
 // IsStarted returns true if the session is already started
-func (p *RealTimeSession) IsStarted() bool {
-	return p.sessionHandle != 0
+func (s *RealTimeSession) IsStarted() bool {
+	return s.sessionHandle != 0
 }
 
 // Start starts the session
-func (p *RealTimeSession) Start() (err error) {
+func (s *RealTimeSession) Start() (err error) {
 	var u16TraceName *uint16
 
-	if u16TraceName, err = syscall.UTF16PtrFromString(p.traceName); err != nil {
+	if u16TraceName, err = syscall.UTF16PtrFromString(s.traceName); err != nil {
 		return err
 	}
 
-	if !p.IsStarted() {
-		if err = StartTrace(&p.sessionHandle, u16TraceName, p.properties); err != nil {
+	if !s.IsStarted() {
+
+		if s.IsKernelSession() {
+			// Remove EVENT_TRACE_USE_PAGED_MEMORY flag from session properties
+			s.properties.LogFileMode &= ^uint32(EVENT_TRACE_USE_PAGED_MEMORY)
+		}
+
+		if err = StartTrace(&s.sessionHandle, u16TraceName, s.properties); err != nil {
 			// we handle the case where the trace already exists
 			if err == ERROR_ALREADY_EXISTS {
 				// we have to use a copy of properties as ControlTrace modifies
 				// the structure and if we don't do that we cannot StartTrace later
-				prop := *p.properties
+				prop := *s.properties
 				// we close the trace first
 				ControlTrace(0, u16TraceName, &prop, EVENT_TRACE_CONTROL_STOP)
-				return StartTrace(&p.sessionHandle, u16TraceName, p.properties)
+				return StartTrace(&s.sessionHandle, u16TraceName, s.properties)
 			}
 			return
 		}
@@ -117,13 +164,13 @@ func (p *RealTimeSession) Start() (err error) {
 }
 
 // EnableProvider enables the trace session using [EnableTraceEx2] to receive events from a given provider
-func (p *RealTimeSession) EnableProvider(prov Provider) (err error) {
+func (s *RealTimeSession) EnableProvider(prov Provider) (err error) {
 	var guid *GUID
 
 	// If the trace is not started yet we have to start it
 	// otherwise we cannot enable provider
-	if !p.IsStarted() {
-		if err = p.Start(); err != nil {
+	if !s.IsStarted() {
+		if err = s.Start(); err != nil {
 			return
 		}
 	}
@@ -145,7 +192,7 @@ func (p *RealTimeSession) EnableProvider(prov Provider) (err error) {
 	}
 
 	if err = EnableTraceEx2(
-		p.sessionHandle,
+		s.sessionHandle,
 		guid,
 		EVENT_CONTROL_CODE_ENABLE_PROVIDER,
 		prov.EnableLevel,
@@ -157,22 +204,22 @@ func (p *RealTimeSession) EnableProvider(prov Provider) (err error) {
 		return
 	}
 
-	p.providers = append(p.providers, prov)
+	s.providers = append(s.providers, prov)
 
 	return
 }
 
 // TraceName implements Session interface
-func (p *RealTimeSession) TraceName() string {
-	return p.traceName
+func (s *RealTimeSession) TraceName() string {
+	return s.traceName
 }
 
 // Providers implements Session interface
-func (p *RealTimeSession) Providers() []Provider {
-	return p.providers
+func (s *RealTimeSession) Providers() []Provider {
+	return s.providers
 }
 
 // Stop stops the session
-func (p *RealTimeSession) Stop() error {
-	return ControlTrace(p.sessionHandle, nil, p.properties, EVENT_TRACE_CONTROL_STOP)
+func (s *RealTimeSession) Stop() error {
+	return ControlTrace(s.sessionHandle, nil, s.properties, EVENT_TRACE_CONTROL_STOP)
 }

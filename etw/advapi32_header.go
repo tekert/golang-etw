@@ -582,6 +582,12 @@ type EventTraceProperties struct {
 	LoggerNameOffset    uint32         // Offset to LoggerName
 }
 
+func NewEventTraceSessionProperties(sessionName string) (*EventTraceProperties, uint32) {
+	size := ((len(sessionName) + 1) * 2) + int(unsafe.Sizeof(EventTraceProperties{}))
+	s := make([]byte, size)
+	return (*EventTraceProperties)(unsafe.Pointer(&s[0])), uint32(size)
+}
+
 // https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties_v2
 // v10.0.19041.0 - evntrace.h
 /*
@@ -662,6 +668,15 @@ type EventTraceProperties2 struct {
 	V2Options       uint64                 // (Wow, QpcDeltaTracking, LargeMdlPages, ExcludeKernelStack)
 }
 
+// This structure is supported starting with Windows 10 version 1703.
+// When used with earlier versions of Windows,
+// the additional fields (e.g. FilterDesc and V2Options) will be ignored
+func NewEventTraceSessionPropertiesV2(sessionName string) (*EventTraceProperties2, uint32) {
+	size := ((len(sessionName) + 1) * 2) + int(unsafe.Sizeof(EventTraceProperties2{}))
+	s := make([]byte, size)
+	return (*EventTraceProperties2)(unsafe.Pointer(&s[0])), uint32(size)
+}
+
 // V2Control
 func (e *EventTraceProperties2) GetVersionNumber() uint8 {
 	// ( Should be set to 2 for this version.)
@@ -683,31 +698,6 @@ func (e *EventTraceProperties2) GetLargeMdlPages() bool {
 
 func (e *EventTraceProperties2) GetExcludeKernelStack() bool {
 	return (e.V2Options>>3)&1 == 1 // Bit 3
-}
-
-func NewEventTraceSessionProperties(sessionName string) (*EventTraceProperties, uint32) {
-	size := ((len(sessionName) + 1) * 2) + int(unsafe.Sizeof(EventTraceProperties{}))
-	s := make([]byte, size)
-	return (*EventTraceProperties)(unsafe.Pointer(&s[0])), uint32(size)
-}
-
-func NewRealTimeEventTraceSessionProperties(logSessionName string) *EventTraceProperties {
-	sessionProperties, size := NewEventTraceSessionProperties(logSessionName)
-
-	// Necessary fields for SessionProperties struct
-	sessionProperties.Wnode.BufferSize = size           // this is optimized by ETWframework
-	sessionProperties.Wnode.Guid = GUID{}               //To set
-	sessionProperties.Wnode.ClientContext = 1           // QPC
-	sessionProperties.Wnode.Flags = WNODE_FLAG_ALL_DATA // *NOTE(tekert) should this be WNODE_FLAG_TRACED_GUID ?
-	sessionProperties.LogFileMode = EVENT_TRACE_REAL_TIME_MODE
-	sessionProperties.LogFileNameOffset = 0
-	// ETW event can be up to 64KB size so if the buffer size is not at least
-	// big enough to contain such an event, the event will be lost
-	// source: https://docs.microsoft.com/en-us/message-analyzer/specifying-advanced-etw-session-configuration-settings
-	sessionProperties.BufferSize = 64
-	sessionProperties.LoggerNameOffset = uint32(unsafe.Sizeof(EventTraceProperties{}))
-
-	return sessionProperties
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-enable_trace_parameters
