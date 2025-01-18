@@ -6,7 +6,6 @@ package etw
 import (
 	"crypto/rand"
 	"fmt"
-	"log/slog"
 	"syscall"
 	"unsafe"
 )
@@ -75,14 +74,38 @@ func UTF16AtOffsetToString(pstruct uintptr, offset uintptr) string {
 // 	return syscall.UTF16ToString(out)
 // }
 
-func CopyData(pointer uintptr, size int) []byte {
-	out := make([]byte, 0, size)
-	for it := pointer; it != pointer+uintptr(size); it++ {
-		b := (*byte)(unsafe.Pointer(it))
-		out = append(out, *b)
+// Copies a null terminated UTF16 string from a pointer to a
+// new allocated memory
+func CopyUTF16Ptr(src *uint16) *uint16 {
+	if src == nil {
+		return nil
 	}
-	return out
+	length := Wcslen(src)
+	dst := make([]uint16, length+1)
+	copy(dst, unsafe.Slice(src, length+1))
+	return &dst[0]
 }
+
+func CopyData(pointer unsafe.Pointer, size int) []byte {
+	if size <= 0 {
+		return nil
+	}
+	// Create a slice from the pointer without copying memory
+	src := unsafe.Slice((*byte)(pointer), size)
+	dst := make([]byte, size)
+	copy(dst, src)
+	return dst
+}
+
+// inneficient - delete 3x slower than CopyData and a bit unsafe with uintptr.
+// func CopyData_old(pointer uintptr, size int) []byte {
+// 	out := make([]byte, 0, size)
+// 	for it := pointer; it != pointer+uintptr(size); it++ {
+// 		b := (*byte)(unsafe.Pointer(it))
+// 		out = append(out, *b)
+// 	}
+// 	return out
+// }
 
 // UUID is a simple UUIDgenerator
 func UUID() (uuid string, err error) {
@@ -93,14 +116,4 @@ func UUID() (uuid string, err error) {
 	}
 	uuid = fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 	return
-}
-
-// https://pkg.go.dev/log/slog@go1.23.4#hdr-Performance_considerations
-type lazyDecodeSource struct {
-	ds DecodingSource
-}
-
-func (l lazyDecodeSource) LogValue() slog.Value {
-	// Called only if log is enabled
-	return slog.StringValue(aSource[l.ds])
 }
