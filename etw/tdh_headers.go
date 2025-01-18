@@ -351,7 +351,10 @@ type TraceEventInfo struct {
 	TopLevelPropertyCount uint32
 
 	Flags                  TemplateFlags
-	EventPropertyInfoArray [1]EventPropertyInfo // This is a variable size array in C
+	EventPropertyInfoArray [1]EventPropertyInfo // This is a variable size array
+	// This means that in memory after this struct ends there can be
+	// 0 to n EventPropertyInfo{} structs, the first one is always on
+	// the struct itself.
 }
 
 func (t *TraceEventInfo) pointer() uintptr {
@@ -387,14 +390,30 @@ func (t *TraceEventInfo) ProviderName() string {
 	return t.cleanStringAt(uintptr(t.ProviderNameOffset))
 }
 
-func (t *TraceEventInfo) TaskName() string {
-	return t.cleanStringAt(uintptr(t.TaskNameOffset))
-}
-
 func (t *TraceEventInfo) LevelName() string {
 	return t.cleanStringAt(uintptr(t.LevelNameOffset))
 }
 
+/*
+Meaning of this field depends on DecodingSource.
+- XMLFile: The offset to the name of the associated task.
+- Wbem: The offset to the event's MOF "DisplayName" property. For many
+	Wbem providers, ProviderName is a provider category and TaskName is
+	the provider subcategory.
+- WPP: Not used.
+- Tlg: The offset to the name of the event.
+*/
+func (t *TraceEventInfo) TaskName() string {
+	return t.cleanStringAt(uintptr(t.TaskNameOffset))
+}
+
+// Source docs:
+/* Meaning of this field depends on DecodingSource.
+- XMLFile: The offset to the name of the associated opcode.
+- Wbem: The offset to the event's MOF "EventTypeName" property. For
+	many Wbem providers, OpcodeName is the event's name.
+- WPP: Not used.
+- Tlg: The offset to the name of the associated opcode. */
 func (t *TraceEventInfo) OpcodeName() string {
 	return t.cleanStringAt(uintptr(t.OpcodeNameOffset))
 }
@@ -444,7 +463,11 @@ structure to a nul-terminated Unicode string that contains the
 property name of the activity identifier in the MOF class.
 Supported for classic ETW events only. */
 func (t *TraceEventInfo) ActivityIDName() string {
-	return t.stringAt(uintptr(t.Union1))
+	if t.IsMof() {
+		return t.stringAt(uintptr(t.Union1))
+	}
+	// not meaningful, cannot be used to identify event
+	return ""
 }
 
 //
@@ -464,7 +487,12 @@ manifest event names. Event name decoding is supported on Windows
 10 Fall Creators Update (2017) and later.
 */
 func (t *TraceEventInfo) EventName() string {
-	return t.stringAt(uintptr(t.Union1))
+	if (t.DecodingSource == DecodingSourceXMLFile) ||
+		(t.DecodingSource == DecodingSourceTlg) {
+		return t.stringAt(uintptr(t.Union1))
+	}
+	// not meaningful, cannot be used to identify event
+	return ""
 }
 
 // Seems to be always empty
@@ -481,7 +509,11 @@ of this structure to a nul-terminated Unicode string that contains
 the property name of the related activity identifier in the MOF
 class. */
 func (t *TraceEventInfo) RelatedActivityIDName() string {
-	return t.stringAt(uintptr(t.Union2))
+	if t.IsMof() {
+		return t.stringAt(uintptr(t.Union2))
+	}
+	// not meaningful, cannot be used to identify event
+	return ""
 }
 
 // Source docs:
@@ -514,7 +546,11 @@ func (t *TraceEventInfo) RelatedActivityIDName() string {
 	FILE=source.cpp;LINE=123;MJ="Value; ""Quoted"""
 */
 func (t *TraceEventInfo) EventAttributes() string {
-	return t.stringAt(uintptr(t.Union2))
+	if t.IsXML() {
+		return t.stringAt(uintptr(t.Union2))
+	}
+	// not meaningful, cannot be used to identify event
+	return ""
 }
 
 func (t *TraceEventInfo) IsMof() bool {
@@ -523,6 +559,10 @@ func (t *TraceEventInfo) IsMof() bool {
 
 func (t *TraceEventInfo) IsXML() bool {
 	return t.DecodingSource == DecodingSourceXMLFile
+}
+
+func (t *TraceEventInfo) IsWPP() bool {
+	return t.DecodingSource == DecodingSourceWPP
 }
 
 func (t *TraceEventInfo) EventID() uint16 {
@@ -545,7 +585,7 @@ func (t *TraceEventInfo) EventVersion() uint8 {
 	return 0
 }
 
-// This is just a way in go access the i element in a variadic array size.
+// Access the EventPropertyInfo block at index i (they are contiguous in memory)
 func (t *TraceEventInfo) GetEventPropertyInfoAt(i uint32) *EventPropertyInfo {
 	if i < t.PropertyCount {
 		pEpi := uintptr(unsafe.Pointer(&t.EventPropertyInfoArray[0]))

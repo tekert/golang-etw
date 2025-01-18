@@ -23,7 +23,7 @@ func TestUtils(t *testing.T) {
 	tt.Assert(Wcslen(sutf16) == uint64(len(s)))
 
 	// we have to double the length because we are in utf16
-	butf16 := CopyData(uintptr(unsafe.Pointer(sutf16)), len(s)*2)
+	butf16 := CopyData(unsafe.Pointer(sutf16), len(s)*2)
 
 	tt.Assert(len(butf16) == len(s)*2)
 	tt.Assert(UTF16BytesToString(butf16) == s)
