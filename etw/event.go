@@ -3,6 +3,7 @@ package etw
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -34,7 +35,7 @@ type Event struct {
 			KernelTime  uint32
 			UserTime    uint32
 		}
-		Keywords Keywords  // Change this line to use Keywords type
+		Keywords Keywords // Change this line to use Keywords type
 		// Keywords struct {
 		// 	Mask uint64
 		// 	Name []string
@@ -64,22 +65,57 @@ type Event struct {
 
 // So to print the mask in hex mode.
 type Keywords struct {
-    Mask uint64
-    Name []string
+	Mask uint64
+	Name []string
 }
 
 // Add custom MarshalJSON for Keywords
 func (k Keywords) MarshalJSON() ([]byte, error) {
-    return json.Marshal(&struct {
-        Mask string   `json:"Mask"`
-        Name []string `json:"Name"`
-    }{
-        Mask: fmt.Sprintf("0x%x", k.Mask),
-        Name: k.Name,
-    })
+	return json.Marshal(&struct {
+		Mask string   `json:"Mask"`
+		Name []string `json:"Name"`
+	}{
+		Mask: fmt.Sprintf("0x%x", k.Mask),
+		Name: k.Name,
+	})
 }
 
-func NewEvent() (e *Event) {
+var (
+	eventPool = sync.Pool{
+		New: func() interface{} {
+			return &Event{
+				EventData:    make(map[string]interface{}),
+				UserData:     make(map[string]interface{}),
+				ExtendedData: make([]string, 0),
+			}
+		},
+	}
+)
+
+func NewEvent() *Event {
+	return eventPool.Get().(*Event)
+}
+
+func (e *Event) reset() {
+	// Clear contents
+	clear(e.EventData)
+	clear(e.UserData)
+
+	// Zero all fields except maps/slices
+	*e = Event{
+		EventData:    e.EventData,
+		UserData:     e.UserData,
+		ExtendedData: e.ExtendedData[:0],
+	}
+}
+
+func (e *Event) Release() {
+	e.reset()
+	eventPool.Put(e)
+}
+
+// TODO(tekert): delete when we are sure we don't need it
+func NewEvent_old() (e *Event) {
 	e = &Event{}
 	e.EventData = make(map[string]interface{})
 	e.UserData = make(map[string]interface{})
