@@ -46,24 +46,15 @@ func getAccessString(guid etw.GUID) (s string) {
 	return
 }
 
-func setAccess(guid etw.GUID) {
-	var sid *etw.SID
-	var err error
-
-	if sid, err = etw.ConvertStringSidToSidW("S-1-5-18"); err != nil {
-		log.Errorf("Failed to convert string to sid%s", err)
-		return
-	}
-	g := &guid
-
-	if err = etw.EventAccessControl(g,
-		uint32(etw.EVENT_SECURITY_SET_DACL),
-		sid,
-		0x120fff,
-		true,
-	); err != nil {
-		log.Errorf("Failed to set access%s", err)
-	}
+func setAcess(provider etw.GUID) error {
+	return etw.SetProviderAccess(
+		provider,
+		"S-1-5-18",
+		// 0x120fff
+		etw.TRACELOG_CREATE_REALTIME|
+			etw.TRACELOG_ACCESS_REALTIME|
+			etw.TRACELOG_REGISTER_GUIDS|
+			0xfff)
 }
 
 func parseFilter(s string) (provider string, eventIds []uint16) {
@@ -288,7 +279,10 @@ func main() {
 	if access {
 		if set {
 			for _, provider := range providers {
-				setAccess(providerOrFail(provider).GUID)
+				err := setAcess(providerOrFail(provider).GUID)
+				if err != nil {
+					log.Errorf("Failed to SetAccess: err %s", err)
+				}
 			}
 		}
 
