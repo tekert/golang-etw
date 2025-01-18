@@ -117,16 +117,20 @@ or
 Definitions:  
 
 - `LogLevel as hex`  (Default is All levels = 0xFF)  
-Standard logging levels are:  
-0 — Log Always;  
-1 — Critical;  
-2 — Error;  
-3 — Warning;  
-4 — Informational;  
-5 — Verbose.   
+The event level defines the event's severity or importance and is a
+primary means for filtering events. Microsoft-defined levels (in
+evntrace.h and  winmeta.h) are 1 (critical/fatal), 2 (error),
+3 (warning), 4 (information), and 5 (verbose). Levels 6-9 are reserved.
+Level 0 means the event is always-on (will not be filtered by level).
+For a provider, a lower level means the event is more important. An
+event with level 0 will always pass any level-based filtering.
+For a consumer, a lower level means the session's filter is more
+restrictive. However, setting a session's level to 0 disables level
+filtering (i.e. session level 0 is the same as session level 255).  
 Custom logging levels can also be defined, but levels 6–15 are reserved.  
 More than one logging level can be captured by ORing respective levels;  
 supplying 255 (0xFF) is the standard method of capturing all supported logging levels.  
+More info [here](https://learn.microsoft.com/en-us/windows/win32/wes/eventmanifestschema-leveltype-complextype#remarks)  
 
 - `<EventIDs as ints separed by comma>`  (Default is to include ALL events IDs)   
  You can check the event ids a provider supports by looking at it's manifest with [ETW Explorer][etw-explorer] or with the `Wevtutil gp` command previously executed, these IDs are used as fast filtering on `EnableTraceEx2`  
@@ -146,10 +150,22 @@ Filtering at kernel level is inherently faster than user mode filtering (followi
 - `MatchAllKeyword in HEX` (Default is to include ALL events = 0x00)  
 Bitmask where for those events that matched the "MatchAnyKeyword" case, the event is written by the provider only if all of the bits in the "MatchAllKeyword" mask exist in the event's keyword bitmask or if the event has no keyword bits set.  
 This value is frequently set to 0.  
-Note that this mask is not used if Keywords(Any) is set to zero.
+Note that this mask is not used if Keywords(Any) is set to zero.  
 
-More info in [Keywords](https://learn.microsoft.com/en-us/windows/win32/wes/defining-keywords-used-to-classify-types-of-events)
-An also at [EnableTraceEx2](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-enabletraceex2#remarks)
+The evntprov.h source header have the best doc on this:  
+```cpp
+// An event will pass the session's keyword filtering  
+// if the following expression is true:  
+event.Keyword == 0 || (  
+(event.Keyword & session.KeywordAny) != 0 &&  
+(event.Keyword & session.KeywordAll) ==  session.KeywordAll).  
+// In other words, uncategorized events (events with no keywords set) always pass keyword filtering, and categorized events pass if they match any keywords in KeywordAny and match all keywords in KeywordAll.  
+```
+
+More info in  
+[evntprov.h](https://github.com/tpn/winsdk-10/blob/9b69fd26ac0c7d0b83d378dba01080e93349c2ed/Include/10.0.16299.0/shared/evntprov.h#L284)  
+[Keywords](https://learn.microsoft.com/en-us/windows/win32/wes/defining-keywords-used-to-classify-types-of-events)  
+An also at [EnableTraceEx2](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-enabletraceex2#remarks)  
 
 #### Writing events to a .etl file
 Usually when using a provider to output events to file, you create an etl tracefile using windows tools, like logman command.  
