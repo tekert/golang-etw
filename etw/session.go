@@ -4,6 +4,7 @@
 package etw
 
 import (
+	"fmt"
 	"syscall"
 	"unsafe"
 )
@@ -17,6 +18,7 @@ const (
 // https://learn.microsoft.com/en-us/windows/win32/etw/msnt-systemtrace
 var (
 	//systemTraceControlGuid = MustParseGUIDFromString("{9E814AAD-3204-11D2-9A82-006008A86939}")
+	// "Windows Kernel Trace" provider GUID (only one session can be running at any time)
 	systemTraceControlGuid = &GUID{ /* {9E814AAD-3204-11D2-9A82-006008A86939} */
 		Data1: 0x9e814aad,
 		Data2: 0x3204,
@@ -46,11 +48,11 @@ func (p *RealTimeSession) IsKernelSession() bool {
 		(p.properties.LogFileMode&EVENT_TRACE_SYSTEM_LOGGER_MODE) != 0
 }
 
-// NewRealTimeSession creates a new ETW session to receive events
+// NewRealTimeSession creates a new ETW trace session to receive events
 // in real time
 func NewRealTimeSession(name string) (s *RealTimeSession) {
 	s = &RealTimeSession{}
-	s.properties = NewRealTimeEventTraceSessionProperties(name)
+	s.properties = NewRealTimeEventTraceProperties(name)
 	s.traceName = name
 	s.providers = make([]Provider, 0)
 	return
@@ -58,7 +60,7 @@ func NewRealTimeSession(name string) (s *RealTimeSession) {
 
 // Only use this if the providers that will be enabled are not kernel providers
 //
-// NewPagedRealTimeSession creates a new ETW session to receive events
+// NewPagedRealTimeSession creates a new ETW trace session to receive events
 // in real time that uses paged memory.
 // This setting is recommended so that events do not use up the nonpaged memory.
 // Nonpaged buffers use nonpaged memory for buffer space.
@@ -71,12 +73,13 @@ func NewPagedRealTimeSession(name string) (s *RealTimeSession) {
 	return
 }
 
-// NewKernelRealTimeSession creates a new ETW session to receive
+// NewKernelRealTimeSession creates a new ETW trace session to receive
 // NT Kernel Logger events in real time (only one session can be running at any time)
 //
-// Flags: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties EnableFlags section
+// EnableFlags: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties EnableFlags section
 //
-// More info at: https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-the-nt-kernel-logger-session
+// Here is info on the MOF Events for the Kernel Trace.
+// https://msdn.microsoft.com/en-us/library/windows/desktop/aa364083(v=vs.85).aspx
 func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	p = NewRealTimeSession(NtKernelLogger)
 	// guid must be set for Kernel Session
@@ -87,8 +90,10 @@ func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	return
 }
 
-// * NOTE needs Windows 10 SDK build 20348 or later
-// new way to enable kernel (now system) providers
+// TODO(tekert): import definitions.
+// Warning!: needs Windows 10 SDK build 20348 or later, panics if not
+//
+// New way to enable kernel (now system) providers
 // Not used for now (made private)
 //
 // https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-a-systemtraceprovider-session
@@ -97,21 +102,28 @@ func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 //
 // How to use it:
 //   - GUIDs and Keywords defined here: https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
-//   - Write the keywords you want and put them in MustParseProvider() wich go to EnableTraceEx2
+//   - Write the keywords you want and put them in ParseProvider() wich are then passed to EnableTraceEx2
 //
 // NOTE* The keywords are too new and are not defined on most systems.
-func newSystemTraceProviderSession(name string) (s *RealTimeSession) {
+func NewSystemTraceProviderSession(name string) (s *RealTimeSession) {
+	if build := GetWindowsBuild(); build < 20348 {
+		panic(fmt.Errorf("NewSystemTraceProviderSession requires " +
+			"Windows 10 SDK build 20348 or later"))
+	}
+
 	s = NewRealTimeSession(name)
 	s.properties.LogFileMode |= EVENT_TRACE_SYSTEM_LOGGER_MODE
 	return
 }
 
-func NewRealTimeEventTraceSessionProperties(logSessionName string) *EventTraceProperties2 {
-	sessionProperties, size := NewEventTraceSessionPropertiesV2(logSessionName)
+func NewRealTimeEventTraceProperties(logSessionName string) *EventTraceProperties2 {
+	sessionProperties, size := NewEventTracePropertiesV2(logSessionName)
 
+	// https://learn.microsoft.com/en-us/windows/win32/etw/wnode-header
 	// Necessary fields for SessionProperties struct
 	sessionProperties.Wnode.BufferSize = size // this is optimized by ETWframework
-	sessionProperties.Wnode.Guid = GUID{}     //To set
+	sessionProperties.Wnode.Guid = GUID{}     // Will be set by etw
+	// Only used if PROCESS_TRACE_MODE_RAW_TIMESTAMP is set in the Consumer side
 	sessionProperties.Wnode.ClientContext = 1 // QPC
 	// *NOTE(tekert) should this be WNODE_FLAG_TRACED_GUID instead of WNODE_FLAG_ALL_DATA?
 	sessionProperties.Wnode.Flags = WNODE_FLAG_TRACED_GUID | WNODE_FLAG_VERSIONED_PROPERTIES
@@ -220,6 +232,43 @@ func (s *RealTimeSession) Providers() []Provider {
 }
 
 // Stop stops the session
+// Blocks until all buffers are flushed and the session is fully stopped
 func (s *RealTimeSession) Stop() error {
 	return ControlTrace(s.sessionHandle, nil, s.properties, EVENT_TRACE_CONTROL_STOP)
+}
+
+// get TraceInfo with EVENT_TRACE_CONTROL_QUERY
+func (s *RealTimeSession) QueryTraceProperties() (prop *EventTraceProperties2, err error) {
+	// copy s.properties
+	prop = &EventTraceProperties2{}
+	*prop = *s.properties
+
+	// Query trace
+	if err := ControlTrace(s.sessionHandle, nil, prop, EVENT_TRACE_CONTROL_QUERY); err != nil {
+		return nil, err
+	}
+	return prop, nil
+}
+
+// QueryTraceProperties gets the current properties of a trace session name
+func QueryTraceProperties(tname string) (prop *EventTraceProperties2, err error) {
+	props, size := NewEventTracePropertiesV2(tname)
+	// Set only required fields for QUERY
+	props.Wnode.BufferSize = size
+	props.Wnode.Guid = GUID{}
+	props.LoggerNameOffset = uint32(unsafe.Sizeof(EventTraceProperties2{}))
+	props.LogFileNameOffset = 0
+	loggerName, err := syscall.UTF16PtrFromString(tname)
+	if err != nil {
+		return props, fmt.Errorf("failed to convert logger name: %w", err)
+	}
+
+	if err := ControlTrace(
+		syscall.Handle(0),
+		loggerName,
+		props,
+		EVENT_TRACE_CONTROL_QUERY); err != nil {
+		return props, fmt.Errorf("ControlTrace query failed: %w", err)
+	}
+	return props, nil
 }

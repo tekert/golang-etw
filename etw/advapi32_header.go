@@ -671,7 +671,7 @@ type EventTraceProperties2 struct {
 // This structure is supported starting with Windows 10 version 1703.
 // When used with earlier versions of Windows,
 // the additional fields (e.g. FilterDesc and V2Options) will be ignored
-func NewEventTraceSessionPropertiesV2(sessionName string) (*EventTraceProperties2, uint32) {
+func NewEventTracePropertiesV2(sessionName string) (*EventTraceProperties2, uint32) {
 	size := ((len(sessionName) + 1) * 2) + int(unsafe.Sizeof(EventTraceProperties2{}))
 	s := make([]byte, size)
 	return (*EventTraceProperties2)(unsafe.Pointer(&s[0])), uint32(size)
@@ -922,6 +922,23 @@ type EventCallback func(*EventTrace)
 type EventRecordCallback func(*EventRecord) uintptr // New, replaces EventCallback
 type EventTraceBufferCallback func(*EventTraceLogfile) uint32
 
+// Clone creates a deep copy of the EventTraceLogfile struct.
+// It allocates new memory for string pointers and copies all fields.
+func (e *EventTraceLogfile) Clone() *EventTraceLogfile {
+	if e == nil {
+		return nil
+	}
+
+	dst := &EventTraceLogfile{}
+	*dst = *e // Copy value fields
+
+	// Deep copy string pointers
+	dst.LoggerName = CopyUTF16Ptr(e.LoggerName)
+	dst.LogFileName = CopyUTF16Ptr(e.LogFileName)
+
+	return dst
+}
+
 // https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_record
 // v10.0.19041.0 \evntcons.h
 /*
@@ -1002,12 +1019,12 @@ func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, teiBuffer *[]b
 			return nil, nil, err
 		}
 		teiBuffer = buffp
-		// Use tei, then optionally put bp back tei buffer in the pool when done
+		// Use tei, then optionally put tei into pool when done
 	}
 	return
 }
 
-// !NOTE(tekert): Too many memory allocations
+// !NOTE(tekert): Too many memory allocations, delete it later
 func (e *EventRecord) GetEventInformation_old() (tei *TraceEventInfo, err error) {
 	bufferSize := uint32(0)
 	if err = TdhGetEventInformation(e, 0, nil, nil, &bufferSize); err == syscall.ERROR_INSUFFICIENT_BUFFER {
@@ -1074,10 +1091,10 @@ cleanup:
 */
 
 var eventMapInfoPool = sync.Pool{
-    New: func() interface{} {
-        b := make([]byte, 64)
-        return &b // Store pointer
-    },
+	New: func() interface{} {
+		b := make([]byte, 64)
+		return &b // Store pointer
+	},
 }
 
 func (e *EventRecord) GetMapInfo(pMapName *uint16, decodingSource uint32) (pMapInfo *EventMapInfo, err error) {
@@ -1091,11 +1108,11 @@ func (e *EventRecord) GetMapInfo(pMapName *uint16, decodingSource uint32) (pMapI
 
 	if err == syscall.ERROR_INSUFFICIENT_BUFFER {
 		// Need larger buffer
-        if mapSize > uint32(len(*buffPtr)) {
-            *buffPtr = make([]byte, mapSize)
-            pMapInfo = (*EventMapInfo)(unsafe.Pointer(&(*buffPtr)[0]))
-            err = TdhGetEventMapInformation(e, pMapName, pMapInfo, &mapSize)
-        }
+		if mapSize > uint32(len(*buffPtr)) {
+			*buffPtr = make([]byte, mapSize)
+			pMapInfo = (*EventMapInfo)(unsafe.Pointer(&(*buffPtr)[0]))
+			err = TdhGetEventMapInformation(e, pMapName, pMapInfo, &mapSize)
+		}
 	}
 
 	if err == nil {
@@ -1197,7 +1214,7 @@ func (e *EventHeader) GetUserTime() uint32 {
 }
 
 // TODO(tekert): delete this, has worse performance when near second boundary
-// the new UTCTimeStamp() is has more consistent performance in all benchmark tests.
+// the new UTCTimeStamp() has more consistent performance in all benchmark tests.
 // precision was the same for both.
 func (e *EventHeader) UTCTimeStamp_old() time.Time {
 	nano := int64(10000000)
@@ -1229,135 +1246,147 @@ func (e *EventHeader) UTCTimeStamp() time.Time {
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_descriptor
 // v10.0.19041.0 /evntprov.h
-/*
-   EVENT_DESCRIPTOR describes and categorizes an event.
-   Note that for TraceLogging events, the Id and Version fields are not
-   meaningful and should be ignored.
-*/
+//
+// Ported comments from source file to go interface
 /*
 typedef struct _EVENT_DESCRIPTOR {
-
-    USHORT Id; /*
-        For manifest-based events, the Provider.Guid + Event.Id + Event.Version
-        should uniquely identify an event. Once a manifest with a particular
-        event Id+Version has been made public, the definition of that event
-        (the types, ordering, and semantics of the fields) should never be
-        changed. If an event needs to be changed, it must be given a new
-        identity (usually by incrementing the Version), and the original event
-        must remain in the manifest (so that older versions of the event can
-        still be decoded with the new manifest). To change an event (e.g. to
-        add/remove a field or to change a field type): duplicate the event in
-        the manifest, then increment the event Version and make changes in the
-        new copy.
-        For manifest-free events (i.e. TraceLogging), Event.Id and
-        Event.Version are not useful and should be ignored. Use Event name,
-        level, keyword, and opcode for event filtering and identification. */
-/*  UCHAR Version; /*
-    For manifest-based events, the Provider.Guid + Event.Id + Event.Version
-    should uniquely identify an event. The Id+Version constitute a 24-bit
-    identifier. Generally, events with the same Id are semantically
-    related, and the Version is incremented as the event is refined over
-    time. */
-/*  UCHAR Channel; /*
-    The meaning of the Channel field depends on the event consumer.
-    This field is most commonly used with events that will be consumed by
-    the Windows Event Log. Note that Event Log does not listen to all ETW
-    events, so setting a channel is not enough to make the event appear in
-    the Event Log. For an ETW event to be routed to Event Log, the
-    following must be configured:
-    - The provider and its channels must be defined in a manifest.
-    - The manifest must be compiled with the mc.exe tool, and the resulting
-      BIN files must be included into the resources of an EXE or DLL.
-    - The EXE or DLL containing the BIN data must be installed on the
-      machine where the provider will run.
-    - The manifest must be registered (using wevtutil.exe) on the machine
-      where the provider will run. The manifest registration process must
-      record the location of the EXE or DLL with the BIN data.
-    - The channel must be enabled in Event Log configuration.
-    - The provider must log an event with the channel and keyword set
-      correctly as defined in the manifest. (Note that the mc.exe code
-      generator will automatically define an implicit keyword for each
-      channel, and will automatically add the channel's implicit keyword to
-      each event that references a channel.) */
-/*  UCHAR Level; /*
-    The event level defines the event's severity or importance and is a
-    primary means for filtering events. Microsoft-defined levels (in
-    evntrace.h and  winmeta.h) are 1 (critical/fatal), 2 (error),
-    3 (warning), 4 (information), and 5 (verbose). Levels 6-9 are reserved.
-    Level 0 means the event is always-on (will not be filtered by level).
-    For a provider, a lower level means the event is more important. An
-    event with level 0 will always pass any level-based filtering.
-    For a consumer, a lower level means the session's filter is more
-    restrictive. However, setting a session's level to 0 disables level
-    filtering (i.e. session level 0 is the same as session level 255). */
-/*  UCHAR Opcode; /*
-    The event opcode is used to mark events with special semantics that
-    may be used by event decoders to organize and correlate events.
-    Globally-recognized opcode values are defined in winmeta.h. A provider
-    can define its own opcodes. Most events use opcode 0 (information).
-    The opcodes 1 (start) and 2 (stop) are used to indicate the beginning
-    and end of an activity as follows:
-    - Generate a new activity Id (UuidCreate or EventActivityIdControl).
-    - Write an event with opcode = start, activity ID = (the generated
-      activity ID), and related activity ID = (the parent activity if any).
-    - Write any number of informational events with opcode = info, activity
-      ID = (the generated activity ID).
-    - Write a stop event with opcode = stop, activity ID = (the generated
-      activity ID).
-    Each thread has an implicit activity ID (in thread-local storage) that
-    will be applied to any event that does not explicitly specify an
-    activity ID. The implicit activity ID can be accessed using
-    EventActivityIdControl. It is intended that the thread-local activity
-    will be used to implement scope-based activities: on entry to a scope
-    (i.e. at the start of a function), a user will record the existing
-    value of the implicit activity ID, generate and set a new value, and
-    write a start event; on exit from the scope, the user will write a stop
-    event and restore the previous activity ID. Note that there is no enforcement
-    of this pattern, and an application must be aware that other code may
-    potentially overwrite the activity ID without restoring it. In
-    addition, the implicit activity ID does not work well with cross-thread
-    activities. For these reasons, it may be more appropriate to use
-    explicit activity IDs (explicitly pass a GUID to EventWriteTransfer)
-    instead of relying on the implicity activity ID. */
-/*  USHORT      Task; /*
-    The event task code can be used for any purpose as defined by the
-    provider. The task code 0 is the default, used to indicate that no
-    special task code has been assigned to the event. The ETW manifest
-    supports assigning localizable strings for each task code. The task
-    code might be used to group events into categories, or to simply
-    associate a task name with each event. */
-/*  ULONGLONG   Keyword; /*
-    The event keyword defines membership in various categories and is an
-    important means for filtering events. The event's keyword is a set of
-    64 bits indicating the categories to which an event belongs. The
-    provider manifest may provide definitions for up to 48 keyword values,
-    each value defining the meaning of a single keyword bit (the upper 16
-    bits are reserved by Microsoft for special purposes). For example, if
-    the provider manifest defines keyword 0x0010 as "Networking", and
-    defines keyword 0x0020 as "Threading", an event with keyword 0x0030
-    would be in both "Networking" and "Threading" categories, while an
-    event with keyword 0x0001 would be in neither category. An event with
-    keyword 0 is treated as uncategorized.
-    Event consumers can use keyword masks to determine which events should
-    be included in the log. A session can define a KeywordAny mask and
-    a KeywordAll mask. An event will pass the session's keyword filtering
-    if the following expression is true:
-        event.Keyword == 0 || (
-        (event.Keyword & session.KeywordAny) != 0 &&
-        (event.Keyword & session.KeywordAll) == session.KeywordAll).
-    In other words, uncategorized events (events with no keywords set)
-    always pass keyword filtering, and categorized events pass if they
-    match any keywords in KeywordAny and match all keywords in KeywordAll.
+	USHORT Id;
+  	UCHAR Version;
+  	UCHAR Channel;
+ 	UCHAR Level;
+  	UCHAR Opcode;
+  	USHORT      Task;
+  	ULONGLONG   Keyword;
+  } EVENT_DESCRIPTOR, *PEVENT_DESCRIPTOR;
 */
-/*  } EVENT_DESCRIPTOR, *PEVENT_DESCRIPTOR;
- */
+// EVENT_DESCRIPTOR describes and categorizes an event.
+// Note that for TraceLogging events, the Id and Version fields are not
+// meaningful and should be ignored.
 type EventDescriptor struct {
-	Id      uint16
+	/*
+		For manifest-based events, the Provider.Guid + Event.Id + Event.Version
+		should uniquely identify an event. Once a manifest with a particular
+		event Id+Version has been made public, the definition of that event
+		(the types, ordering, and semantics of the fields) should never be
+		changed. If an event needs to be changed, it must be given a new
+		identity (usually by incrementing the Version), and the original event
+		must remain in the manifest (so that older versions of the event can
+		still be decoded with the new manifest). To change an event (e.g. to
+		add/remove a field or to change a field type): duplicate the event in
+		the manifest, then increment the event Version and make changes in the
+		new copy.
+		For manifest-free events (i.e. TraceLogging), Event.Id and
+		Event.Version are not useful and should be ignored. Use Event name,
+		level, keyword, and opcode for event filtering and identification. */
+	Id uint16
+
+	/*
+	   For manifest-based events, the Provider.Guid + Event.Id + Event.Version
+	   should uniquely identify an event. The Id+Version constitute a 24-bit
+	   identifier. Generally, events with the same Id are semantically
+	   related, and the Version is incremented as the event is refined over
+	   time. */
 	Version uint8
+
+	/*
+	   The meaning of the Channel field depends on the event consumer.
+	   This field is most commonly used with events that will be consumed by
+	   the Windows Event Log. Note that Event Log does not listen to all ETW
+	   events, so setting a channel is not enough to make the event appear in
+	   the Event Log. For an ETW event to be routed to Event Log, the
+	   following must be configured:
+	   - The provider and its channels must be defined in a manifest.
+	   - The manifest must be compiled with the mc.exe tool, and the resulting
+	     BIN files must be included into the resources of an EXE or DLL.
+	   - The EXE or DLL containing the BIN data must be installed on the
+	     machine where the provider will run.
+	   - The manifest must be registered (using wevtutil.exe) on the machine
+	     where the provider will run. The manifest registration process must
+	     record the location of the EXE or DLL with the BIN data.
+	   - The channel must be enabled in Event Log configuration.
+	   - The provider must log an event with the channel and keyword set
+	     correctly as defined in the manifest. (Note that the mc.exe code
+	     generator will automatically define an implicit keyword for each
+	     channel, and will automatically add the channel's implicit keyword to
+	     each event that references a channel.) */
 	Channel uint8
-	Level   uint8
-	Opcode  uint8
-	Task    uint16
+
+	/*
+	   The event level defines the event's severity or importance and is a
+	   primary means for filtering events. Microsoft-defined levels (in
+	   evntrace.h and  winmeta.h) are 1 (critical/fatal), 2 (error),
+	   3 (warning), 4 (information), and 5 (verbose). Levels 6-9 are reserved.
+	   Level 0 means the event is always-on (will not be filtered by level).
+	   For a provider, a lower level means the event is more important. An
+	   event with level 0 will always pass any level-based filtering.
+	   For a consumer, a lower level means the session's filter is more
+	   restrictive. However, setting a session's level to 0 disables level
+	   filtering (i.e. session level 0 is the same as session level 255). */
+	Level uint8
+
+	/*
+	   The event opcode is used to mark events with special semantics that
+	   may be used by event decoders to organize and correlate events.
+	   Globally-recognized opcode values are defined in winmeta.h. A provider
+	   can define its own opcodes. Most events use opcode 0 (information).
+	   The opcodes 1 (start) and 2 (stop) are used to indicate the beginning
+	   and end of an activity as follows:
+	   - Generate a new activity Id (UuidCreate or EventActivityIdControl).
+	   - Write an event with opcode = start, activity ID = (the generated
+	     activity ID), and related activity ID = (the parent activity if any).
+	   - Write any number of informational events with opcode = info, activity
+	     ID = (the generated activity ID).
+	   - Write a stop event with opcode = stop, activity ID = (the generated
+	     activity ID).
+	   Each thread has an implicit activity ID (in thread-local storage) that
+	   will be applied to any event that does not explicitly specify an
+	   activity ID. The implicit activity ID can be accessed using
+	   EventActivityIdControl. It is intended that the thread-local activity
+	   will be used to implement scope-based activities: on entry to a scope
+	   (i.e. at the start of a function), a user will record the existing
+	   value of the implicit activity ID, generate and set a new value, and
+	   write a start event; on exit from the scope, the user will write a stop
+	   event and restore the previous activity ID. Note that there is no enforcement
+	   of this pattern, and an application must be aware that other code may
+	   potentially overwrite the activity ID without restoring it. In
+	   addition, the implicit activity ID does not work well with cross-thread
+	   activities. For these reasons, it may be more appropriate to use
+	   explicit activity IDs (explicitly pass a GUID to EventWriteTransfer)
+	   instead of relying on the implicity activity ID. */
+	Opcode uint8
+
+	/*
+	   The event task code can be used for any purpose as defined by the
+	   provider. The task code 0 is the default, used to indicate that no
+	   special task code has been assigned to the event. The ETW manifest
+	   supports assigning localizable strings for each task code. The task
+	   code might be used to group events into categories, or to simply
+	   associate a task name with each event. */
+	Task uint16
+
+	/*
+	   The event keyword defines membership in various categories and is an
+	   important means for filtering events. The event's keyword is a set of
+	   64 bits indicating the categories to which an event belongs. The
+	   provider manifest may provide definitions for up to 48 keyword values,
+	   each value defining the meaning of a single keyword bit (the upper 16
+	   bits are reserved by Microsoft for special purposes). For example, if
+	   the provider manifest defines keyword 0x0010 as "Networking", and
+	   defines keyword 0x0020 as "Threading", an event with keyword 0x0030
+	   would be in both "Networking" and "Threading" categories, while an
+	   event with keyword 0x0001 would be in neither category. An event with
+	   keyword 0 is treated as uncategorized.
+	   Event consumers can use keyword masks to determine which events should
+	   be included in the log. A session can define a KeywordAny mask and
+	   a KeywordAll mask. An event will pass the session's keyword filtering
+	   if the following expression is true:
+	       event.Keyword == 0 || (
+	       (event.Keyword & session.KeywordAny) != 0 &&
+	       (event.Keyword & session.KeywordAll) == session.KeywordAll).
+	   In other words, uncategorized events (events with no keywords set)
+	   always pass keyword filtering, and categorized events pass if they
+	   match any keywords in KeywordAny and match all keywords in KeywordAll.
+	*/
 	Keyword uint64
 }
 
@@ -1611,12 +1640,12 @@ func (t *TraceLogfileHeader) GetVersion() (major, minor, sub, subMinor uint8) {
 	return
 }
 
-// For RealTime Buffer Delivery
+// For RealTime Buffer Delivery (Reserved)
 func (t *TraceLogfileHeader) GetLogInstanceGuid() GUID {
 	return *(*GUID)(unsafe.Pointer(&t.Union2))
 }
 
-// Count of buffers written at start
+// Count of buffers written at start (Reserved)
 func (t *TraceLogfileHeader) GetStartBuffers() uint32 {
 	// (offset 0..3).
 	return uint32(t.Union2[0]) |
@@ -1826,23 +1855,36 @@ typedef enum {
 type EventSecurityOperation uint32
 
 const (
-	EVENT_SECURITY_SET_DACL = EventSecurityOperation(0)
-	EVENT_SECURITY_SET_SACL = EventSecurityOperation(1)
-	EVENT_SECURITY_ADD_DACL = EventSecurityOperation(2)
-	EVENT_SECURITY_ADD_SACL = EventSecurityOperation(3)
-	EVENT_SECURITY_MAX      = EventSecurityOperation(4)
+	EventSecuritySetDACL = EventSecurityOperation(0)
+	EventSecuritySetSACL = EventSecurityOperation(1)
+	EventSecurityAddDACL = EventSecurityOperation(2)
+	EventSecurityAddSACL = EventSecurityOperation(3)
+	EventSecurityMax     = EventSecurityOperation(4)
 )
+
+// wmistr.h (v10.0.19041.0)
+//
+// used in: https://learn.microsoft.com/en-us/windows/win32/api/evntcons/nf-evntcons-eventaccesscontrol
+//
+// Specific rights for WMI guid objects. These are available from 0x0001 to
+// 0xffff (ie up to 16 rights)
 
 // Permissions for EventAccessControl API
 const (
+	WMIGUID_QUERY                 = 0x0001
+	WMIGUID_SET                   = 0x0002
+	WMIGUID_NOTIFICATION          = 0x0004
+	WMIGUID_READ_DESCRIPTION      = 0x0008
+	WMIGUID_EXECUTE               = 0x0010
 	TRACELOG_CREATE_REALTIME      = 0x0020
 	TRACELOG_CREATE_ONDISK        = 0x0040
 	TRACELOG_GUID_ENABLE          = 0x0080
 	TRACELOG_ACCESS_KERNEL_LOGGER = 0x0100
-	TRACELOG_CREATE_INPROC        = 0x0200
-	TRACELOG_LOG_EVENT            = 0x0200
+	TRACELOG_CREATE_INPROC        = 0x0200 // used pre-Vista
+	TRACELOG_LOG_EVENT            = 0x0200 // used on Vista and greater
 	TRACELOG_ACCESS_REALTIME      = 0x0400
 	TRACELOG_REGISTER_GUIDS       = 0x0800
+	TRACELOG_JOIN_GROUP           = 0x1000
 	TRACELOG_ALL                  = TRACELOG_CREATE_REALTIME |
 		TRACELOG_CREATE_ONDISK |
 		TRACELOG_GUID_ENABLE |
