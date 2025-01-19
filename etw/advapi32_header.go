@@ -640,7 +640,6 @@ typedef struct _EVENT_TRACE_PROPERTIES_V2 {
 */
 type EventTraceProperties2 struct {
 	Wnode WnodeHeader // https://learn.microsoft.com/en-us/windows/win32/etw/wnode-header
-
 	// data provided by caller
 	BufferSize      uint32 // buffer size for logging (kbytes)
 	MinimumBuffers  uint32 // minimum to preallocate
@@ -675,6 +674,36 @@ func NewEventTracePropertiesV2(sessionName string) (*EventTraceProperties2, uint
 	size := ((len(sessionName) + 1) * 2) + int(unsafe.Sizeof(EventTraceProperties2{}))
 	s := make([]byte, size)
 	return (*EventTraceProperties2)(unsafe.Pointer(&s[0])), uint32(size)
+}
+
+func (e *EventTraceProperties2) Clone() *EventTraceProperties2 {
+	s := make([]byte, e.Wnode.BufferSize)
+	clone := (*EventTraceProperties2)(unsafe.Pointer(&s[0]))
+	// Copy entire buffer including trailing name section
+	copy(s, unsafe.Slice((*byte)(unsafe.Pointer(e)), e.Wnode.BufferSize))
+	return clone
+}
+
+// Only if it a name is present
+// TODO(tekert): do file names too
+func (e *EventTraceProperties2) GetTraceName() *uint16 {
+	if e.Wnode.BufferSize >= e.LoggerNameOffset {
+		return (*uint16)(unsafe.Add(unsafe.Pointer(e), e.LoggerNameOffset))
+	} else {
+		return nil
+	}
+}
+
+// copy the loggername to the end to the EventTraceProperties2 struct
+// Convert UTF16 pointer to slice of bytes and copy to the end of props
+// StartTrace already does this for us, this is just for convenience.
+// TODO(tekert): do file names too
+func (e *EventTraceProperties2) setTraceName(tname string) {
+	loggerName, _ := syscall.UTF16PtrFromString(tname)
+	pLName := unsafe.Add(unsafe.Pointer(e), e.LoggerNameOffset)
+	dst := unsafe.Slice((*byte)(pLName), (len(tname)+1)*2)
+	src := unsafe.Slice((*byte)(unsafe.Pointer(loggerName)), (len(tname)+1)*2)
+	copy(dst, src)
 }
 
 // V2Control
@@ -997,31 +1026,32 @@ func (e *EventRecord) RelatedActivityID() GUID {
 // Helps reduce memory allocations by reusing a buffer for the event information
 var tdhInfoPool = sync.Pool{
 	New: func() interface{} {
-		b := make([]byte, 0, 1024) // starting capacity
+		b := make([]byte, 1024) // starting capacity
 		return &b
 	},
 }
 
 func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, teiBuffer *[]byte, err error) {
-	var bufferSize uint32
-	err = TdhGetEventInformation(e, 0, nil, nil, &bufferSize)
+	buffp := tdhInfoPool.Get().(*[]byte)
+	*buffp = (*buffp)[:cap(*buffp)]  // Ensure full capacity
+	bufferSize := uint32(len(*buffp))
+
+	tei = (*TraceEventInfo)(unsafe.Pointer(&(*buffp)[0]))
+	err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
+
 	if err == syscall.ERROR_INSUFFICIENT_BUFFER {
-		buffp := tdhInfoPool.Get().(*[]byte)
-		if cap(*buffp) < int(bufferSize) {
-			*buffp = make([]byte, bufferSize)
-		} else {
-			*buffp = (*buffp)[:bufferSize]
-		}
+		*buffp = make([]byte, bufferSize)
 		tei = (*TraceEventInfo)(unsafe.Pointer(&(*buffp)[0]))
 		err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
-		if err != nil {
-			tdhInfoPool.Put(buffp)
-			return nil, nil, err
-		}
-		teiBuffer = buffp
-		// Use tei, then optionally put tei into pool when done
 	}
-	return
+	if err != nil {
+		// Other errors
+		tdhInfoPool.Put(buffp)
+		return nil, nil, err
+	}
+
+	// Use tei, then optionally put tei into pool when done
+	return tei, buffp, nil
 }
 
 // !NOTE(tekert): Too many memory allocations, delete it later
