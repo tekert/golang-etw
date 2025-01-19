@@ -194,7 +194,7 @@ A Manifest provider is just a Provider that defines what events it can output an
 The Trace Controller is this software doing the trace control between providers and the Session, the ouput of events for this session is the Trace, the Session would be the broader concept of forming the connection aka Trace Session.
 
 #### Trace Session
-Finally, once the providers you selected are Enabled and writing events to your Session it means you formed an Trace Session, the other case is to use an existing Trace and you wanted you hook on it a read it's event directly, that means you want to read from a Trace, no session (buffer) is needed in that case.  
+Finally, once the providers you selected are Enabled and writing events to your Session it means you formed an Trace Session, the other case is to use an existing Trace and you wanted you hook on it a read it's event directly, that means you want to read from a Trace, no need to create a new session (buffer) in that case.  
 Reading the events the Trace is collecting means to Consume from it.
 
 #### Consumer
