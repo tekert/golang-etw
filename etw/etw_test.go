@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -24,11 +26,12 @@ const (
 	KernelMemoryProviderName = "{D1D93EF7-E1F2-4F45-9943-03D245FE6C00}"
 	KernelFileProviderName   = "Microsoft-Windows-Kernel-File"
 	// sessions
-	EventlogSecurity = "Eventlog-Security"
+	EventlogSecurity = "Eventlog-Security" // Need special permissions
 )
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	//rand.Seed(time.Now().UnixNano())
+	// As of Go 1.20, the global random number generator is automatically seeded
 }
 
 func randBetween(min, max int) (i int) {
@@ -54,21 +57,20 @@ func TestProducerConsumer(t *testing.T) {
 	tt := toast.FromT(t)
 
 	// Producer part
-	prod := NewRealTimeSession("GolangTest")
+	ses := NewRealTimeSession("GolangTest")
+	defer ses.Stop()
 
 	prov, err = ParseProvider(KernelFileProviderName + ":0xff:12,13,14,15,16")
 	tt.CheckErr(err)
 	// enabling provider
-	tt.CheckErr(prod.EnableProvider(prov))
+	tt.CheckErr(ses.EnableProvider(prov))
 	// starting producer
-	tt.CheckErr(prod.Start())
+	tt.CheckErr(ses.Start())
 	// checking producer is running
-	tt.Assert(prod.IsStarted())
-
-	defer prod.Stop()
+	tt.Assert(ses.IsStarted())
 
 	// Consumer part
-	c := NewConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
+	c := NewConsumer(context.Background()).FromSessions(ses) //.FromTraceNames(EventlogSecurity)
 
 	// we have to declare a func otherwise c.Stop seems to be called
 	defer func() { tt.CheckErr(c.Stop()) }()
@@ -99,7 +101,7 @@ func TestProducerConsumer(t *testing.T) {
 
 	// stopping consumer
 	tt.CheckErr(c.Stop())
-	delta := time.Now().Sub(start)
+	delta := time.Since(start)
 	eps := float64(eventCount) / delta.Seconds()
 	t.Logf("Received: %d events in %s (%d EPS)", eventCount, delta, int(eps))
 
@@ -214,7 +216,7 @@ func TestEventMapInfo(t *testing.T) {
 		}
 
 		// don't skip events with related activity ID
-		erh.Flags.Skip = erh.EventRec.RelatedActivityID() == nullGUIDStr
+		erh.Flags.Skip = erh.EventRec.RelatedActivityID() == nullGUID
 
 		return fakeError
 	}
@@ -247,8 +249,8 @@ func TestEventMapInfo(t *testing.T) {
 	wg.Wait()
 
 	// we got many events so some must have been skipped
-	t.Logf("skipped %d events", c.Skipped)
-	tt.Assert(c.Skipped == 0)
+	t.Logf("skipped %d events", c.Skipped.Load())
+	tt.Assert(c.Skipped.Load() == 0)
 
 	delta := time.Since(start)
 	eps := float64(eventCount) / delta.Seconds()
@@ -262,18 +264,34 @@ func TestLostEvents(t *testing.T) {
 	tt := toast.FromT(t)
 
 	// Producer part
-	prod := NewRealTimeSession("GolangTest")
+	ses := NewRealTimeSession("GolangTest")
 	// small buffer size on purpose to trigger event loss
-	prod.properties.BufferSize = 1
+	ses.properties.BufferSize = 1
 
 	prov, err := ParseProvider("Microsoft-Windows-Kernel-Memory" + ":0xff")
 	tt.CheckErr(err)
 	// enabling provider
-	tt.CheckErr(prod.EnableProvider(prov))
-	defer prod.Stop()
+	tt.CheckErr(ses.EnableProvider(prov))
+	defer ses.Stop()
+
+	//! TODO: TESTING
+	// Set acces for the Eventlog-Security trace (admin is not enough)
+	const SecurityLogReadFlags2 = TRACELOG_ACCESS_REALTIME |
+		TRACELOG_REGISTER_GUIDS |
+		WMIGUID_QUERY |
+		WMIGUID_NOTIFICATION
+	securityLogGuid := MustParseGUIDFromString("54849625-5478-4994-a5ba-3e3b0328c30d")
+	tt.CheckErr(AddProviderAccess(*securityLogGuid, "", SecurityLogReadFlags2))
+	// EventAccessControl(
+	// 	securityLogGuid,
+	// 	uint32(EVENT_SECURITY_SET_DACL), // Use SET instead of ADD
+	// 	nil,                             // Use current process token
+	// 	SecurityLogReadFlags,
+	// 	true,
+	// )
 
 	// Consumer part
-	c := NewConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
+	c := NewConsumer(context.Background()).FromSessions(ses).FromTraceNames(EventlogSecurity)
 	// we have to declare a func otherwise c.Stop does not seem to be called
 	defer func() { tt.CheckErr(c.Stop()) }()
 
@@ -289,8 +307,20 @@ func TestLostEvents(t *testing.T) {
 	tt.CheckErr(c.Stop())
 	time.Sleep(5 * time.Second)
 	t.Logf("Events received: %d", cnt)
-	t.Logf("Events lost: %d", c.LostEvents)
-	tt.Assert(c.LostEvents > 0)
+	t.Logf("Events lost: %d", c.LostEvents.Load())
+
+	traceInfo, ok := c.GetTraceCopy("GolangTest")
+	if ok {
+		t.Logf("[LogFileHeader] Events lost: %d", traceInfo.TraceLogFile.LogfileHeader.GetEventsLost())
+		t.Logf("[Trace] RTLostEvents: %d", traceInfo.RTLostEvents)
+		t.Logf("[Trace] RTLostBuffer: %d", traceInfo.RTLostBuffer)
+		t.Logf("[Trace] RTLostFile: %d", traceInfo.RTLostFile)
+	} else {
+		t.Error("TraceInfo is nil")
+	}
+	tt.Assert(c.LostEvents.Load() > 0, "Expected to lose events due to small buffer")
+
+	tt.Assert(c.LostEvents.Load() == traceInfo.RTLostEvents, "Lost events count mismatch")
 }
 
 func jsonStr(i interface{}) string {
@@ -310,23 +340,23 @@ func TestConsumerCallbacks(t *testing.T) {
 	tt := toast.FromT(t)
 
 	// Producer part
-	prod := NewRealTimeSession("GolangTest")
+	ses := NewRealTimeSession("GolangTest")
 
 	prov, err = ParseProvider(KernelFileProviderName + ":0xff:12,13,14,15,16")
 	tt.CheckErr(err)
 	// enabling provider
-	tt.CheckErr(prod.EnableProvider(prov))
-	// starting producer
-	tt.CheckErr(prod.Start())
-	// checking producer is running
-	tt.Assert(prod.IsStarted())
+	tt.CheckErr(ses.EnableProvider(prov))
+	// starting session
+	tt.CheckErr(ses.Start())
+	// checking session is running (routing events to our session)
+	tt.Assert(ses.IsStarted())
 	kernelFileProviderChannel := prov.Name + "/Analytic"
 	kernelProviderGUID := prov.GUID
 
-	defer prod.Stop()
+	defer ses.Stop()
 
 	// Consumer part
-	c := NewConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
+	c := NewConsumer(context.Background()).FromSessions(ses) //.FromTraceNames(EventlogSecurity)
 
 	c.EventRecordHelperCallback = func(erh *EventRecordHelper) (err error) {
 
@@ -438,6 +468,7 @@ func TestConsumerCallbacks(t *testing.T) {
 
 	//testfile := `\Windows\Temp\test.txt`
 	testfile := filepath.Join(t.TempDir()[2:], "test.txt")
+	// Strip drive letter from testfile (e.g. "E:" -> "")
 	t.Logf("testfile: %s", testfile)
 
 	start := time.Now()
@@ -480,7 +511,8 @@ func TestConsumerCallbacks(t *testing.T) {
 
 	// creating test files
 	nReadWrite := 0
-	tf := fmt.Sprintf("C:%s", testfile)
+	//tf := fmt.Sprintf("C:%s", testfile) // error
+	tf := testfile
 	for ; nReadWrite < randBetween(800, 1000); nReadWrite++ {
 		tmp := fmt.Sprintf("%s.%d", tf, nReadWrite)
 		tt.CheckErr(os.WriteFile(tmp, []byte("testdata"), 7777))
@@ -506,7 +538,7 @@ func TestConsumerCallbacks(t *testing.T) {
 	tt.CheckErr(c.Stop())
 
 	tt.Assert(eventCount != 0, "did not receive any event")
-	tt.Assert(c.Skipped == 0)
+	tt.Assert(c.Skipped.Load() == 0)
 	// verifying that we caught all events
 	t.Logf("read=%d etwread=%d", nReadWrite, etwread)
 	tt.Assert(nReadWrite == etwread)
@@ -584,4 +616,210 @@ func TestSessionSlice(t *testing.T) {
 	tt.ShouldPanic(func() { SessionSlice(sessions[0]) })
 	// should panic because items do not implement Session
 	tt.ShouldPanic(func() { SessionSlice(intSlice) })
+}
+
+// When TestingGoEtw session buffer fills up due to high event rate from providers
+// CloseTrace will not terminate ProcessTrace, the docs don't mention this in detail
+// but ProcessTrace will exit only when all remaining events are processed
+// (means, that callback has been called an returned from each remaining event)
+// bufferCallback returning 0 will NOT cause ProcessTrace to exit inmediately.
+// it still has to wait as if CloseTrace was called. (you can debug this to see it)
+//
+// Since we are using a sleep inside the callback on purpose, ProcessTrace will
+// not end, thus the goroutine will not trigger Done() signaling that it ended.
+// This will cause c.Wait() to wait for too long, an hour with this test.
+// The test will use StopWithTimeout to limit the consumer if after a certain
+// amount of time ProcessTrace does not exit after timeout it will terminate
+// the goroutine.
+// Abort is the same but with no timeout.
+func TestCallbackConcurrency(t *testing.T) {
+	tt := toast.FromT(t)
+	SetDebugLevel(false)
+
+	c := NewConsumer(context.Background())
+
+	c.EventRecordHelperCallback = nil
+	c.EventPreparedCallback = nil
+	c.EventCallback = nil
+
+	var callCount atomic.Int32
+	var concurrent atomic.Bool
+	var currentlyExecuting atomic.Int32
+
+	// Replace default callback with test version
+	c.EventRecordCallback = func(er *EventRecord) bool {
+		callCount.Add(1)
+
+		// If another callback is already executing, we have concurrent execution
+		if currentlyExecuting.Add(1) > 1 {
+			concurrent.Store(true)
+		}
+		time.Sleep(100 * time.Millisecond) // Force overlap if concurrent
+		currentlyExecuting.Add(-1)
+		return true
+	}
+
+	s := NewRealTimeSession("TestingGoEtw")
+	defer s.Stop()
+
+	// add some potential high volume providers
+	providers := []string{
+		"Microsoft-Windows-Kernel-Process",
+		"Microsoft-Windows-Kernel-File:0xff:12,13,14,15,16",
+	}
+	for _, p := range providers {
+		if err := s.EnableProvider(MustParseProvider(p)); err != nil {
+			t.Fatalf("Enable provider error: %v", err)
+		}
+	}
+
+	// Open multiple traces to force potential concurrent execution
+	c.FromSessions(s).
+		FromTraceNames("EventLog-System").
+		FromTraceNames("EventLog-Application").
+		FromTraceNames("Steam Event Tracing")
+
+	tt.CheckErr(c.Start())
+
+	// Wait for some events
+	time.Sleep(5 * time.Second)
+
+	t.Logf("Waiting for consumer to stop")
+	// Stop consumer before checking results
+	done := make(chan struct{})
+	go func() {
+		tt.CheckErr(c.StopWithTimeout(5 * time.Second))
+		//tt.CheckErr(c.Abort())
+		//tt.CheckErr(c.Stop())
+		c.Wait() // make sure the goroutines are actually ended.
+		close(done)
+	}()
+
+	//time.Sleep(5 * time.Hour)
+
+	select {
+	case <-done:
+		// Test passed
+	case <-time.After(15 * time.Second):
+		t.Fatal("c.Wait() did not return within 15 seconds")
+		os.Exit(1)
+	}
+
+	// This is useful for debugging etw
+	t.Logf("Total callbacks executed: %d", callCount.Load())
+	if concurrent.Load() {
+		t.Logf("Callbacks executed concurrently")
+	}
+}
+
+func TestQueryTraceProperties(t *testing.T) {
+	tt := toast.FromT(t)
+
+	// PSession part - Create a real-time session
+	ses := NewRealTimeSession("TestingGoEtw")
+
+	// Create a query properties object for the global query func.
+	gp := NewQueryTraceProperties("TestingGoEtw")
+	loggerName, _ := syscall.UTF16PtrFromString("TestingGoEtw")
+
+	// Use file provider which generates reliable events
+	prov, err := ParseProvider(KernelFileProviderName + ":0xff:12,13,14,15,16")
+	tt.CheckErr(err)
+
+	// Enable provider and start session
+	tt.CheckErr(ses.EnableProvider(prov))
+	tt.CheckErr(ses.Start())
+	defer ses.Stop()
+
+	// Test static properties before starting consumer
+	sp, err := ses.QueryTrace()
+	tt.CheckErr(err)
+
+	err = QueryTrace(loggerName, gp)
+	tt.CheckErr(err)
+
+	// chek if name is set
+	namew := gp.GetTraceName()
+	name := UTF16PtrToString(namew)
+	_ = name
+
+	// Compare non-volatile fields that shouldn't change during session lifetime
+	tt.Assert(gp.BufferSize == sp.BufferSize,
+		"BufferSize mismatch: %d != %d", gp.BufferSize, sp.BufferSize)
+	tt.Assert(gp.MinimumBuffers == sp.MinimumBuffers,
+		"MinimumBuffers mismatch: %d != %d", gp.MinimumBuffers, sp.MinimumBuffers)
+	tt.Assert(gp.MaximumBuffers == sp.MaximumBuffers,
+		"MaximumBuffers mismatch: %d != %d", gp.MaximumBuffers, sp.MaximumBuffers)
+	tt.Assert(gp.LogFileMode == sp.LogFileMode,
+		"LogFileMode mismatch: %d != %d", gp.LogFileMode, sp.LogFileMode)
+
+	// Consumer part
+	c := NewConsumer(context.Background()).FromSessions(ses)
+	defer c.Stop()
+
+	tt.CheckErr(c.Start())
+
+	eventsReceived := uint32(0)
+	go func() {
+		for range c.Events {
+			eventsReceived++
+		}
+	}()
+
+	// Wait for some events to be processed
+	time.Sleep(5 * time.Second)
+
+	// Fully Stop the consumer before comparing the trace stats.
+	tt.CheckErr(c.Stop())
+
+	// Test 1: RealTimeSession.QueryTrace()
+	sp2, err := ses.QueryTrace()
+	tt.CheckErr(err)
+	t.Logf("Session Query - NumberOfBuffers: %d, BuffersWritten: %d, EventsLost: %d",
+		sp2.NumberOfBuffers, sp2.BuffersWritten, sp2.EventsLost)
+
+	// Validate sesProp2 has been updated with real trace data
+	tt.Assert(sp2.NumberOfBuffers > 0, "Expected NumberOfBuffers > 0, got %d", sp2.NumberOfBuffers)
+	tt.Assert(sp2.BuffersWritten > 0, "Expected BuffersWritten > 0, got %d", sp2.BuffersWritten)
+
+	// Test 2: Global QueryTrace()
+	err = QueryTrace(loggerName, gp)
+	gp2 := gp
+	tt.CheckErr(err)
+	t.Logf("Global Query - NumberOfBuffers: %d, BuffersWritten: %d, EventsLost: %d",
+		gp2.NumberOfBuffers, gp2.BuffersWritten, gp2.EventsLost)
+
+	// Validate sesProp2 matches gProp2 since they query the same trace
+	tt.Assert(gp2.NumberOfBuffers == sp2.NumberOfBuffers,
+		"NumberOfBuffers mismatch: %d != %d", gp2.NumberOfBuffers, sp2.NumberOfBuffers)
+	tt.Assert(gp2.BuffersWritten == sp2.BuffersWritten,
+		"BuffersWritten mismatch: %d != %d", gp2.BuffersWritten, sp2.BuffersWritten)
+	tt.Assert(gp2.EventsLost == sp2.EventsLost,
+		"EventsLost mismatch: %d != %d", gp2.EventsLost, sp2.EventsLost)
+
+	// // Test error case - non-existent trace
+	// _, err = QueryTraceName("NonExistentTrace")
+	// tt.Assert(err != nil, "Expected error for non-existent trace")
+
+	// Verify that we received some events
+	t.Logf("Events received: %d", eventsReceived)
+	tt.Assert(eventsReceived > 0, "Expected to receive some events")
+}
+
+func TestAVER(t *testing.T) {
+	tt := toast.FromT(t)
+	_ = tt
+
+	// PSession part - Create a real-time session
+	ses := NewRealTimeSession("TestingGoEtw")
+	defer ses.Stop()
+
+	trace := newTrace("non-existent")
+	trace.realtime = true
+
+	prop := trace.QueryTrace()
+	if prop == nil {
+		t.Fail()
+	}
+
 }

@@ -4,6 +4,7 @@
 package etw
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog" // use GOLANG_LOG=debug to see debug messages
 	"math"
@@ -20,6 +21,7 @@ const (
 
 var (
 	hostname, _ = os.Hostname()
+	isDebug     = os.Getenv("DEBUG") == "1"
 
 	ErrPropertyParsing = fmt.Errorf("error parsing property")
 	ErrUnknownProperty = fmt.Errorf("unknown property")
@@ -79,6 +81,13 @@ var (
 			return &s
 		},
 	}
+
+	tdhBufferPool = sync.Pool{
+		New: func() interface{} {
+			s := make([]uint16, 128)
+			return &s
+		},
+	}
 )
 
 type Property struct {
@@ -93,13 +102,17 @@ type Property struct {
 	userDataLength uint16
 }
 
+func getProperty() *Property {
+	return propertyPool.Get().(*Property)
+}
+
 // Sets all fields of the struct to zero/empty values
 func (p *Property) reset() {
 	*p = Property{}
 }
 
 func (p *Property) release() {
-	//p.reset() // Better to reset before use and not release.
+	p.reset()
 	propertyPool.Put(p)
 }
 
@@ -125,12 +138,10 @@ func (p *Property) Value() (string, error) {
 	return p.value, err
 }
 
+// Parse converts the pValue pointer to the property output type as a string.
 func (p *Property) parse() (value string, err error) {
 	var mapInfo *EventMapInfo
 	var udc uint16
-	var buff []uint16
-
-	formattedDataSize := maxu32(16, uint32(p.length))
 
 	// Get the name/value mapping if the property specifies a value map.
 	if p.evtPropInfo.MapNameOffset() > 0 {
@@ -148,20 +159,24 @@ func (p *Property) parse() (value string, err error) {
 		}
 	}
 
+	buffPtr := tdhBufferPool.Get().(*[]uint16)
+	defer tdhBufferPool.Put(buffPtr)
+	(*buffPtr)[0] = 0
+	buffSize := uint32(cap(*buffPtr))
+
 	for {
-
-		buff = make([]uint16, formattedDataSize)
-
 		if p.length == 0 && p.evtPropInfo.InType() == TDH_INTYPE_NULL {
 			// TdhFormatProperty doesn't handle INTYPE_NULL.
-			buff[0] = 0
+			(*buffPtr)[0] = 0
+			p.evtRecordHelper.addPropError()
 			err = nil
 		} else if p.length == 0 &&
 			(p.evtPropInfo.Flags&(PropertyParamLength|PropertyParamFixedLength)) != 0 &&
 			(p.evtPropInfo.InType() == TDH_INTYPE_UNICODESTRING ||
 				p.evtPropInfo.InType() == TDH_INTYPE_ANSISTRING) {
 			// TdhFormatProperty doesn't handle zero-length counted strings.
-			buff[0] = 0
+			(*buffPtr)[0] = 0
+			p.evtRecordHelper.addPropError()
 			err = nil
 		} else {
 			err = TdhFormatProperty(
@@ -173,12 +188,14 @@ func (p *Property) parse() (value string, err error) {
 				p.length,
 				p.userDataLength,
 				(*byte)(unsafe.Pointer(p.pValue)),
-				&formattedDataSize,
-				&buff[0],
+				&buffSize,
+				&(*buffPtr)[0],
 				&udc)
 		}
 
 		if err == syscall.ERROR_INSUFFICIENT_BUFFER {
+			// Increase buffer size and try again, discard old buffer
+			*buffPtr = make([]uint16, buffSize)
 			continue
 		}
 
@@ -194,28 +211,65 @@ func (p *Property) parse() (value string, err error) {
 			break
 		}
 
+		// ERROR_BUFFER_OVERFLOW most likely
+
+		// If TdhFormatProperty failed and this is a MOF property, try to format it as a string.
+		// We have to manually check wich props fail with TDH functions and try to parse them manually.
+		//
+		// This happens when TdhGetProperty/TdhGetPropertySize error with ERROR_EVT_INVALID_EVENT_DATA:
+		// "The event data raised by the publisher is not compatible with the event template
+		// definition in the publisher's manifest.
+		// Seems some kernel properties can't be parsed with Tdh unless we have a context.
+		if p.evtRecordHelper.TraceInfo.IsMof() {
+			if t, ok := MofClassMapping[p.evtRecordHelper.TraceInfo.EventGUID.Data1]; ok {
+				if p.evtPropInfo.InType() == TDH_INTYPE_POINTER {
+					// "TcpIp" or "UdpIp" /*9a280ac0-c8e0-11d1-84e2-00c04fb998a2*/
+					if t.BaseId == 4845 || t.BaseId == 5865 {
+						// most likely a pointer to a uint32 connid;
+						value = fmt.Sprintf("%d", *(*uint32)(unsafe.Pointer(p.pValue)))
+						// "connid" is always 0 for some reason, the same with "seqnum" prop
+						err = nil
+						return
+					}
+				}
+
+				// Add more problematic MOF properties here..
+			}
+		}
+
+		p.evtRecordHelper.addPropError()
+
+		if !isDebug {
+			slog.Debug("failed to format property", "error", err)
+			return "", fmt.Errorf("failed to format property: %s", err)
+		}
+
+		var e Event
+		p.evtRecordHelper.setEventMetadata(&e)
+		eventdata, _ := json.Marshal(e)
 		err = fmt.Errorf("failed to format property: Event Details:\n"+
 			"Property Name: %s\n"+
+			// TODO: property flags...
 			"Property Type: InType=%d, OutType=%d\n"+
 			"Property Length: %d\n"+
-			"Provider: %s\n"+
-			"Event ID: %d\n"+
-			"Original Error: %s\n",
-			//"Last Props: %s",
+			"Error: %v\n"+
+			"IsMof: %v\n"+
+			"IsXML: %v\n"+
+			"EventData: %s",
 			p.name,
 			p.evtPropInfo.InType(),
 			p.evtPropInfo.OutType(),
 			p.length,
-			p.evtRecordHelper.Provider(),
-			p.evtRecordHelper.EventID(),
-			err)
-		//history.String()) // Add history to error message)
+			err,
+			p.evtRecordHelper.TraceInfo.IsMof(),
+			p.evtRecordHelper.TraceInfo.IsXML(),
+			string(eventdata))
+		slog.Debug("failed to format property", "error", err)
 
-		//err = fmt.Errorf("failed to format property : %s", err)
 		return
 	}
 
-	value = syscall.UTF16ToString(buff)
+	value = syscall.UTF16ToString(*buffPtr)
 
 	return
 }
@@ -238,9 +292,9 @@ type EventRecordHelper struct {
 	integerValues []uint16
 	epiArray      []*EventPropertyInfo
 
-	// Buffer that contains the memory for TraceEventInfo
+	// Buffer that contains the memory for TraceEventInfo.
 	// used internally to reuse the memory allocation.
-	teiPoolBuffer *[]byte
+	teiBuffer *[]byte
 
 	// Position of the next byte of event data to be consumed.
 	// increments after each call to prepareProperty
@@ -253,31 +307,22 @@ type EventRecordHelper struct {
 	selectedProperties map[string]bool
 }
 
-func (e *EventRecordHelper) reset() {
-	*e = EventRecordHelper{}
-	// maps and slices are already reseted when released
-}
-
 func (e *EventRecordHelper) remainingUserDataLength() uint16 {
 	return uint16(e.userDataEnd - e.userDataIt)
 }
 
-// Creates a new EventRecordHelper that has the EVENT_RECORD and gets a TRACE_EVENT_INFO for that event.
-func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
-	erh = eventRecordHelperPool.Get().(*EventRecordHelper)
-	// reset fields to avoid stale data
-	erh.reset()
-
-	erh.EventRec = er
-
-	if erh.TraceInfo, erh.teiPoolBuffer, err = er.GetEventInformation(); err != nil {
-		err = fmt.Errorf("TdhGetEventInformation failed with 0x : %s", err)
-	}
-
-	return
+func (e *EventRecordHelper) userContext() (c *traceContext) {
+	return (*traceContext)(unsafe.Pointer(e.EventRec.UserContext))
 }
 
-// Release EventRecordHelper back to mem pool
+func (e *EventRecordHelper) addPropError() {
+	c := e.userContext()
+	if c != nil && c.consumer != nil {
+		c.trace.ErrorPropsParse++
+	}
+}
+
+// Release EventRecordHelper back to memory pool
 // Including all the memory allocations that were made during the processing of the event
 // (helps reduce memory allocations by reusing this memory)
 func (e *EventRecordHelper) release() {
@@ -285,53 +330,79 @@ func (e *EventRecordHelper) release() {
 	// reset the memory of the maps and slices while doing it
 
 	// 1. Reset/Clear and return to the pool Properties map
-	for k, p := range e.Properties {
-		p.release()
-		delete(e.Properties, k)
+	if (e.Properties) != nil {
+		for k, p := range e.Properties {
+			p.release()
+			delete(e.Properties, k)
+		}
+		propertyMapPool.Put(e.Properties)
 	}
-	propertyMapPool.Put(e.Properties)
 
 	// 2. Reset/Clear and return ArrayProperties to the pool
-	for k, p := range e.ArrayProperties {
-		for _, p := range p {
-			p.release()
+	if (e.ArrayProperties) != nil {
+		for k, p := range e.ArrayProperties {
+			for _, p := range p {
+				p.release()
+			}
+			delete(e.ArrayProperties, k)
 		}
-		delete(e.ArrayProperties, k)
+		arrayPropertyMapPool.Put(e.ArrayProperties)
 	}
-	arrayPropertyMapPool.Put(e.ArrayProperties)
 
 	// 3. Reset/Clear and return Structures to the pool
-	for i := range e.Structures {
-		for k, p := range e.Structures[i] {
-			p.release()
-			delete(e.Structures[i], k)
+	if (e.Structures) != nil {
+		for i := range e.Structures {
+			for k, p := range e.Structures[i] {
+				p.release()
+				delete(e.Structures[i], k)
+			}
+			// Return inner map to pool
+			propertyMapPool.Put(e.Structures[i])
 		}
-		// Return inner map to pool
-		propertyMapPool.Put(e.Structures[i])
+		e.Structures = e.Structures[:0] // Reset length, keep capacity
+		structuresSlicePool.Put(&e.Structures)
 	}
-	e.Structures = e.Structures[:0] // Reset length, keep capacity
-	structuresSlicePool.Put(&e.Structures)
 
 	// 4. Clear and return selectedProperties
-	clear(e.selectedProperties)
-	selectedPropertiesPool.Put(e.selectedProperties)
+	if (e.selectedProperties) != nil {
+		clear(e.selectedProperties)
+		selectedPropertiesPool.Put(e.selectedProperties)
+	}
 
 	// 5. Reset integerValues slice (keep capacity) and return to pool
-	e.integerValues = e.integerValues[:0]
-	integerValuesPool.Put(&e.integerValues)
+	if (e.integerValues) != nil {
+		e.integerValues = e.integerValues[:0]
+		integerValuesPool.Put(&e.integerValues)
+	}
 
 	// 6. Reset epiArray slice (keep capacity) and return to pool
-	for i := range e.epiArray { // important
-		e.epiArray[i] = nil
+	if (e.epiArray) != nil {
+		clear(e.epiArray) // important
+		e.epiArray = e.epiArray[:0]
+		epiArrayPool.Put(&e.epiArray)
 	}
-	e.epiArray = e.epiArray[:0]
-	epiArrayPool.Put(&e.epiArray)
 
 	// 7. Release back into the pool the mem allocation for TraceEventInfo
-	tdhInfoPool.Put(e.teiPoolBuffer)
+	if e.teiBuffer != nil {
+		tdhInfoPool.Put(e.teiBuffer)
+	}
 
-	// Last. Finally, Release this object memory
+	// Last. Finally, Reset fields and Release this object memory
+	*e = EventRecordHelper{}
 	eventRecordHelperPool.Put(e)
+}
+
+// Creates a new EventRecordHelper that has the EVENT_RECORD and gets a TRACE_EVENT_INFO for that event.
+func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
+	erh = eventRecordHelperPool.Get().(*EventRecordHelper)
+
+	erh.EventRec = er
+
+	if erh.TraceInfo, erh.teiBuffer, err = er.GetEventInformation(); err != nil {
+		err = fmt.Errorf("TdhGetEventInformation failed with 0x : %s", err)
+	}
+
+	return
 }
 
 // [OLD] Creates a new EventRecordHelper that has the EVENT_RECORD and gets a TRACE_EVENT_INFO for that event.
@@ -385,31 +456,45 @@ func (e *EventRecordHelper) initialize() {
 
 func (e *EventRecordHelper) setEventMetadata(event *Event) {
 	event.System.Computer = hostname
-	event.System.Execution.ProcessID = e.EventRec.EventHeader.ProcessId
-	event.System.Execution.ThreadID = e.EventRec.EventHeader.ThreadId
-	event.System.Execution.ProcessorID = uint16(e.EventRec.BufferContext.Processor)
-	event.System.Execution.KernelTime = e.EventRec.EventHeader.GetKernelTime() // NOTE: for private session use e.EventRec.EventHeader.ProcessorTime
-	event.System.Execution.UserTime = e.EventRec.EventHeader.GetUserTime()     // NOTE: for private session use e.EventRec.EventHeader.ProcessorTime
-	event.System.Correlation.ActivityID = e.EventRec.EventHeader.ActivityId.String()
-	relatedActivityID := e.EventRec.RelatedActivityID()
-	if relatedActivityID.IsZero() {
-		event.System.Correlation.RelatedActivityID = nullGUIDStr
+
+	// Some Providers don't have a ProcessID or ThreadID (there are set 0xFFFFFFFF)
+	// because some events are logged by separate threads
+	if e.EventRec.EventHeader.ProcessId == math.MaxUint32 {
+		event.System.Execution.ProcessID = 0
 	} else {
-		event.System.Correlation.RelatedActivityID = relatedActivityID.String()
+		event.System.Execution.ProcessID = e.EventRec.EventHeader.ProcessId
 	}
+	if e.EventRec.EventHeader.ThreadId == math.MaxUint32 {
+		event.System.Execution.ThreadID = 0
+	} else {
+		event.System.Execution.ThreadID = e.EventRec.EventHeader.ThreadId
+	}
+
+	event.System.Execution.ProcessorID = uint16(e.EventRec.BufferContext.Processor)
+
+	// NOTE: for private session use e.EventRec.EventHeader.ProcessorTime
+	event.System.Execution.KernelTime = e.EventRec.EventHeader.GetKernelTime()
+	event.System.Execution.UserTime = e.EventRec.EventHeader.GetUserTime()
+
 	event.System.EventID = e.TraceInfo.EventID()
 	event.System.Version = e.TraceInfo.EventVersion()
 	event.System.Channel = e.TraceInfo.ChannelName()
+
 	event.System.Provider.Guid = e.TraceInfo.ProviderGUID.String()
 	event.System.Provider.Name = e.TraceInfo.ProviderName()
+
 	event.System.Level.Value = e.TraceInfo.EventDescriptor.Level
 	event.System.Level.Name = e.TraceInfo.LevelName()
+
 	event.System.Opcode.Value = e.TraceInfo.EventDescriptor.Opcode
 	event.System.Opcode.Name = e.TraceInfo.OpcodeName()
+
 	event.System.Keywords.Mask = e.TraceInfo.EventDescriptor.Keyword
 	event.System.Keywords.Name = e.TraceInfo.KeywordsName()
+
 	event.System.Task.Value = uint8(e.TraceInfo.EventDescriptor.Task)
 	event.System.Task.Name = e.TraceInfo.TaskName()
+
 	event.System.TimeCreated.SystemTime = e.EventRec.EventHeader.UTCTimeStamp()
 
 	if e.TraceInfo.IsMof() {
@@ -423,6 +508,14 @@ func (e *EventRecordHelper) setEventMetadata(event *Event) {
 		event.System.EventGuid = e.TraceInfo.EventGUID.String()
 		event.System.Correlation.ActivityID = e.TraceInfo.ActivityIDName()
 		event.System.Correlation.RelatedActivityID = e.TraceInfo.RelatedActivityIDName()
+	} else {
+		event.System.Correlation.ActivityID = e.EventRec.EventHeader.ActivityId.String()
+		relatedActivityID := e.EventRec.RelatedActivityID()
+		if relatedActivityID.IsZero() {
+			event.System.Correlation.RelatedActivityID = nullGUIDStr
+		} else {
+			event.System.Correlation.RelatedActivityID = relatedActivityID.String()
+		}
 	}
 }
 
@@ -547,22 +640,21 @@ func (e *EventRecordHelper) prepareProperty_old(i uint32) (p *Property, err erro
 	return
 }
 
-// =========================================================================================================================
-// =========================================================================================================================
-// =========================================================================================================================
+// ========================================================================
 
 // Helps when a nested property length needs to be calculated using a previous property value
 // This has to be called on every TopLevelProperty index or Structure index
 func (e *EventRecordHelper) cacheIntergerValues(i uint32) {
+	epi := e.epiArray[i]
 	// If this property is a scalar integer, remember the value in case it
 	// is needed for a subsequent property's length or count.
 	// This is a Single Value property, not a struct and it doesn't have a param count
 	// Basically: if !isStruct && !hasParamCount && isSingleValue
-	if (e.epiArray[i].Flags&(PropertyStruct|PropertyParamCount)) == 0 &&
-		e.epiArray[i].Count() == 1 {
+	if (epi.Flags&(PropertyStruct|PropertyParamCount)) == 0 &&
+		epi.Count() == 1 {
 
 		// integerValues is used secuentally, so we can reuse it without reseting
-		switch inType := TdhInType(e.epiArray[i].InType()); inType {
+		switch inType := TdhInType(epi.InType()); inType {
 		case TDH_INTYPE_INT8:
 		case TDH_INTYPE_UINT8:
 			if (e.userDataEnd - e.userDataIt) >= 1 {
@@ -654,10 +746,8 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 }
 
 func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
-	var userOffset uintptr
 	var size uint32
-	p = propertyPool.Get().(*Property)
-	p.reset() // Important. Reset the property to avoid stale data
+	p = getProperty()
 
 	p.evtPropInfo = e.getEpiAt(i)
 	p.evtRecordHelper = e
@@ -673,12 +763,53 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 	// p.length has to be 0 on strings and structures
 	// so we use size instead to advance when p.length is 0.
 	if p.length == 0 {
-		userOffset = uintptr(size)
+		e.userDataIt += uintptr(size)
 	} else {
-		userOffset = uintptr(p.length)
+		e.userDataIt += uintptr(p.length)
 	}
-	e.userDataIt += userOffset
 
+	return
+}
+
+// For debugging purposes, this is slower (not by much) but has the same problems with Kernel SystemConfig MOF Strings.
+func (e *EventRecordHelper) getMOFStringProperty_old(i uint32, arrayCount uint16) (value []uint16) {
+	epi := e.getEpiAt(i)
+
+	dataDescriptor := PropertyDataDescriptor{}
+	// Get pointer to property name
+	dataDescriptor.PropertyName = uint64(e.TraceInfo.pointer()) + uint64(epi.NameOffset)
+	dataDescriptor.ArrayIndex = math.MaxUint32
+	var propertySize uint32
+	var err error
+	err = TdhGetPropertySize(e.EventRec, 0, nil, 1, &dataDescriptor, &propertySize)
+	if err != nil {
+		return
+	}
+
+	buff := make([]byte, propertySize)
+	err = TdhGetProperty(e.EventRec, 0, nil, 1, &dataDescriptor, propertySize, (*byte)(unsafe.Pointer(&buff[0])))
+	if err != nil {
+		fmt.Println("failed to get property: ", err)
+		return
+	}
+
+	offset := uintptr(propertySize) // this is valid too (tested) = arrayCount*2
+	//offset := (uintptr(arrayCount) * unsafe.Sizeof(uint16(0)))
+	_ = offset
+	//e.userDataIt += offset
+
+	return *(*[]uint16)(unsafe.Pointer(&buff))
+}
+
+// Fastest way to get the MOF string, since is going to be converted we use slice (no copy).
+// ~2.2% faster on big number of kernel events from file. and 1 less memory allocation.
+// TdhGetPropertySize returns the same size as the arrayCount*2. (tested on all props)
+// TdhGetProperty returns wrong data, so we have to read it manually.
+func (e *EventRecordHelper) getMOFStringProperty(length uint16) (mofString []uint16) {
+	// UTF16 to UTF8 conversion will remove the data past the null terminator
+	// No need to calculate where is the null termiantor here.
+	// for some string types the length includes the null terminator
+	mofString = unsafe.Slice((*uint16)(unsafe.Pointer(e.userDataIt)), length)
 	return
 }
 
@@ -687,7 +818,15 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 func (e *EventRecordHelper) prepareProperties() (last error) {
 	var p *Property
 
-	// TODO: check for wpp event and handle it differently
+	// https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header
+	// TODO(tekert): check for EVENT_HEADER_FLAG_STRING_ONLY and dont parse the event with tdh
+	// if (e.EventRec.EventHeader.Flags & EVENT_HEADER_FLAG_STRING_ONLY) != 0 {
+	// }
+	// if (e.EventRec.EventHeader.Flags & EVENT_HEADER_FLAG_TRACE_MESSAGE) != 0 {
+	// }
+	// if (e.EventRec.EventHeader.Flags & EVENT_HEADER_FLAG_CLASSIC_HEADER) != 0 {
+	//	// Kernel events
+	// }
 
 	for i := uint32(0); i < e.TraceInfo.TopLevelPropertyCount; i++ {
 		epi := e.getEpiAt(i)
@@ -712,18 +851,35 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 
 		var array []*Property = make([]*Property, 0)
 		var arrayName string
+		var mofString []uint16
+		//var mofString2 []uint16
 
 		// Treat non-array properties as arrays with one element.
 		for arrayIndex := uint16(0); arrayIndex < arrayCount; arrayIndex++ {
 			if isArray {
+				LogTrace("Processing array element", "name", p.name, "index", arrayIndex)
 
-				if p, last = e.prepareProperty(i); last != nil {
-					return
+				if arrayName == "" {
+					arrayName = UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(epi.NameOffset))
 				}
-				slog.Debug("Processing array element", "name", p.name, "index", arrayIndex)
 
-				arrayName = p.name
-				array = append(array, p)
+				// if this is a MOF event, we don't need to parse the properties of the array
+				// this will be a array of wchars, Kernel events EVENT_HEADER_FLAG_CLASSIC_HEADER
+				if e.TraceInfo.IsMof() {
+					if e.EventRec.EventHeader.Flags&EVENT_HEADER_FLAG_CLASSIC_HEADER != 0 {
+						if epi.InType() == TDH_INTYPE_UNICODECHAR {
+							//mofString = e.getMOFStringProperty_old(i, arrayCount)
+							mofString = e.getMOFStringProperty(arrayCount)
+							e.userDataIt += (uintptr(arrayCount) * unsafe.Sizeof(uint16(0)))
+							break // No need to parse the rest of the array
+						}
+					}
+				} else {
+					if p, last = e.prepareProperty(i); last != nil {
+						return
+					}
+					array = append(array, p)
+				}
 			}
 
 			if epi.Flags&PropertyStruct != 0 {
@@ -732,13 +888,12 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 
 				//propStruct := make(map[string]*Property)
 				propStruct := propertyMapPool.Get().(map[string]*Property)
-				//clear(propStruct) // memory is already reseted when it was released
 
 				startIndex := epi.StructStartIndex()
 				lastMember := startIndex + epi.NumOfStructMembers()
 
 				for j := startIndex; j < lastMember; j++ {
-					slog.Debug("parsing struct property", "struct_index", j)
+					LogTrace("parsing struct property", "struct_index", j)
 					// TODO: test this
 					if p, last = e.prepareProperty(uint32(j)); last != nil {
 						return
@@ -754,7 +909,7 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 
 			// Single value that is not a struct.
 			if arrayCount == 1 && !isArray {
-				slog.Debug("parsing scalar property", "index", i)
+				LogTrace("parsing scalar property", "index", i)
 				if p, last = e.prepareProperty(i); last != nil {
 					return
 				}
@@ -785,6 +940,12 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 					}
 				}
 			*/
+		}
+
+		if mofString != nil {
+			// This is a array of wchars, so put it in custom property
+			value := syscall.UTF16ToString(mofString) // already parsed.
+			e.SetProperty(arrayName, value)
 		}
 
 		if len(array) > 0 {
@@ -1048,6 +1209,7 @@ func (e *EventRecordHelper) GetPropertyString(name string) (s string, err error)
 	return "", fmt.Errorf("%w %s", ErrUnknownProperty, name)
 }
 
+// TODO: try to parse this directly with using Value (binary -> string -> int is bad)
 func (e *EventRecordHelper) GetPropertyInt(name string) (i int64, err error) {
 	var s string
 
@@ -1058,6 +1220,7 @@ func (e *EventRecordHelper) GetPropertyInt(name string) (i int64, err error) {
 	return strconv.ParseInt(s, 0, 64)
 }
 
+// TODO: try to parse this directly with using Value (binary -> string -> int is bad)
 func (e *EventRecordHelper) GetPropertyUint(name string) (u uint64, err error) {
 	var s string
 
@@ -1069,13 +1232,15 @@ func (e *EventRecordHelper) GetPropertyUint(name string) (u uint64, err error) {
 }
 
 func (e *EventRecordHelper) SetProperty(name, value string) {
-
 	if p, ok := e.Properties[name]; ok {
 		p.value = value
 		return
 	}
 
-	e.Properties[name] = &Property{name: name, value: value}
+	p := getProperty()
+	p.name = name
+	p.value = value
+	e.Properties[name] = p
 }
 
 func (e *EventRecordHelper) ParseProperties(names ...string) (err error) {

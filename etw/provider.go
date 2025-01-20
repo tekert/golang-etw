@@ -68,11 +68,18 @@ type Provider struct {
 	Filter []uint16
 }
 
+// "Windows Kernel Trace" is the provider for the trace session "NT Kernel Logger"
+// only one session can be running at any time, but Microsoft-Windows-Kernel- providers can be used
+// in other sessions.
+//
+// This returns true if the provider is a NT Kernel Logger provider,
+// Manifest-based Kernel provider or System Trace provider.
+// TODO: redudant, delete.
 func (p *Provider) IsKernelProvider() bool {
-	// "Windows Kernel Trace" is the provider for the trace session "NT Kernel Logger"
-	// only one session can be running at any time, but Microsoft-Windows-Kernel- providers can be used
-	// in other sessions
-    return strings.Contains(p.Name, "Microsoft-Windows-Kernel-") || strings.Contains(p.Name, "Windows Kernel Trace")
+	return p.GUID.Equals(systemTraceControlGuid) ||
+		strings.Contains(p.Name, "Microsoft-Windows-Kernel-") ||
+		p.Name == "Windows Kernel Trace" ||
+		IsKernelProvider(p.Name)
 }
 
 // IsZero returns true if the provider is empty
@@ -102,7 +109,8 @@ func (p *Provider) BuildFilterDesc() (fd []EventFilterDescriptor) {
 	return
 }
 
-// MustParseProvider parses a provider string or panic
+// MustParseProvider parses a provider string or panics.
+// It wraps [ParseProvider] in a panic-on-error call.
 func MustParseProvider(s string) (p Provider) {
 	var err error
 	if p, err = ParseProvider(s); err != nil {
@@ -125,11 +133,15 @@ func IsKnownProvider(p string) bool {
 //
 // (0xff here means any Level, 13 and 14 are the event IDs and 0x80 is the MatchAnyKeyword)
 //
-// You can check the keywords and level using this command in console: logman query providers "<provider_name>"
+// You can check the keywords and level using this command in console:
+// logman query providers "<provider_name>"
 //
-// For events ID the best way is to check the manifest in your system. Use https://github.com/zodiacon/EtwExplorer
+// For events ID the best way is to check the manifest in your system.
 //
-// More info at: https://learn.microsoft.com/en-us/windows/win32/wes/defining-keywords-used-to-classify-types-of-events
+// Use https://github.com/zodiacon/EtwExplorer
+//
+// More info at:
+// https://learn.microsoft.com/en-us/windows/win32/wes/defining-keywords-used-to-classify-types-of-events
 func ParseProvider(s string) (p Provider, err error) {
 	var u uint64
 
