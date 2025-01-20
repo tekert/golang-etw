@@ -74,7 +74,7 @@ func main() {
 ```
 
 ## Overview of how ETW works:
-This is my best attempt to explain the worst designed API created by microsoft as simply as i can
+This is my best attempt to explain the worst designed API created by microsoft as simply as i can, can contain some personal reminders.
 
 There are a few of general terms used in ETW:
 - "Trace"
@@ -86,9 +86,10 @@ There are a few of general terms used in ETW:
 Here we go:  
 
 #### Sessions
-A Trace Session is a buffer allocated by you using etw syscalls (can be paged, non paged, real time, circular buffer, writen to a file, etc) there are many forms of session properties you can select, allocated using StartTrace, you provide a name or use another existing trace for this new Session to form a Trace Session.  
+A Session is a buffer allocated by you using etw syscalls (can be paged, non paged, real time, circular buffer, writen to a file, etc) there are many forms of session properties you can select, allocated using StartTrace, you provide a name or use another existing trace for this new Session to form a Trace Session. 
+Trace is the flow of events, so this is normally called a Trace Session when it's receiving events from providers.
 
-For example in code, for a real time session (meaning we want to process events that arrive in this session as soon as they arrive in our buffer) this is as simple as calling:  
+For example in code, for a real time session (meaning we want to process events that arrive in this session as soon as they arrive in our buffer) this is done calling:  
 ```
 s := etw.NewRealTimeSession("TestingGoEtw")
 defer s.Stop()
@@ -97,7 +98,7 @@ defer s.Stop()
 #### Providers
 
 An Provider is the logical entity that raises events and writes them to an Session  
-For example, to assing providers to the real time session we created earlier, we use for example:  
+For example, to assign providers to the real time session we created earlier:  
 ``` s.EnableProvider(etw.MustParseProvider("Microsoft-Windows-Kernel-Disk") ```  
 
 We can attach another provider to the trace now with keywords:  
@@ -194,11 +195,19 @@ A Manifest provider is just a Provider that defines what events it can output an
 The Trace Controller is this software doing the trace control between providers and the Session, the ouput of events for this session is the Trace, the Session would be the broader concept of forming the connection aka Trace Session.
 
 #### Trace Session
-Finally, once the providers you selected are Enabled and writing events to your Session it means you formed an Trace Session, the other case is to use an existing Trace and you wanted you hook on it a read it's event directly, that means you want to read from a Trace, no need to create a new session (buffer) in that case.  
-Reading the events the Trace is collecting means to Consume from it.
+Finally, once the providers you selected are Enabled and writing events to your Session it means you formed an Trace Session. Many providers can write to your session.
+The other case is to use an existing Trace Session from other trace controllers, you can consult them with
+> logman query -ets
+
+These are Trace Sessions that are already started, if you wanted to consume from it to process it's event directly in user code there is no need to create a new session (buffer).
+Reading the events the Trace session is collecting means to Consume from it.
+Most of the time is called a Trace, the terms change based on perspective. (Producing vs Consuming)
+Provider -> Session (producing)
+Session -> Consumer (consuming)
+The Trace would be the "->" connecting them.
 
 #### Consumer
-The Consumpion is that act of Opening a Trace with `OpenTrace` and then processing it (consumer has to open first) with a blocking call to `ProcessTrace` in a new thread/goroutine, setting callbacks to read stats from the buffer you allocated and another callback to finally receive the actual events (parsing the events is another history and doing it efficiently is another) but this library already handles it for easy consumption.  
+The Consumpion is that act of Opening a active Trace with `OpenTrace` and then processing it (from the consumer side we have to open it first) with a blocking call to `ProcessTrace` in a new thread/goroutine, setting callbacks to read stats from the buffer you allocated and another callback to finally receive the actual events (parsing the events is another history and doing it efficiently is another) but this library already handles it for easy consumption.  
 ``` 
 c := etw.NewConsumer(context.Background()) 
 defer c.Stop()
@@ -233,7 +242,7 @@ Do not use the EventLost field from the `EVENT_TRACE_LOGFILE`.
 
 - Manually by using `ControlTrace` with ControlCode parameter to `EVENT_TRACE_CONTROL_QUERY` that will return a [`EVENT_TRACE_PROPERTIES_V2`](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties_v2)  
 
-I still don't know if there is any difference between the 3 methods apart from convenience.
+EventsLost from the Consumer are events lost from you side, this can be equal to the one from ControlTrace if this is your session.
 
 #### Stopping ETW Traces
 To stop this, you have to stop two things.  
