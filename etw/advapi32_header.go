@@ -942,6 +942,10 @@ type EventTraceLogfile struct {
 	Context uintptr // reserved for internal use
 }
 
+func (e *EventTraceLogfile) GetProcessTraceMode() uint32 {
+	return e.Union1
+}
+
 func (e *EventTraceLogfile) SetProcessTraceMode(ptm uint32) {
 	e.Union1 = ptm
 }

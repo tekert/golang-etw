@@ -1,5 +1,6 @@
 //go:build windows
 // +build windows
+//lint:file-ignore U1000 exports
 
 package etw
 

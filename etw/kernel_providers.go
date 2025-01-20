@@ -23,9 +23,14 @@ type ProviderDefinition struct {
 // or
 // kernelSession := etw.NewKernelRealTimeSession(etw.EVENT_TRACE_FLAG_DISK_IO | etw.EVENT_TRACE_FLAG_DISK_FILE_IO)
 //
-// Some comments where taken from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/Parsers/KernelTraceEventParser.cs
+//* NOTE:
+// Most of these are Legacy events, using MOF.
+// Some providers for the kernel are very old and not parse well, like NetworkTCPIP, use the manifest providers
+// or the new SystemProvider on Windows 10 SDK build 20348 or later
 var (
 	KernelProviders = []ProviderDefinition{
+
+		// Some comments where taken from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/Parsers/KernelTraceEventParser.cs
 
 		// Logs Advanced Local Procedure call events.
 		// https://docs.microsoft.com/en-us/windows/win32/etw/alpc
@@ -209,7 +214,7 @@ var (
 			GUID:   "{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}",
 			Flags:  EVENT_TRACE_FLAG_THREAD},
 
-		// Logs thread context switches.
+		// Logs thread context switches. (use with ReadyThread to get full context switches)
 		// (can be > 10K events per second)
 		{Name: "CSwitch",
 			Kernel: true,

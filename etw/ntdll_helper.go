@@ -15,9 +15,24 @@ func GetWindowsVersionInfo() (osvi *OSVERSIONINFOEX) {
 	return
 }
 
-func GetWindowsBuild() (build uint32) {
-	osvi:= GetWindowsVersionInfo()
-	return osvi.BuildNumber
+func IsWindowsVersionOrGreater(majorVersion, minorVersion, buildNumber uint32) bool {
+    current := GetWindowsVersionInfo()
+
+    if current.MajorVersion > majorVersion {
+        return true
+    }
+    if current.MajorVersion < majorVersion {
+        return false
+    }
+
+    if current.MinorVersion > minorVersion {
+        return true
+    }
+    if current.MinorVersion < minorVersion {
+        return false
+    }
+
+    return current.BuildNumber >= buildNumber
 }
 
 // VerSetConditionMask sets the specified bits in the condition mask.

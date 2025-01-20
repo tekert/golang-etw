@@ -6,9 +6,24 @@ package etw
 import (
 	"crypto/rand"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"unsafe"
 )
+
+// noCopy may be added to structs which must not be copied
+// after the first use.
+//
+// See https://golang.org/issues/8005#issuecomment-190753527
+// for details.
+//
+// Note that it must not be embedded, due to the Lock and Unlock methods.
+type noCopy struct{}
+
+// Lock is a no-op used by -copylocks checker from `go vet`.
+func (*noCopy) Lock()   {}
+func (*noCopy) Unlock() {}
 
 func max(a, b int) int {
 	if a < b {
@@ -116,4 +131,14 @@ func UUID() (uuid string, err error) {
 	}
 	uuid = fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 	return
+}
+
+func isETLFile(path string) bool {
+	// Convert to clean Windows path
+	clean := filepath.Clean(path)
+	if !strings.EqualFold(filepath.Ext(clean), ".etl") {
+		return false
+	}
+	// Check if absolute path or UNC
+	return filepath.IsAbs(clean) || strings.HasPrefix(clean, "\\\\")
 }

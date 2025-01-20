@@ -674,7 +674,7 @@ func (e *EventMapInfo) GetEventMapEntryAt(i int) *EventMapEntry {
 		pEmi += uintptr(i) * unsafe.Sizeof(EventMapEntry{})
 		return ((*EventMapEntry)(unsafe.Pointer(pEmi)))
 	}
-	panic(fmt.Errorf("Index out of range"))
+	panic(fmt.Errorf("index out of range"))
 }
 
 /*
@@ -1124,8 +1124,9 @@ const (
 	// End of winmeta intypes.
 )
 
-// Start of TDH intypes for WBEM. These types cannot be used in manifests.
 const (
+	// Start of TDH intypes for WBEM. These types cannot be used in manifests.
+
 	TDH_INTYPE_COUNTEDSTRING = TdhInType(iota + 300) /*
 		Field contains a little-endian 16-bit bytecount followed by a WCHAR
 		(16-bit character) string. Default OutType is STRING. Other usable

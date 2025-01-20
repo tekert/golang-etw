@@ -122,7 +122,7 @@ func currentUserSid() (sid *SID, err error) {
 	return ConvertStringSidToSidW(currentUser.Uid)
 }
 
-func currentUserIs(sidString string) (r bool, err error) {
+func currentUserSIDIs(sidString string) (r bool, err error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return false, fmt.Errorf("failed to get current user: %w", err)
