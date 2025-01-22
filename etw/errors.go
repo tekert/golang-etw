@@ -1761,6 +1761,44 @@ const (
 // Parsed using custom python script
 // from https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
 const (
+	// NTSTATUS Format (32 bits):
+	// +-----+--+--+-------------+------------------+
+	// |Seve.|C |R | Facility    |      Code        |
+	// +-----+--+--+-------------+------------------+
+	// |31-30|29|28|   27-16     |      15-0        |
+	// +-----+--+--+-------------+------------------+
+	//
+	// - Bits 31-30: Severity (2 bits)
+	// - Bit 29: Customer code flag
+	// - Bit 28: Reserved
+	// - Bits 27-16: Facility (12 bits)
+	// - Bits 15-0: Code (16 bits)
+	//
+	// Examples:
+	//
+	// STATUS_SUCCESS = 0x00000000
+	//   Severity: 0 (Success)
+	//   Customer: 0
+	//   Reserved: 0
+	//   NT:       0
+	//   Facility: 0
+	//   Code:     0
+	//
+	// STATUS_UNSUCCESSFUL = 0xC0000001
+	//   Severity: 3 (Error)
+	//   Customer: 0
+	//   Reserved: 0
+	//   NT:       0
+	//   Facility: 0
+	//   Code:     1
+	//
+	// STATUS_NOT_FOUND = 0xC002001C
+	//   Severity: 3 (Error)
+	//   Customer: 0
+	//   Reserved: 0
+	//   Facility: 2 (FACILITY_RPC)
+	//   Code:     0x001C (28)
+
 	STATUS_SUCCESS                                                     = syscall.Errno(0x00000000)
 	STATUS_WAIT_0                                                      = syscall.Errno(0x00000000)
 	STATUS_WAIT_1                                                      = syscall.Errno(0x00000001)
