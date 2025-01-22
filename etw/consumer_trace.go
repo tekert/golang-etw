@@ -17,7 +17,6 @@ type Trace struct {
 	handle syscall.Handle
 
 	open bool          // True is the trace is open
-	done chan struct{} // signal when trace is closed with CloseTrace
 
 	// Keep ETW traceContext alive (don't nil it or they can be crashes.)
 	ctx *traceContext
@@ -30,6 +29,9 @@ type Trace struct {
 
 	// This is the logger info used to create the trace, after the trace is opened,
 	// this struct is filled with more data.
+	// TraceLogFile.LogfileHeader.LostEvents measures events lost on when the trace was created,
+	// for example, when consuming from a file, it will be the events lost when the file was
+	// being created capturing events.
 	// The only fields that are updated on each bufferCallback are: Filled and BuffersRead.
 	TraceLogFile *EventTraceLogfile
 
@@ -56,22 +58,12 @@ type Trace struct {
 
 func (t *Trace) Clone() *Trace {
 	cpy := *t
-	cpy.done = nil
 	cpy.ctx = nil
 	return &cpy
 }
 
-// not used
 func (t *Trace) IsTraceOpen() bool {
-	if t.done == nil {
-		return false
-	}
-	select {
-	case <-t.done:
-		return false
-	default:
-		return true
-	}
+	return t.open
 }
 
 func (t *Trace) QueryTrace() *EventTraceProperties2 {
@@ -86,7 +78,6 @@ func (t *Trace) QueryTrace() *EventTraceProperties2 {
 
 func newTrace(tname string) *Trace {
 	t := &Trace{}
-	t.done = make(chan struct{})
 
 	t.Properties = NewQueryTraceProperties(tname)
 	t.TraceName = tname
