@@ -11,9 +11,10 @@ import (
 /*
 StartTraceW API wrapper generated from prototype
 EXTERN_C ULONG WMIAPI StartTraceW (
-	 PTRACEHANDLE TraceHandle,
-	 LPCWSTR InstanceName,
-	 PEVENT_TRACE_PROPERTIES Properties);
+
+	PTRACEHANDLE TraceHandle,
+	LPCWSTR InstanceName,
+	PEVENT_TRACE_PROPERTIES Properties);
 */
 func StartTrace(traceHandle *syscall.Handle,
 	instanceName *uint16,
@@ -31,9 +32,10 @@ func StartTrace(traceHandle *syscall.Handle,
 /*
 StopTrace API wrapper generated from prototype
 EXTERN_C ULONG WMIAPI StopTrace(
-	  IN TRACEHANDLE TraceHandle,
-	 IN LPCWSTR InstanceName OPTIONAL,
-	 IN OUT PEVENT_TRACE_PROPERTIES Properties);
+
+	 IN TRACEHANDLE TraceHandle,
+	IN LPCWSTR InstanceName OPTIONAL,
+	IN OUT PEVENT_TRACE_PROPERTIES Properties);
 
 NB: This function is obsolete. The ControlTrace function supersedes this function.
 */
@@ -90,10 +92,11 @@ func EnableTraceEx2(traceHandle syscall.Handle,
 /*
 ProcessTrace API wrapper generated from prototype
 EXTERN_C ULONG WMIAPI ProcessTrace (
-	 PTRACEHANDLE HandleArray,
-	 ULONG HandleCount,
-	 LPFILETIME StartTime,
-	 LPFILETIME EndTime);
+
+	PTRACEHANDLE HandleArray,
+	ULONG HandleCount,
+	LPFILETIME StartTime,
+	LPFILETIME EndTime);
 */
 func ProcessTrace(handleArray *syscall.Handle,
 	handleCount uint32,
@@ -113,7 +116,8 @@ func ProcessTrace(handleArray *syscall.Handle,
 /*
 OpenTraceW API wrapper generated from prototype
 EXTERN_C TRACEHANDLE WMIAPI OpenTraceW (
-	 PEVENT_TRACE_LOGFILEW Logfile);
+
+	PEVENT_TRACE_LOGFILEW Logfile);
 */
 func OpenTrace(logfile *EventTraceLogfile) (syscall.Handle, error) {
 	r1, _, err := openTraceW.Call(
@@ -128,10 +132,11 @@ func OpenTrace(logfile *EventTraceLogfile) (syscall.Handle, error) {
 /*
 ControlTraceW API wrapper generated from prototype
 EXTERN_C ULONG WMIAPI ControlTraceW (
-	 TRACEHANDLE TraceHandle,
-	 LPCWSTR InstanceName,
-	 PEVENT_TRACE_PROPERTIES Properties,
-	 ULONG ControlCode);
+
+	TRACEHANDLE TraceHandle,
+	LPCWSTR InstanceName,
+	PEVENT_TRACE_PROPERTIES Properties,
+	ULONG ControlCode);
 */
 func ControlTrace(traceHandle syscall.Handle,
 	instanceName *uint16,
@@ -151,7 +156,8 @@ func ControlTrace(traceHandle syscall.Handle,
 /*
 CloseTrace API wrapper generated from prototype
 EXTERN_C ULONG WMIAPI CloseTrace (
-	 TRACEHANDLE TraceHandle);
+
+	TRACEHANDLE TraceHandle);
 */
 func CloseTrace(traceHandle syscall.Handle) error {
 	r1, _, _ := closeTrace.Call(
@@ -165,9 +171,10 @@ func CloseTrace(traceHandle syscall.Handle) error {
 /*
 EventAccessQuery API wrapper generated from prototype
 ULONG EVNTAPI EventAccessQuery (
-	 LPGUID Guid,
-	 PSECURITY_DESCRIPTOR Buffer,
-	 PULONG BufferSize);
+
+	LPGUID Guid,
+	PSECURITY_DESCRIPTOR Buffer,
+	PULONG BufferSize);
 */
 func EventAccessQuery(
 	guid *GUID,
@@ -186,11 +193,12 @@ func EventAccessQuery(
 /*
 EventAccessControl API wrapper generated from prototype
 ULONG EVNTAPI EventAccessControl (
-	 LPGUID Guid,
-	 ULONG Operation,
-	 PSID Sid,
-	 ULONG Rights,
-	 BOOLEAN AllowOrDeny);
+
+	LPGUID Guid,
+	ULONG Operation,
+	PSID Sid,
+	ULONG Rights,
+	BOOLEAN AllowOrDeny);
 */
 func EventAccessControl(guid *GUID,
 	operation uint32,
@@ -220,6 +228,7 @@ func EventAccessControl(guid *GUID,
 /*
 ConvertSecurityDescriptorToStringSecurityDescriptorW API wrapper generated from prototype
 WINADVAPI WINBOOL WINAPI ConvertSecurityDescriptorToStringSecurityDescriptorW(
+
 	 PSECURITY_DESCRIPTOR SecurityDescriptor,
 	DWORD RequestedStringSDRevision,
 	SECURITY_INFORMATION SecurityInformation,
@@ -255,6 +264,7 @@ func ConvertSecurityDescriptorToStringSecurityDescriptorW(
 /*
 ConvertStringSidToSidW API wrapper generated from prototype
 WINADVAPI WINBOOL WINAPI ConvertStringSidToSidW(
+
 	 LPCWSTR StringSid,
 	PSID *Sid);
 */
@@ -277,4 +287,32 @@ func ConvertStringSidToSidW(stringSid string) (sid *SID, err error) {
 	}
 
 	return
+}
+
+/*
+ConvertSidToStringSidW API wrapper generated from prototype
+WINADVAPI WINBOOL WINAPI ConvertSidToStringSidW(
+
+	PSID Sid,
+	LPWSTR *StringSid);
+*/
+func ConvertSidToStringSidW(sid *SID) (string, error) {
+	var rc uintptr
+	var stringSid uint16
+	pStringSid := &stringSid
+
+	rc, _, err := convertSidToStringSidW.Call(
+		uintptr(unsafe.Pointer(sid)),
+		uintptr(unsafe.Pointer(&pStringSid)))
+
+	if rc != 0 {
+		// success
+		sidstr := UTF16PtrToString(pStringSid)
+		if _, err := syscall.LocalFree(syscall.Handle(unsafe.Pointer(pStringSid))); err != nil {
+			return "", err
+		}
+		return sidstr, nil
+	}
+
+	return "", err
 }

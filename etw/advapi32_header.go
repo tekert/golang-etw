@@ -4,6 +4,8 @@
 package etw
 
 import (
+	"fmt"
+	"log/slog"
 	"sync"
 	"syscall"
 	"time"
@@ -444,6 +446,7 @@ const (
 	EVENT_HEADER_FLAG_NO_CPUTIME      = 0x0010
 	EVENT_HEADER_FLAG_32_BIT_HEADER   = 0x0020
 	EVENT_HEADER_FLAG_64_BIT_HEADER   = 0x0040
+	EVENT_HEADER_FLAG_DECODE_GUID     = 0x0080
 	EVENT_HEADER_FLAG_CLASSIC_HEADER  = 0x0100
 	EVENT_HEADER_FLAG_PROCESSOR_INDEX = 0x0200
 )
@@ -1009,19 +1012,25 @@ func (e *EventRecord) pointerOffset(offset uintptr) uintptr {
 }
 */
 
-func (e *EventRecord) ExtendedDataItem(i uint16) *EventHeaderExtendedDataItem {
-	if i < e.ExtendedDataCount {
-		return (*EventHeaderExtendedDataItem)(unsafe.Pointer((uintptr(unsafe.Pointer(e.ExtendedData)) + (uintptr(i) * unsafe.Sizeof(EventHeaderExtendedDataItem{})))))
+func (e *EventRecord) ExtendedDataItem(i uint16) (*EventHeaderExtendedDataItem, error) {
+	if i >= e.ExtendedDataCount {
+		return nil, fmt.Errorf("index %d out of bounds (len %d)", i, e.ExtendedDataCount)
 	}
-	panic("out of bound extended data item")
+
+	items := unsafe.Slice(e.ExtendedData, e.ExtendedDataCount)
+	return &items[i], nil
 }
 
 func (e *EventRecord) RelatedActivityID() GUID {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
-		item := e.ExtendedDataItem(i)
-		if item.ExtType == EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID {
-			g := (*GUID)(unsafe.Pointer(item.DataPtr))
-			return *g
+		item, err := e.ExtendedDataItem(i)
+		if err == nil {
+			if item.ExtType == EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID {
+				g := (*GUID)(unsafe.Pointer(item.DataPtr))
+				return *g
+			}
+		} else {
+			slog.Error("failed to get extended data item", "error", err)
 		}
 	}
 	return nullGUID
@@ -1036,14 +1045,15 @@ var tdhInfoPool = sync.Pool{
 }
 
 func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, teiBuffer *[]byte, err error) {
+
 	buffp := tdhInfoPool.Get().(*[]byte)
-	*buffp = (*buffp)[:cap(*buffp)]  // Ensure full capacity
+	*buffp = (*buffp)[:cap(*buffp)] // Ensure full capacity
 	bufferSize := uint32(len(*buffp))
 
 	tei = (*TraceEventInfo)(unsafe.Pointer(&(*buffp)[0]))
 	err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
 
-	if err == syscall.ERROR_INSUFFICIENT_BUFFER {
+	if err == ERROR_INSUFFICIENT_BUFFER {
 		*buffp = make([]byte, bufferSize)
 		tei = (*TraceEventInfo)(unsafe.Pointer(&(*buffp)[0]))
 		err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
@@ -1051,7 +1061,11 @@ func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, teiBuffer *[]b
 	if err != nil {
 		// Other errors
 		tdhInfoPool.Put(buffp)
-		return nil, nil, err
+		if err == ERROR_NOT_FOUND {
+			return nil, nil,
+				fmt.Errorf("%w: event schema not found (provider not registered or classic event)", err)
+		}
+		return nil, nil, fmt.Errorf("TdhGetEventInformation failed: %w", err)
 	}
 
 	// Use tei, then optionally put tei into pool when done
@@ -1257,25 +1271,9 @@ func (e *EventHeader) UTCTimeStamp_old() time.Time {
 	return time.Unix(sec, nsec).UTC()
 }
 
-// Windows FILETIME is in 100-nanosecond intervals since Jan 1, 1601
-const (
-	WINDOWS_TICK     = 100         // 100-nanosecond intervals
-	EPOCH_DIFF       = 11644473600 // seconds between Windows epoch (1601) and Unix epoch (1970)
-	TICKS_PER_SECOND = 10000000    // 10^7 ticks per second
-)
-
+// UTCTimeStamp converts event timestamp to UTC time
 func (e *EventHeader) UTCTimeStamp() time.Time {
-	// Convert to Unix epoch
-	unixTime := e.TimeStamp - (EPOCH_DIFF * TICKS_PER_SECOND)
-
-	// Calculate seconds and remaining ticks
-	seconds := unixTime / TICKS_PER_SECOND
-	remaining := unixTime % TICKS_PER_SECOND
-
-	// Convert remaining ticks to nanoseconds (multiply by 100)
-	nanos := remaining * WINDOWS_TICK
-
-	return time.Unix(seconds, nanos).UTC()
+	return UnixTimeStamp(e.TimeStamp).UTC()
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_descriptor
@@ -1816,6 +1814,7 @@ type SidIdentifierAuthority struct {
 	Value [6]uint8 // Represents the top-level authority of a security identifier (SID).
 }
 
+// https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-sid
 /*
 //0xc bytes (sizeof)
 struct _SID
@@ -1833,6 +1832,15 @@ type SID struct {
 	IdentifierAuthority SidIdentifierAuthority
 	SubAuthority        [1]uint32
 }
+
+// Access SubAuthority array
+func (s *SID) SubAuthorities() []uint32 {
+	if s == nil {
+		return nil
+	}
+	return unsafe.Slice((*uint32)(&s.SubAuthority[0]), s.SubAuthorityCount)
+}
+
 
 /*
 //0x8 bytes (sizeof)
