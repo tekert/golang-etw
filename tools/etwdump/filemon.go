@@ -10,7 +10,7 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/0xrawsec/golang-etw/etw"
+	"github.com/tekert/golang-etw/etw"
 )
 
 type file struct {

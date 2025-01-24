@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xrawsec/golang-etw/etw"
+	"github.com/tekert/golang-etw/etw"
 	"github.com/0xrawsec/golang-utils/log"
 )
 
@@ -289,7 +289,7 @@ func main() {
 		fmt.Println("Listing access rights")
 		for _, provider := range providers {
 			//fmt.Printf("%s: %s\n", provider, getAccessString(providerOrFail(provider).GUID))
-			fmt.Printf("%s: %s\n", provider, getAccessString(*etw.MustParseGUIDFromString(provider)))
+			fmt.Printf("%s: %s\n", provider, getAccessString(*etw.MustParseGUID(provider)))
 		}
 		os.Exit(0)
 	}

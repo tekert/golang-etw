@@ -1,4 +1,4 @@
-module github.com/0xrawsec/golang-etw
+module github.com/tekert/golang-etw
 
 go 1.23
 
