@@ -12,8 +12,6 @@ type ProviderDefinition struct {
 	Flags  uint32
 }
 
-// https://learn.microsoft.com/en-us/windows/win32/etw/nt-kernel-logger-constants
-//
 // To use a provider, you must enable it in the session creation
 // like this:
 // kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("FileIo", "FileIoInit"))
@@ -23,10 +21,33 @@ type ProviderDefinition struct {
 // or
 // kernelSession := etw.NewKernelRealTimeSession(etw.EVENT_TRACE_FLAG_DISK_IO | etw.EVENT_TRACE_FLAG_DISK_FILE_IO)
 //
-//* NOTE:
+// * NOTE:
 // Most of these are Legacy events, using MOF.
 // Some providers for the kernel are very old and not parse well, like NetworkTCPIP, use the manifest providers
 // or the new SystemProvider on Windows 10 SDK build 20348 or later
+func GetKernelProviderFlags(terms ...string) (flags uint32) {
+	for _, t := range terms {
+		for _, pd := range KernelProviders {
+			if strings.EqualFold(t, pd.Name) || t == pd.GUID {
+				flags |= pd.Flags
+			}
+		}
+
+	}
+	return
+}
+
+// Checks if this is a system event trace provider
+func IsKernelProvider(term string) bool {
+	for _, pd := range KernelProviders {
+		if strings.EqualFold(term, pd.Name) || term == pd.GUID {
+			return true
+		}
+	}
+	return false
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/etw/nt-kernel-logger-constants
 var (
 	KernelProviders = []ProviderDefinition{
 
@@ -159,6 +180,7 @@ var (
 
 		// Sampled based profiling (every msec)
 		// (expect 1K events per proc per second)
+		// requieres special privileges.
 		{Name: "Profile",
 			Kernel: true,
 			GUID:   "{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}",
@@ -241,25 +263,3 @@ var (
 		// EVENT_TRACE_FLAG_NO_SYSCONFIG (special, no Windows Kernel/SystemConfig/* rundown events)
 	}
 )
-
-// Checks if this is a system event trace provider
-func IsKernelProvider(term string) bool {
-	for _, pd := range KernelProviders {
-		if strings.EqualFold(term, pd.Name) || term == pd.GUID {
-			return true
-		}
-	}
-	return false
-}
-
-func GetKernelProviderFlags(terms ...string) (flags uint32) {
-	for _, t := range terms {
-		for _, pd := range KernelProviders {
-			if strings.EqualFold(t, pd.Name) || t == pd.GUID {
-				flags |= pd.Flags
-			}
-		}
-
-	}
-	return
-}

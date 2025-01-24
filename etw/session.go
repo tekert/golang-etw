@@ -74,13 +74,18 @@ func NewPagedRealTimeSession(name string) (s *RealTimeSession) {
 	return
 }
 
-// NewKernelRealTimeSession creates a new ETW trace session to receive
-// NT Kernel Logger events in real time (only one session can be running at any time)
+// NewKernelRealTimeSession creates a new ETW trace system session to enable reading from the
+// NT Kernel Logger trace events in real time (only one session can be running at any time)
 //
 // EnableFlags: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties EnableFlags section
 //
-// Here is info on the MOF Events for the Kernel Trace. These are legacy events.
+// use: [GetKernelProviderFlags] for some predefined flags.
+//
+// These are legacy MOF type events. (without a manifest some of these event don't parse well)
 // Most of the events properties that track something may have a zero value. (kernel memory)
+//
+// *NOTE: Some MOF are not documented on the microsoft site, for example: Process_V4_TypeGroup1 etc..
+//
 // https://msdn.microsoft.com/en-us/library/windows/desktop/aa364083(v=vs.85).aspx
 func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	p = NewRealTimeSession(NtKernelLogger)

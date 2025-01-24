@@ -380,6 +380,19 @@ func (t *TraceEventInfo) cleanStringAt(offset uintptr) string {
 	return ""
 }
 
+func (t *TraceEventInfo) EventID() uint16 {
+	if t.IsXML() {
+		return t.EventDescriptor.Id
+	} else if t.IsMof() {
+		if c, ok := MofClassMapping[t.EventGUID.Data1]; ok {
+			return c.BaseId + uint16(t.EventDescriptor.Opcode)
+		}
+	}
+	// not meaningful, cannot be used to identify event
+	return 0
+}
+
+
 // Seems to be always empty
 // TODO(tekert): investigate this
 func (t *TraceEventInfo) EventMessage() string {
@@ -563,26 +576,6 @@ func (t *TraceEventInfo) IsXML() bool {
 
 func (t *TraceEventInfo) IsWPP() bool {
 	return t.DecodingSource == DecodingSourceWPP
-}
-
-func (t *TraceEventInfo) EventID() uint16 {
-	if t.IsXML() {
-		return t.EventDescriptor.Id
-	} else if t.IsMof() {
-		if c, ok := MofClassMapping[t.EventGUID.Data1]; ok {
-			return c.BaseId + uint16(t.EventDescriptor.Opcode)
-		}
-	}
-	// not meaningful, cannot be used to identify event
-	return 0
-}
-
-func (t *TraceEventInfo) EventVersion() uint8 {
-	if t.IsXML() {
-		return t.EventDescriptor.Version
-	}
-	// not meaningful, cannot be used to identify event
-	return 0
 }
 
 // Access the EventPropertyInfo block at index i (they are contiguous in memory)

@@ -54,12 +54,12 @@ func (g *GUID) String() string {
 
 // lowercase string representation of the GUID
 func (g *GUID) StringL() string {
-    return fmt.Sprintf("{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-        g.Data1,
-        g.Data2,
-        g.Data3,
-        g.Data4[0], g.Data4[1],
-        g.Data4[2], g.Data4[3], g.Data4[4], g.Data4[5], g.Data4[6], g.Data4[7])
+	return fmt.Sprintf("{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+		g.Data1,
+		g.Data2,
+		g.Data3,
+		g.Data4[0], g.Data4[1],
+		g.Data4[2], g.Data4[3], g.Data4[4], g.Data4[5], g.Data4[6], g.Data4[7])
 }
 
 func (g *GUID) Equals(other *GUID) bool {
@@ -80,8 +80,8 @@ var (
 	guidRE = regexp.MustCompile(`^\{?[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}\}?$`)
 )
 
-// MustParseGUIDFromString parses a guid string into a GUID struct or panics
-func MustParseGUIDFromString(sguid string) (guid *GUID) {
+// MustParseGUID parses a guid string into a GUID struct or panics
+func MustParseGUID(sguid string) (guid *GUID) {
 	var err error
 	if guid, err = ParseGUID(sguid); err != nil {
 		panic(err)

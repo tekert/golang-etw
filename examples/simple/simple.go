@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xrawsec/golang-etw/etw"
+	"github.com/tekert/golang-etw/etw"
 )
 
 func main() {

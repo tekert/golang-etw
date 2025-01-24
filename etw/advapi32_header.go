@@ -1012,6 +1012,18 @@ func (e *EventRecord) pointerOffset(offset uintptr) uintptr {
 }
 */
 
+func (e *EventRecord) EventID() uint16 {
+	if e.IsXML() {
+		return e.EventHeader.EventDescriptor.Id
+	} else if e.IsMof() {
+		if c, ok := MofClassMapping[e.EventHeader.ProviderId.Data1]; ok {
+			return c.BaseId + uint16(e.EventHeader.EventDescriptor.Opcode)
+		}
+	}
+	// not meaningful, cannot be used to identify event
+	return 0
+}
+
 func (e *EventRecord) ExtendedDataItem(i uint16) (*EventHeaderExtendedDataItem, error) {
 	if i >= e.ExtendedDataCount {
 		return nil, fmt.Errorf("index %d out of bounds (len %d)", i, e.ExtendedDataCount)
@@ -1034,6 +1046,16 @@ func (e *EventRecord) RelatedActivityID() GUID {
 		}
 	}
 	return nullGUID
+}
+
+func (e *EventRecord) IsXML() bool {
+    // If not classic/MOF and has provider, it's manifest-based
+    return !e.IsMof() && !e.EventHeader.ProviderId.IsZero() // TODO(tekert): test this
+}
+
+// Classic event
+func (e *EventRecord) IsMof() bool {
+	return e.EventHeader.Flags&EVENT_HEADER_FLAG_CLASSIC_HEADER != 0
 }
 
 // Helps reduce memory allocations by reusing a buffer for the event information
@@ -1840,7 +1862,6 @@ func (s *SID) SubAuthorities() []uint32 {
 	}
 	return unsafe.Slice((*uint32)(&s.SubAuthority[0]), s.SubAuthorityCount)
 }
-
 
 /*
 //0x8 bytes (sizeof)
