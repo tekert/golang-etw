@@ -7,6 +7,9 @@ package etw
 // Improves performance by 30% or more when called from go, (cgo is slow)
 // if this fails, the Tdh is used internally.
 
+// Very usefull link:
+// https://learn.microsoft.com/en-us/windows/win32/etw/event-tracing-mof-qualifiers#property-qualifiers
+
 import (
 	"fmt"
 	"net"
