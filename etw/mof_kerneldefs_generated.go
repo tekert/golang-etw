@@ -10,8 +10,8 @@ package etw
 
 // [dynamic:ToInstance, Guid("{90cbdc39-4a3e-11d1-84f4-0000f80464e3}"),
 //          EventVersion(2)] class FileIo_V2 : MSNT_SystemTrace{};
-// FileIo_V2 class definition
-var FileIo_V2 = &MofClassDef{
+// mofFileIo_V2 class definition
+var mofFileIo_V2 = &MofClassDef{
     Name: "FileIo_V2",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{90cbdc39-4a3e-11d1-84f4-0000f80464e3}"),
@@ -26,12 +26,12 @@ var FileIo_V2 = &MofClassDef{
 //   [ WmiDataId(4), extension("SizeT"), read ] object ViewSize;
 //   [ WmiDataId(5), read ] uint32 ProcessId;
 // };
-// FileIo_V2_MapFile class definition
-var FileIo_V2_MapFile = &MofClassDef{
+// mofFileIo_V2_MapFile class definition
+var mofFileIo_V2_MapFile = &MofClassDef{
     Name: "FileIo_V2_MapFile",
     Base: "FileIo_V2",
-    GUID: FileIo_V2.GUID,
-    Version: FileIo_V2.Version,
+    GUID: mofFileIo_V2.GUID,
+    Version: mofFileIo_V2.Version,
     EventTypes: []uint8{ 37,  38,  39,  40 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ViewBase", InType: TDH_INTYPE_POINTER},
@@ -55,12 +55,12 @@ var FileIo_V2_MapFile = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// FileIo_V2_DirEnum class definition
-var FileIo_V2_DirEnum = &MofClassDef{
+// mofFileIo_V2_DirEnum class definition
+var mofFileIo_V2_DirEnum = &MofClassDef{
     Name: "FileIo_V2_DirEnum",
     Base: "FileIo_V2",
-    GUID: FileIo_V2.GUID,
-    Version: FileIo_V2.Version,
+    GUID: mofFileIo_V2.GUID,
+    Version: mofFileIo_V2.Version,
     EventTypes: []uint8{ 72,  77 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -79,12 +79,12 @@ var FileIo_V2_DirEnum = &MofClassDef{
 //   [ WmiDataId(2), pointer, read ] uint32 ExtraInfo;
 //   [ WmiDataId(3), read ] uint32 NtStatus;
 // };
-// FileIo_V2_OpEnd class definition
-var FileIo_V2_OpEnd = &MofClassDef{
+// mofFileIo_V2_OpEnd class definition
+var mofFileIo_V2_OpEnd = &MofClassDef{
     Name: "FileIo_V2_OpEnd",
     Base: "FileIo_V2",
-    GUID: FileIo_V2.GUID,
-    Version: FileIo_V2.Version,
+    GUID: mofFileIo_V2.GUID,
+    Version: mofFileIo_V2.Version,
     EventTypes: []uint8{ 76 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -100,12 +100,12 @@ var FileIo_V2_OpEnd = &MofClassDef{
 //   [ WmiDataId(3), pointer, read ] uint32 FileObject;
 //   [ WmiDataId(4), pointer, read ] uint32 FileKey;
 // };
-// FileIo_V2_SimpleOp class definition
-var FileIo_V2_SimpleOp = &MofClassDef{
+// mofFileIo_V2_SimpleOp class definition
+var mofFileIo_V2_SimpleOp = &MofClassDef{
     Name: "FileIo_V2_SimpleOp",
     Base: "FileIo_V2",
-    GUID: FileIo_V2.GUID,
-    Version: FileIo_V2.Version,
+    GUID: mofFileIo_V2.GUID,
+    Version: mofFileIo_V2.Version,
     EventTypes: []uint8{ 65,  66,  73 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -124,12 +124,12 @@ var FileIo_V2_SimpleOp = &MofClassDef{
 //   [ WmiDataId(6), read ] uint32 IoSize;
 //   [ WmiDataId(7), read ] uint32 IoFlags;
 // };
-// FileIo_V2_ReadWrite class definition
-var FileIo_V2_ReadWrite = &MofClassDef{
+// mofFileIo_V2_ReadWrite class definition
+var mofFileIo_V2_ReadWrite = &MofClassDef{
     Name: "FileIo_V2_ReadWrite",
     Base: "FileIo_V2",
-    GUID: FileIo_V2.GUID,
-    Version: FileIo_V2.Version,
+    GUID: mofFileIo_V2.GUID,
+    Version: mofFileIo_V2.Version,
     EventTypes: []uint8{ 67,  68 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Offset", InType: TDH_INTYPE_UINT64},
@@ -151,12 +151,12 @@ var FileIo_V2_ReadWrite = &MofClassDef{
 //   [ WmiDataId(5), pointer, read ] uint32 ExtraInfo;
 //   [ WmiDataId(6), read ] uint32 InfoClass;
 // };
-// FileIo_V2_Info class definition
-var FileIo_V2_Info = &MofClassDef{
+// mofFileIo_V2_Info class definition
+var mofFileIo_V2_Info = &MofClassDef{
     Name: "FileIo_V2_Info",
     Base: "FileIo_V2",
-    GUID: FileIo_V2.GUID,
-    Version: FileIo_V2.Version,
+    GUID: mofFileIo_V2.GUID,
+    Version: mofFileIo_V2.Version,
     EventTypes: []uint8{ 69,  70,  71,  74,  75 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -176,12 +176,12 @@ var FileIo_V2_Info = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// FileIo_V2_Name class definition
-var FileIo_V2_Name = &MofClassDef{
+// mofFileIo_V2_Name class definition
+var mofFileIo_V2_Name = &MofClassDef{
     Name: "FileIo_V2_Name",
     Base: "FileIo_V2",
-    GUID: FileIo_V2.GUID,
-    Version: FileIo_V2.Version,
+    GUID: mofFileIo_V2.GUID,
+    Version: mofFileIo_V2.Version,
     EventTypes: []uint8{ 0,  32,  35,  36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "FileObject", InType: TDH_INTYPE_POINTER},
@@ -201,12 +201,12 @@ var FileIo_V2_Name = &MofClassDef{
 //     read
 //   ] string OpenPath;
 // };
-// FileIo_V2_Create class definition
-var FileIo_V2_Create = &MofClassDef{
+// mofFileIo_V2_Create class definition
+var mofFileIo_V2_Create = &MofClassDef{
     Name: "FileIo_V2_Create",
     Base: "FileIo_V2",
-    GUID: FileIo_V2.GUID,
-    Version: FileIo_V2.Version,
+    GUID: mofFileIo_V2.GUID,
+    Version: mofFileIo_V2.Version,
     EventTypes: []uint8{ 64 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -221,8 +221,8 @@ var FileIo_V2_Create = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}"),
 //          EventVersion(0)] class PerfInfo_V0 : MSNT_SystemTrace{};
-// PerfInfo_V0 class definition
-var PerfInfo_V0 = &MofClassDef{
+// mofPerfInfo_V0 class definition
+var mofPerfInfo_V0 = &MofClassDef{
     Name: "PerfInfo_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}"),
@@ -233,12 +233,12 @@ var PerfInfo_V0 = &MofClassDef{
 //   [ WmiDataId(1), StringTermination("NullTerminated"), read ] string Message;
 //   [ WmiDataId(2), read, MAX(1) ] char16 Padding;
 // };
-// Mark_V0 class definition
-var Mark_V0 = &MofClassDef{
+// mofMark_V0 class definition
+var mofMark_V0 = &MofClassDef{
     Name: "Mark_V0",
     Base: "PerfInfo_V0",
-    GUID: PerfInfo_V0.GUID,
-    Version: PerfInfo_V0.Version,
+    GUID: mofPerfInfo_V0.GUID,
+    Version: mofPerfInfo_V0.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Message", InType: TDH_INTYPE_ANSISTRING, OutType: TDH_OUTTYPE_STRING},
@@ -248,8 +248,8 @@ var Mark_V0 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{89497f50-effe-4440-8cf2-ce6b1cdcaca7}"),
 //          EventVersion(2)] class ObTrace : MSNT_SystemTrace{};
-// ObTrace class definition
-var ObTrace = &MofClassDef{
+// mofObTrace class definition
+var mofObTrace = &MofClassDef{
     Name: "ObTrace",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{89497f50-effe-4440-8cf2-ce6b1cdcaca7}"),
@@ -261,12 +261,12 @@ var ObTrace = &MofClassDef{
 //   [ WmiDataId(2), format("x"), read ] uint32 Tag;
 //   [ WmiDataId(3), read ] uint32 Count;
 // };
-// ObReferenceEvent class definition
-var ObReferenceEvent = &MofClassDef{
+// mofObReferenceEvent class definition
+var mofObReferenceEvent = &MofClassDef{
     Name: "ObReferenceEvent",
     Base: "ObTrace",
-    GUID: ObTrace.GUID,
-    Version: ObTrace.Version,
+    GUID: mofObTrace.GUID,
+    Version: mofObTrace.Version,
     EventTypes: []uint8{ 50,  51 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Object", InType: TDH_INTYPE_POINTER},
@@ -283,12 +283,12 @@ var ObReferenceEvent = &MofClassDef{
 //     read
 //   ] string TypeName;
 // };
-// ObTypeEvent class definition
-var ObTypeEvent = &MofClassDef{
+// mofObTypeEvent class definition
+var mofObTypeEvent = &MofClassDef{
     Name: "ObTypeEvent",
     Base: "ObTrace",
-    GUID: ObTrace.GUID,
-    Version: ObTrace.Version,
+    GUID: mofObTrace.GUID,
+    Version: mofObTrace.Version,
     EventTypes: []uint8{ 36,  37 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ObjectType", InType: TDH_INTYPE_UINT16},
@@ -307,12 +307,12 @@ var ObTypeEvent = &MofClassDef{
 //     read
 //   ] string ObjectName;
 // };
-// ObHandleRundownEvent class definition
-var ObHandleRundownEvent = &MofClassDef{
+// mofObHandleRundownEvent class definition
+var mofObHandleRundownEvent = &MofClassDef{
     Name: "ObHandleRundownEvent",
     Base: "ObTrace",
-    GUID: ObTrace.GUID,
-    Version: ObTrace.Version,
+    GUID: mofObTrace.GUID,
+    Version: mofObTrace.Version,
     EventTypes: []uint8{ 38,  39 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Object", InType: TDH_INTYPE_POINTER},
@@ -327,12 +327,12 @@ var ObHandleRundownEvent = &MofClassDef{
 //   [ WmiDataId(1), format("x"), pointer, read ] uint32 Object;
 //   [ WmiDataId(2), read ] uint16 ObjectType;
 // };
-// ObObjectEvent class definition
-var ObObjectEvent = &MofClassDef{
+// mofObObjectEvent class definition
+var mofObObjectEvent = &MofClassDef{
     Name: "ObObjectEvent",
     Base: "ObTrace",
-    GUID: ObTrace.GUID,
-    Version: ObTrace.Version,
+    GUID: mofObTrace.GUID,
+    Version: mofObTrace.Version,
     EventTypes: []uint8{ 48,  49 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Object", InType: TDH_INTYPE_POINTER},
@@ -347,12 +347,12 @@ var ObObjectEvent = &MofClassDef{
 //   [ WmiDataId(4), format("x"), read ] uint32 TargetProcessId;
 //   [ WmiDataId(5), read ] uint16 ObjectType;
 // };
-// ObHandleDuplicateEvent class definition
-var ObHandleDuplicateEvent = &MofClassDef{
+// mofObHandleDuplicateEvent class definition
+var mofObHandleDuplicateEvent = &MofClassDef{
     Name: "ObHandleDuplicateEvent",
     Base: "ObTrace",
-    GUID: ObTrace.GUID,
-    Version: ObTrace.Version,
+    GUID: mofObTrace.GUID,
+    Version: mofObTrace.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Object", InType: TDH_INTYPE_POINTER},
@@ -372,12 +372,12 @@ var ObHandleDuplicateEvent = &MofClassDef{
 //     read
 //   ] string ObjectName;
 // };
-// ObHandleEvent class definition
-var ObHandleEvent = &MofClassDef{
+// mofObHandleEvent class definition
+var mofObHandleEvent = &MofClassDef{
     Name: "ObHandleEvent",
     Base: "ObTrace",
-    GUID: ObTrace.GUID,
-    Version: ObTrace.Version,
+    GUID: mofObTrace.GUID,
+    Version: mofObTrace.Version,
     EventTypes: []uint8{ 32,  33 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Object", InType: TDH_INTYPE_POINTER},
@@ -389,8 +389,8 @@ var ObHandleEvent = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d3-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(2)] class PageFault_V2 : MSNT_SystemTrace{};
-// PageFault_V2 class definition
-var PageFault_V2 = &MofClassDef{
+// mofPageFault_V2 class definition
+var mofPageFault_V2 = &MofClassDef{
     Name: "PageFault_V2",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d3-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -405,11 +405,11 @@ var PageFault_V2 = &MofClassDef{
 //   [ WmiDataId(4), read ] uint32 HRRangeCount;
 //   [ WmiDataId(5), read ] uint32 Reserved;
 // };
-// PageFault_HeapRangeRundown_V3 class definition
-var PageFault_HeapRangeRundown_V3 = &MofClassDef{
+// mofPageFault_HeapRangeRundown_V3 class definition
+var mofPageFault_HeapRangeRundown_V3 = &MofClassDef{
     Name: "PageFault_HeapRangeRundown_V3",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
+    GUID: mofPageFault_V2.GUID,
     Version: 3,
     EventTypes: []uint8{ 100 },
     Properties: []MofPropertyDef{
@@ -429,12 +429,12 @@ var PageFault_HeapRangeRundown_V3 = &MofClassDef{
 //   [ WmiDataId(5), format("x"), read ] uint32 TThreadId;
 //   [ WmiDataId(6), read ] uint32 ByteCount;
 // };
-// PageFault_HardFault class definition
-var PageFault_HardFault = &MofClassDef{
+// mofPageFault_HardFault class definition
+var mofPageFault_HardFault = &MofClassDef{
     Name: "PageFault_HardFault",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InitialTime", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_DATETIME},
@@ -453,12 +453,12 @@ var PageFault_HardFault = &MofClassDef{
 //   [ WmiDataId(3), read ] uint32 ProcessId;
 //   [ WmiDataId(5), extension("SizeT"), read ] object CommitSizeInBytes;
 // };
-// PageFault_VirtualAllocRundown class definition
-var PageFault_VirtualAllocRundown = &MofClassDef{
+// mofPageFault_VirtualAllocRundown class definition
+var mofPageFault_VirtualAllocRundown = &MofClassDef{
     Name: "PageFault_VirtualAllocRundown",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 128,  129 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BaseAddress", InType: TDH_INTYPE_POINTER},
@@ -474,12 +474,12 @@ var PageFault_VirtualAllocRundown = &MofClassDef{
 //   [ WmiDataId(2), extension("SizeT"), read ] object RegionSize;
 //   [ WmiDataId(3), read ] uint32 ProcessId;
 // };
-// PageFault_VirtualAlloc class definition
-var PageFault_VirtualAlloc = &MofClassDef{
+// mofPageFault_VirtualAlloc class definition
+var mofPageFault_VirtualAlloc = &MofClassDef{
     Name: "PageFault_VirtualAlloc",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 98,  99 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BaseAddress", InType: TDH_INTYPE_POINTER},
@@ -492,12 +492,12 @@ var PageFault_VirtualAlloc = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 BaseAddress;
 //   [ WmiDataId(2), extension("SizeT"), read ] object SizeInBytes;
 // };
-// PageFault_MemReset class definition
-var PageFault_MemReset = &MofClassDef{
+// mofPageFault_MemReset class definition
+var mofPageFault_MemReset = &MofClassDef{
     Name: "PageFault_MemReset",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 134 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BaseAddress", InType: TDH_INTYPE_POINTER},
@@ -512,12 +512,12 @@ var PageFault_MemReset = &MofClassDef{
 //   [ WmiDataId(3), format("x"), read ] uint32 HRPid;
 //   [ WmiDataId(4), read ] uint32 HRRangeCount;
 // };
-// PageFault_HeapRangeRundown_V2 class definition
-var PageFault_HeapRangeRundown_V2 = &MofClassDef{
+// mofPageFault_HeapRangeRundown_V2 class definition
+var mofPageFault_HeapRangeRundown_V2 = &MofClassDef{
     Name: "PageFault_HeapRangeRundown_V2",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 100 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "HeapHandle", InType: TDH_INTYPE_POINTER},
@@ -531,12 +531,12 @@ var PageFault_HeapRangeRundown_V2 = &MofClassDef{
 //     : PageFault_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 HeapHandle;
 // };
-// PageFault_HeapRangeDestroy class definition
-var PageFault_HeapRangeDestroy = &MofClassDef{
+// mofPageFault_HeapRangeDestroy class definition
+var mofPageFault_HeapRangeDestroy = &MofClassDef{
     Name: "PageFault_HeapRangeDestroy",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 104 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "HeapHandle", InType: TDH_INTYPE_POINTER},
@@ -548,12 +548,12 @@ var PageFault_HeapRangeDestroy = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 VirtualAddress;
 //   [ WmiDataId(2), pointer, read ] uint32 ProgramCounter;
 // };
-// PageFault_TypeGroup1 class definition
-var PageFault_TypeGroup1 = &MofClassDef{
+// mofPageFault_TypeGroup1 class definition
+var mofPageFault_TypeGroup1 = &MofClassDef{
     Name: "PageFault_TypeGroup1",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 10,  11,  12,  13,  14, 
                                15 },
     Properties: []MofPropertyDef{
@@ -569,12 +569,12 @@ var PageFault_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(3), format("x"), read ] uint16 FileChar;
 //   [ WmiDataId(4), format("x"), read ] uint16 LoadFlags;
 // };
-// PageFault_ImageLoadBacked class definition
-var PageFault_ImageLoadBacked = &MofClassDef{
+// mofPageFault_ImageLoadBacked class definition
+var mofPageFault_ImageLoadBacked = &MofClassDef{
     Name: "PageFault_ImageLoadBacked",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 105 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "FileObject", InType: TDH_INTYPE_POINTER},
@@ -590,12 +590,12 @@ var PageFault_ImageLoadBacked = &MofClassDef{
 //   [ WmiDataId(2), pointer, read ] uint32 HRAddress;
 //   [ WmiDataId(3), extension("SizeT"), read ] object HRSize;
 // };
-// PageFault_HeapRangeTypeGroup class definition
-var PageFault_HeapRangeTypeGroup = &MofClassDef{
+// mofPageFault_HeapRangeTypeGroup class definition
+var mofPageFault_HeapRangeTypeGroup = &MofClassDef{
     Name: "PageFault_HeapRangeTypeGroup",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 102,  103 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "HeapHandle", InType: TDH_INTYPE_POINTER},
@@ -610,12 +610,12 @@ var PageFault_HeapRangeTypeGroup = &MofClassDef{
 //   [ WmiDataId(2), extension("SizeT"), read ] object FirstRangeSize;
 //   [ WmiDataId(3), format("x"), read ] uint32 HRCreateFlags;
 // };
-// PageFault_HeapRangeCreate class definition
-var PageFault_HeapRangeCreate = &MofClassDef{
+// mofPageFault_HeapRangeCreate class definition
+var mofPageFault_HeapRangeCreate = &MofClassDef{
     Name: "PageFault_HeapRangeCreate",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 101 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "HeapHandle", InType: TDH_INTYPE_POINTER},
@@ -629,12 +629,12 @@ var PageFault_HeapRangeCreate = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 BaseAddress;
 //   [ WmiDataId(2), extension("SizeT"), read ] object SizeInBytes;
 // };
-// PageFault_VirtualRotate class definition
-var PageFault_VirtualRotate = &MofClassDef{
+// mofPageFault_VirtualRotate class definition
+var mofPageFault_VirtualRotate = &MofClassDef{
     Name: "PageFault_VirtualRotate",
     Base: "PageFault_V2",
-    GUID: PageFault_V2.GUID,
-    Version: PageFault_V2.Version,
+    GUID: mofPageFault_V2.GUID,
+    Version: mofPageFault_V2.Version,
     EventTypes: []uint8{ 127 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BaseAddress", InType: TDH_INTYPE_POINTER},
@@ -644,8 +644,8 @@ var PageFault_VirtualRotate = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}"),
 //          EventVersion(2)] class PerfInfo_V2 : MSNT_SystemTrace{};
-// PerfInfo_V2 class definition
-var PerfInfo_V2 = &MofClassDef{
+// mofPerfInfo_V2 class definition
+var mofPerfInfo_V2 = &MofClassDef{
     Name: "PerfInfo_V2",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}"),
@@ -657,12 +657,12 @@ var PerfInfo_V2 = &MofClassDef{
 //   [ WmiDataId(2), pointer, read ] uint32 DisableCallback;
 //   [ WmiDataId(3), pointer, read ] uint32 DisableContext;
 // };
-// FinalizeKTimer2 class definition
-var FinalizeKTimer2 = &MofClassDef{
+// mofFinalizeKTimer2 class definition
+var mofFinalizeKTimer2 = &MofClassDef{
     Name: "FinalizeKTimer2",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 108 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Timer", InType: TDH_INTYPE_POINTER},
@@ -674,12 +674,12 @@ var FinalizeKTimer2 = &MofClassDef{
 // [dynamic:ToInstance, EventType{96, 97}] class WDF_ISR : PerfInfo_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 Routine;
 // };
-// WDF_ISR class definition
-var WDF_ISR = &MofClassDef{
+// mofWDF_ISR class definition
+var mofWDF_ISR = &MofClassDef{
     Name: "WDF_ISR",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 96,  97 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Routine", InType: TDH_INTYPE_POINTER},
@@ -689,12 +689,12 @@ var WDF_ISR = &MofClassDef{
 // [dynamic:ToInstance, EventType{98}] class WDF_DPC : PerfInfo_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 Routine;
 // };
-// WDF_DPC class definition
-var WDF_DPC = &MofClassDef{
+// mofWDF_DPC class definition
+var mofWDF_DPC = &MofClassDef{
     Name: "WDF_DPC",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 98 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Routine", InType: TDH_INTYPE_POINTER},
@@ -704,12 +704,12 @@ var WDF_DPC = &MofClassDef{
 // [dynamic:ToInstance, EventType(92)] class ISR_Unexpected : PerfInfo_V2 {
 //   [ WmiDataId(1), read ] uint16 Vector;
 // };
-// ISR_Unexpected class definition
-var ISR_Unexpected = &MofClassDef{
+// mofISR_Unexpected class definition
+var mofISR_Unexpected = &MofClassDef{
     Name: "ISR_Unexpected",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 92 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Vector", InType: TDH_INTYPE_UINT16},
@@ -722,12 +722,12 @@ var ISR_Unexpected = &MofClassDef{
 //   [ WmiDataId(3), read ] uint16 Count;
 //   [ WmiDataId(4), read ] uint16 Reserved;
 // };
-// SampledProfile class definition
-var SampledProfile = &MofClassDef{
+// mofSampledProfile class definition
+var mofSampledProfile = &MofClassDef{
     Name: "SampledProfile",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 46 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InstructionPointer", InType: TDH_INTYPE_POINTER},
@@ -740,12 +740,12 @@ var SampledProfile = &MofClassDef{
 // [dynamic:ToInstance, EventType(106)] class CancelKTimer2 : PerfInfo_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 Timer;
 // };
-// CancelKTimer2 class definition
-var CancelKTimer2 = &MofClassDef{
+// mofCancelKTimer2 class definition
+var mofCancelKTimer2 = &MofClassDef{
     Name: "CancelKTimer2",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 106 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Timer", InType: TDH_INTYPE_POINTER},
@@ -758,12 +758,12 @@ var CancelKTimer2 = &MofClassDef{
 //   [ WmiDataId(3), read ] uint16 ProfileSource;
 //   [ WmiDataId(4), read ] uint16 Reserved;
 // };
-// PmcCounterProfile class definition
-var PmcCounterProfile = &MofClassDef{
+// mofPmcCounterProfile class definition
+var mofPmcCounterProfile = &MofClassDef{
     Name: "PmcCounterProfile",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 47 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InstructionPointer", InType: TDH_INTYPE_POINTER},
@@ -781,12 +781,12 @@ var PmcCounterProfile = &MofClassDef{
 //     read
 //   ] string CounterName;
 // };
-// PmcCounterConfig_V2 class definition
-var PmcCounterConfig_V2 = &MofClassDef{
+// mofPmcCounterConfig_V2 class definition
+var mofPmcCounterConfig_V2 = &MofClassDef{
     Name: "PmcCounterConfig_V2",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 48 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "CounterCount", InType: TDH_INTYPE_UINT32},
@@ -797,12 +797,12 @@ var PmcCounterConfig_V2 = &MofClassDef{
 // [dynamic:ToInstance, EventType(52)] class SysCallExit : PerfInfo_V2 {
 //   [ WmiDataId(1), format("x"), read ] uint32 SysCallNtStatus;
 // };
-// SysCallExit class definition
-var SysCallExit = &MofClassDef{
+// mofSysCallExit class definition
+var mofSysCallExit = &MofClassDef{
     Name: "SysCallExit",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 52 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "SysCallNtStatus", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -817,12 +817,12 @@ var SysCallExit = &MofClassDef{
 //   [ WmiDataId(5), read ] uint8 Reserved;
 //   [ WmiDataId(6), read ] uint32 MessageNumber;
 // };
-// ISR_MSI class definition
-var ISR_MSI = &MofClassDef{
+// mofISR_MSI class definition
+var mofISR_MSI = &MofClassDef{
     Name: "ISR_MSI",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 50 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InitialTime", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_DATETIME},
@@ -840,12 +840,12 @@ var ISR_MSI = &MofClassDef{
 //   [ WmiDataId(3), pointer, read ] uint32 DisableContext;
 //   [ WmiDataId(4), read ] uint8 TimerFlags;
 // };
-// DisableKTimer2 class definition
-var DisableKTimer2 = &MofClassDef{
+// mofDisableKTimer2 class definition
+var mofDisableKTimer2 = &MofClassDef{
     Name: "DisableKTimer2",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 107 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Timer", InType: TDH_INTYPE_POINTER},
@@ -865,12 +865,12 @@ var DisableKTimer2 = &MofClassDef{
 //   [ WmiDataId(6), pointer, read ] uint32 CallbackContext;
 //   [ WmiDataId(7), read ] uint8 TimerFlags;
 // };
-// SetOrExpireKTimer2 class definition
-var SetOrExpireKTimer2 = &MofClassDef{
+// mofSetOrExpireKTimer2 class definition
+var mofSetOrExpireKTimer2 = &MofClassDef{
     Name: "SetOrExpireKTimer2",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 104,  105 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DueTime", InType: TDH_INTYPE_UINT64},
@@ -890,12 +890,12 @@ var SetOrExpireKTimer2 = &MofClassDef{
 //   [ WmiDataId(4), read ] uint16 Vector;
 //   [ WmiDataId(5), read ] uint8 Reserved;
 // };
-// ISR class definition
-var ISR = &MofClassDef{
+// mofISR class definition
+var mofISR = &MofClassDef{
     Name: "ISR",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 67,  95 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InitialTime", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_DATETIME},
@@ -912,12 +912,12 @@ var ISR = &MofClassDef{
 //   [ WmiDataId(2), read ] uint32 CounterCount;
 //   [ WmiDataId(3), WmiSizeIs("CounterCount"), read ] object CounterStatus;
 // };
-// PmcCounterCorruption_V2 class definition
-var PmcCounterCorruption_V2 = &MofClassDef{
+// mofPmcCounterCorruption_V2 class definition
+var mofPmcCounterCorruption_V2 = &MofClassDef{
     Name: "PmcCounterCorruption_V2",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 49 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessorNumber", InType: TDH_INTYPE_UINT32},
@@ -929,12 +929,12 @@ var PmcCounterCorruption_V2 = &MofClassDef{
 // [dynamic:ToInstance, EventType(51)] class SysCallEnter : PerfInfo_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 SysCallAddress;
 // };
-// SysCallEnter class definition
-var SysCallEnter = &MofClassDef{
+// mofSysCallEnter class definition
+var mofSysCallEnter = &MofClassDef{
     Name: "SysCallEnter",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 51 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "SysCallAddress", InType: TDH_INTYPE_POINTER},
@@ -945,12 +945,12 @@ var SysCallEnter = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 DeviceObject;
 //   [ WmiDataId(2), pointer, read ] uint32 TimerRoutine;
 // };
-// IoTimerEvent class definition
-var IoTimerEvent = &MofClassDef{
+// mofIoTimerEvent class definition
+var mofIoTimerEvent = &MofClassDef{
     Name: "IoTimerEvent",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 93,  94 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DeviceObject", InType: TDH_INTYPE_POINTER},
@@ -961,12 +961,12 @@ var IoTimerEvent = &MofClassDef{
 // [dynamic:ToInstance, EventType{103}] class WDF_WorkItem : PerfInfo_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 Routine;
 // };
-// WDF_WorkItem class definition
-var WDF_WorkItem = &MofClassDef{
+// mofWDF_WorkItem class definition
+var mofWDF_WorkItem = &MofClassDef{
     Name: "WDF_WorkItem",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 103 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Routine", InType: TDH_INTYPE_POINTER},
@@ -974,12 +974,12 @@ var WDF_WorkItem = &MofClassDef{
 }
 
 // [dynamic:ToInstance, EventType{58}] class DebuggerEnabled : PerfInfo_V2{};
-// DebuggerEnabled class definition
-var DebuggerEnabled = &MofClassDef{
+// mofDebuggerEnabled class definition
+var mofDebuggerEnabled = &MofClassDef{
     Name: "DebuggerEnabled",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 58 },
 }
 
@@ -989,12 +989,12 @@ var DebuggerEnabled = &MofClassDef{
 //   [ WmiDataId(2), read ] uint32 NewInterval;
 //   [ WmiDataId(3), read ] uint32 OldInterval;
 // };
-// SampledProfileInterval_V2 class definition
-var SampledProfileInterval_V2 = &MofClassDef{
+// mofSampledProfileInterval_V2 class definition
+var mofSampledProfileInterval_V2 = &MofClassDef{
     Name: "SampledProfileInterval_V2",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 72,  73,  74 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Source", InType: TDH_INTYPE_UINT32},
@@ -1008,12 +1008,12 @@ var SampledProfileInterval_V2 = &MofClassDef{
 //   [ WmiDataId(2), read ] uint8 IsFast;
 //   [ WmiDataId(3), read ] uint8 IsNested;
 // };
-// HV_Hypercall class definition
-var HV_Hypercall = &MofClassDef{
+// mofHV_Hypercall class definition
+var mofHV_Hypercall = &MofClassDef{
     Name: "HV_Hypercall",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 114 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "CallCode", InType: TDH_INTYPE_UINT32},
@@ -1026,12 +1026,12 @@ var HV_Hypercall = &MofClassDef{
 //   [ WmiDataId(1), extension("WmiTime"), read ] object InitialTime;
 //   [ WmiDataId(2), pointer, read ] uint32 Routine;
 // };
-// DPC class definition
-var DPC = &MofClassDef{
+// mofDPC class definition
+var mofDPC = &MofClassDef{
     Name: "DPC",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 66,  68,  69,  70 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InitialTime", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_DATETIME},
@@ -1044,12 +1044,12 @@ var DPC = &MofClassDef{
 //   [ WmiDataId(2), read ] uint32 SpinLockContentionSampleRate;
 //   [ WmiDataId(3), read ] uint32 SpinLockAcquireSampleRate;
 // };
-// SpinLockConfig_V2 class definition
-var SpinLockConfig_V2 = &MofClassDef{
+// mofSpinLockConfig_V2 class definition
+var mofSpinLockConfig_V2 = &MofClassDef{
     Name: "SpinLockConfig_V2",
     Base: "PerfInfo_V2",
-    GUID: PerfInfo_V2.GUID,
-    Version: PerfInfo_V2.Version,
+    GUID: mofPerfInfo_V2.GUID,
+    Version: mofPerfInfo_V2.Version,
     EventTypes: []uint8{ 75,  76 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "SpinLockSpinThreshold", InType: TDH_INTYPE_UINT32},
@@ -1060,8 +1060,8 @@ var SpinLockConfig_V2 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{bf3a50c5-a9c9-4988-a005-2df0b7c80f80}"),
 //          EventVersion(2)] class UdpIp : MSNT_SystemTrace{};
-// UdpIp class definition
-var UdpIp = &MofClassDef{
+// mofUdpIp class definition
+var mofUdpIp = &MofClassDef{
     Name: "UdpIp",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{bf3a50c5-a9c9-4988-a005-2df0b7c80f80}"),
@@ -1072,12 +1072,12 @@ var UdpIp = &MofClassDef{
 //   [ WmiDataId(1), read ] uint16 Proto;
 //   [ WmiDataId(2), read ] uint16 FailureCode;
 // };
-// UdpIp_Fail class definition
-var UdpIp_Fail = &MofClassDef{
+// mofUdpIp_Fail class definition
+var mofUdpIp_Fail = &MofClassDef{
     Name: "UdpIp_Fail",
     Base: "UdpIp",
-    GUID: UdpIp.GUID,
-    Version: UdpIp.Version,
+    GUID: mofUdpIp.GUID,
+    Version: mofUdpIp.Version,
     EventTypes: []uint8{ 17 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Proto", InType: TDH_INTYPE_UINT16},
@@ -1095,12 +1095,12 @@ var UdpIp_Fail = &MofClassDef{
 //   [ WmiDataId(7), read ] uint32 seqnum;
 //   [ WmiDataId(8), PointerType, read ] uint32 connid;
 // };
-// UdpIp_TypeGroup2 class definition
-var UdpIp_TypeGroup2 = &MofClassDef{
+// mofUdpIp_TypeGroup2 class definition
+var mofUdpIp_TypeGroup2 = &MofClassDef{
     Name: "UdpIp_TypeGroup2",
     Base: "UdpIp",
-    GUID: UdpIp.GUID,
-    Version: UdpIp.Version,
+    GUID: mofUdpIp.GUID,
+    Version: mofUdpIp.Version,
     EventTypes: []uint8{ 26,  27 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -1124,12 +1124,12 @@ var UdpIp_TypeGroup2 = &MofClassDef{
 //   [ WmiDataId(7), read ] uint32 seqnum;
 //   [ WmiDataId(8), PointerType, read ] uint32 connid;
 // };
-// UdpIp_TypeGroup1 class definition
-var UdpIp_TypeGroup1 = &MofClassDef{
+// mofUdpIp_TypeGroup1 class definition
+var mofUdpIp_TypeGroup1 = &MofClassDef{
     Name: "UdpIp_TypeGroup1",
     Base: "UdpIp",
-    GUID: UdpIp.GUID,
-    Version: UdpIp.Version,
+    GUID: mofUdpIp.GUID,
+    Version: mofUdpIp.Version,
     EventTypes: []uint8{ 10,  11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -1145,8 +1145,8 @@ var UdpIp_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(2)] class Thread_V2 : MSNT_SystemTrace{};
-// Thread_V2 class definition
-var Thread_V2 = &MofClassDef{
+// mofThread_V2 class definition
+var mofThread_V2 = &MofClassDef{
     Name: "Thread_V2",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -1158,12 +1158,12 @@ var Thread_V2 = &MofClassDef{
 //   [ WmiDataId(2), format("x"), read ] uint32 ThreadId;
 //   [ WmiDataId(3), read ] uint32 BoostBitmap;
 // };
-// AutoBoostClearFloor class definition
-var AutoBoostClearFloor = &MofClassDef{
+// mofAutoBoostClearFloor class definition
+var mofAutoBoostClearFloor = &MofClassDef{
     Name: "AutoBoostClearFloor",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 67 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "LockAddress", InType: TDH_INTYPE_POINTER},
@@ -1177,12 +1177,12 @@ var AutoBoostClearFloor = &MofClassDef{
 //   [ WmiDataId(2), read ] uint64 StartTime;
 //   [ WmiDataId(3), pointer, read ] uint32 ThreadRoutine;
 // };
-// WorkerThread class definition
-var WorkerThread = &MofClassDef{
+// mofWorkerThread class definition
+var mofWorkerThread = &MofClassDef{
     Name: "WorkerThread",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 57 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "TThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1195,12 +1195,12 @@ var WorkerThread = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 Entry;
 //   [ WmiDataId(2), format("x"), read ] uint32 ThreadId;
 // };
-// KernelQueueEnqueue class definition
-var KernelQueueEnqueue = &MofClassDef{
+// mofKernelQueueEnqueue class definition
+var mofKernelQueueEnqueue = &MofClassDef{
     Name: "KernelQueueEnqueue",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 62 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Entry", InType: TDH_INTYPE_POINTER},
@@ -1222,12 +1222,12 @@ var KernelQueueEnqueue = &MofClassDef{
 //   [ WmiDataId(11), format("x"), read ] uint32 NewThreadWaitTime;
 //   [ WmiDataId(12), read ] uint32 Reserved;
 // };
-// CSwitch_V2 class definition
-var CSwitch_V2 = &MofClassDef{
+// mofCSwitch_V2 class definition
+var mofCSwitch_V2 = &MofClassDef{
     Name: "CSwitch_V2",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "NewThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1249,12 +1249,12 @@ var CSwitch_V2 = &MofClassDef{
 //   [ WmiDataId(1), format("x"), read ] uint32 OldTag;
 //   [ WmiDataId(2), format("x"), read ] uint32 NewTag;
 // };
-// SubProcessTagChanged class definition
-var SubProcessTagChanged = &MofClassDef{
+// mofSubProcessTagChanged class definition
+var mofSubProcessTagChanged = &MofClassDef{
     Name: "SubProcessTagChanged",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 69 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "OldTag", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1276,12 +1276,12 @@ var SubProcessTagChanged = &MofClassDef{
 //   [ WmiDataId(11), read ] uint8 Flag;
 //   [ WmiDataId(12), read, MAX(5) ] uint8 Reserved;
 // };
-// SpinLock class definition
-var SpinLock = &MofClassDef{
+// mofSpinLock class definition
+var mofSpinLock = &MofClassDef{
     Name: "SpinLock",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 41 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "SpinLockAddress", InType: TDH_INTYPE_POINTER},
@@ -1307,12 +1307,12 @@ var SpinLock = &MofClassDef{
 //   [ WmiDataId(5), read ] boolean IdealProcessorAdjust;
 //   [ WmiDataId(6), read ] uint16 OldIdealProcessorIndex;
 // };
-// ThreadMigration class definition
-var ThreadMigration = &MofClassDef{
+// mofThreadMigration class definition
+var mofThreadMigration = &MofClassDef{
     Name: "ThreadMigration",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 61 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1329,12 +1329,12 @@ var ThreadMigration = &MofClassDef{
 //   [ WmiDataId(2), read ] uint32 EntryCount;
 //   [ WmiDataId(3), WmiSizeIs("EntryCount"), pointer, read ] uint32 Entries;
 // };
-// KernelQueueDequeue class definition
-var KernelQueueDequeue = &MofClassDef{
+// mofKernelQueueDequeue class definition
+var mofKernelQueueDequeue = &MofClassDef{
     Name: "KernelQueueDequeue",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 63 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1351,12 +1351,12 @@ var KernelQueueDequeue = &MofClassDef{
 //   [ WmiDataId(5), read ] uint8 IoPriorities;
 //   [ WmiDataId(6), read ] uint8 BoostFlags;
 // };
-// AutoBoostSetFloor class definition
-var AutoBoostSetFloor = &MofClassDef{
+// mofAutoBoostSetFloor class definition
+var mofAutoBoostSetFloor = &MofClassDef{
     Name: "AutoBoostSetFloor",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 66 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Lock", InType: TDH_INTYPE_POINTER},
@@ -1374,12 +1374,12 @@ var AutoBoostSetFloor = &MofClassDef{
 //   [ WmiDataId(3), read ] uint16 Group;
 //   [ WmiDataId(4), read ] uint16 Reserved;
 // };
-// ThreadAffinity class definition
-var ThreadAffinity = &MofClassDef{
+// mofThreadAffinity class definition
+var mofThreadAffinity = &MofClassDef{
     Name: "ThreadAffinity",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 53 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Affinity", InType: TDH_INTYPE_POINTER},
@@ -1393,12 +1393,12 @@ var ThreadAffinity = &MofClassDef{
 //     : Thread_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 CallbackRoutine;
 // };
-// WorkerThread_StartStop_V2 class definition
-var WorkerThread_StartStop_V2 = &MofClassDef{
+// mofWorkerThread_StartStop_V2 class definition
+var mofWorkerThread_StartStop_V2 = &MofClassDef{
     Name: "WorkerThread_StartStop_V2",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 64,  65 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "CallbackRoutine", InType: TDH_INTYPE_POINTER},
@@ -1413,12 +1413,12 @@ var WorkerThread_StartStop_V2 = &MofClassDef{
 //     read
 //   ] string ThreadName;
 // };
-// ThreadSetName class definition
-var ThreadSetName = &MofClassDef{
+// mofThreadSetName class definition
+var mofThreadSetName = &MofClassDef{
     Name: "ThreadSetName",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 72 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1428,12 +1428,12 @@ var ThreadSetName = &MofClassDef{
 }
 
 // [dynamic:ToInstance, EventType(37)] class CompCS : Thread_V2{};
-// CompCS class definition
-var CompCS = &MofClassDef{
+// mofCompCS class definition
+var mofCompCS = &MofClassDef{
     Name: "CompCS",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 37 },
 }
 
@@ -1441,12 +1441,12 @@ var CompCS = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 LockAddress;
 //   [ WmiDataId(2), format("x"), read ] uint32 ThreadId;
 // };
-// AutoBoostEntryExhaustion class definition
-var AutoBoostEntryExhaustion = &MofClassDef{
+// mofAutoBoostEntryExhaustion class definition
+var mofAutoBoostEntryExhaustion = &MofClassDef{
     Name: "AutoBoostEntryExhaustion",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 68 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "LockAddress", InType: TDH_INTYPE_POINTER},
@@ -1461,12 +1461,12 @@ var AutoBoostEntryExhaustion = &MofClassDef{
 //   [ WmiDataId(4), read ] sint8 Flag;
 //   [ WmiDataId(5), read ] sint8 Reserved;
 // };
-// ReadyThread class definition
-var ReadyThread = &MofClassDef{
+// mofReadyThread class definition
+var mofReadyThread = &MofClassDef{
     Name: "ReadyThread",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 50 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "TThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1483,12 +1483,12 @@ var ReadyThread = &MofClassDef{
 //   [ WmiDataId(3), read ] uint8 Priority;
 //   [ WmiDataId(4), read ] uint8 Reserved;
 // };
-// AntiStarvationBoost class definition
-var AntiStarvationBoost = &MofClassDef{
+// mofAntiStarvationBoost class definition
+var mofAntiStarvationBoost = &MofClassDef{
     Name: "AntiStarvationBoost",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 60 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1511,12 +1511,12 @@ var AntiStarvationBoost = &MofClassDef{
 //   [ WmiDataId(9), pointer, read ] uint32 TebBase;
 //   [ WmiDataId(10), format("x"), read ] uint32 SubProcessTag;
 // };
-// Thread_V2_TypeGroup1 class definition
-var Thread_V2_TypeGroup1 = &MofClassDef{
+// mofThread_V2_TypeGroup1 class definition
+var mofThread_V2_TypeGroup1 = &MofClassDef{
     Name: "Thread_V2_TypeGroup1",
     Base: "Thread_V2",
-    GUID: Thread_V2.GUID,
-    Version: Thread_V2.Version,
+    GUID: mofThread_V2.GUID,
+    Version: mofThread_V2.Version,
     EventTypes: []uint8{ 1,  2,  3,  4 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1534,8 +1534,8 @@ var Thread_V2_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{bf3a50c5-a9c9-4988-a005-2df0b7c80f80}"),
 //          EventVersion(0)] class UdpIp_V0 : MSNT_SystemTrace{};
-// UdpIp_V0 class definition
-var UdpIp_V0 = &MofClassDef{
+// mofUdpIp_V0 class definition
+var mofUdpIp_V0 = &MofClassDef{
     Name: "UdpIp_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{bf3a50c5-a9c9-4988-a005-2df0b7c80f80}"),
@@ -1551,12 +1551,12 @@ var UdpIp_V0 = &MofClassDef{
 //   [ WmiDataId(6), extension("Port"), read ] object dport;
 //   [ WmiDataId(7), read ] uint16 dsize;
 // };
-// UdpIp_V0_TypeGroup1 class definition
-var UdpIp_V0_TypeGroup1 = &MofClassDef{
+// mofUdpIp_V0_TypeGroup1 class definition
+var mofUdpIp_V0_TypeGroup1 = &MofClassDef{
     Name: "UdpIp_V0_TypeGroup1",
     Base: "UdpIp_V0",
-    GUID: UdpIp_V0.GUID,
-    Version: UdpIp_V0.Version,
+    GUID: mofUdpIp_V0.GUID,
+    Version: mofUdpIp_V0.Version,
     EventTypes: []uint8{ 10,  11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "context", InType: TDH_INTYPE_POINTER},
@@ -1571,8 +1571,8 @@ var UdpIp_V0_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{def2fe46-7bd6-4b80-bd94-f57fe20d0ce3}"),
 //          EventVersion(2)] class StackWalk : MSNT_SystemTrace{};
-// StackWalk class definition
-var StackWalk = &MofClassDef{
+// mofStackWalk class definition
+var mofStackWalk = &MofClassDef{
     Name: "StackWalk",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{def2fe46-7bd6-4b80-bd94-f57fe20d0ce3}"),
@@ -1584,12 +1584,12 @@ var StackWalk = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 key;
 //   [ WmiDataId(2), pointer, read, MAX(192) ] uint32 StackFrame;
 // };
-// StackWalk_TypeGroup1 class definition
-var StackWalk_TypeGroup1 = &MofClassDef{
+// mofStackWalk_TypeGroup1 class definition
+var mofStackWalk_TypeGroup1 = &MofClassDef{
     Name: "StackWalk_TypeGroup1",
     Base: "StackWalk",
-    GUID: StackWalk.GUID,
-    Version: StackWalk.Version,
+    GUID: mofStackWalk.GUID,
+    Version: mofStackWalk.Version,
     EventTypes: []uint8{ 34,  35,  36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "key", InType: TDH_INTYPE_POINTER},
@@ -1603,12 +1603,12 @@ var StackWalk_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(3), read ] uint32 StackThread;
 //   [ WmiDataId(4), pointer, read ] uint32 StackKey;
 // };
-// StackWalk_Key class definition
-var StackWalk_Key = &MofClassDef{
+// mofStackWalk_Key class definition
+var mofStackWalk_Key = &MofClassDef{
     Name: "StackWalk_Key",
     Base: "StackWalk",
-    GUID: StackWalk.GUID,
-    Version: StackWalk.Version,
+    GUID: mofStackWalk.GUID,
+    Version: mofStackWalk.Version,
     EventTypes: []uint8{ 37,  38 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "EventTimeStamp", InType: TDH_INTYPE_UINT64},
@@ -1655,12 +1655,12 @@ var StackWalk_Key = &MofClassDef{
 //   [ WmiDataId(34), pointer, read ] uint32 Stack31;
 //   [ WmiDataId(35), pointer, read ] uint32 Stack32;
 // };
-// StackWalk_Event class definition
-var StackWalk_Event = &MofClassDef{
+// mofStackWalk_Event class definition
+var mofStackWalk_Event = &MofClassDef{
     Name: "StackWalk_Event",
     Base: "StackWalk",
-    GUID: StackWalk.GUID,
-    Version: StackWalk.Version,
+    GUID: mofStackWalk.GUID,
+    Version: mofStackWalk.Version,
     EventTypes: []uint8{ 32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "EventTimeStamp", InType: TDH_INTYPE_UINT64},
@@ -1703,8 +1703,8 @@ var StackWalk_Event = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(1)] class DiskIo_V1 : MSNT_SystemTrace{};
-// DiskIo_V1 class definition
-var DiskIo_V1 = &MofClassDef{
+// mofDiskIo_V1 class definition
+var mofDiskIo_V1 = &MofClassDef{
     Name: "DiskIo_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -1716,12 +1716,12 @@ var DiskIo_V1 = &MofClassDef{
 //   [ WmiDataId(1), read ] uint32 UniqMatchId;
 //   [ WmiDataId(2), pointer, read ] uint32 Irp;
 // };
-// V1_DriverMajorFunctionReturn class definition
-var V1_DriverMajorFunctionReturn = &MofClassDef{
+// mofV1_DriverMajorFunctionReturn class definition
+var mofV1_DriverMajorFunctionReturn = &MofClassDef{
     Name: "V1_DriverMajorFunctionReturn",
     Base: "DiskIo_V1",
-    GUID: DiskIo_V1.GUID,
-    Version: DiskIo_V1.Version,
+    GUID: mofDiskIo_V1.GUID,
+    Version: mofDiskIo_V1.Version,
     EventTypes: []uint8{ 35 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "UniqMatchId", InType: TDH_INTYPE_UINT32},
@@ -1734,12 +1734,12 @@ var V1_DriverMajorFunctionReturn = &MofClassDef{
 //   [ WmiDataId(2), pointer, read ] uint32 Irp;
 //   [ WmiDataId(3), read ] uint32 UniqMatchId;
 // };
-// V1_DriverCompleteRequest class definition
-var V1_DriverCompleteRequest = &MofClassDef{
+// mofV1_DriverCompleteRequest class definition
+var mofV1_DriverCompleteRequest = &MofClassDef{
     Name: "V1_DriverCompleteRequest",
     Base: "DiskIo_V1",
-    GUID: DiskIo_V1.GUID,
-    Version: DiskIo_V1.Version,
+    GUID: mofDiskIo_V1.GUID,
+    Version: mofDiskIo_V1.Version,
     EventTypes: []uint8{ 52 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "RoutineAddr", InType: TDH_INTYPE_POINTER},
@@ -1753,12 +1753,12 @@ var V1_DriverCompleteRequest = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 Irp;
 //   [ WmiDataId(2), read ] uint32 UniqMatchId;
 // };
-// V1_DriverCompleteRequestReturn class definition
-var V1_DriverCompleteRequestReturn = &MofClassDef{
+// mofV1_DriverCompleteRequestReturn class definition
+var mofV1_DriverCompleteRequestReturn = &MofClassDef{
     Name: "V1_DriverCompleteRequestReturn",
     Base: "DiskIo_V1",
-    GUID: DiskIo_V1.GUID,
-    Version: DiskIo_V1.Version,
+    GUID: mofDiskIo_V1.GUID,
+    Version: mofDiskIo_V1.Version,
     EventTypes: []uint8{ 53 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Irp", InType: TDH_INTYPE_POINTER},
@@ -1775,12 +1775,12 @@ var V1_DriverCompleteRequestReturn = &MofClassDef{
 //   [ WmiDataId(6), pointer, read ] uint32 FileObject;
 //   [ WmiDataId(7), read ] uint64 HighResResponseTime;
 // };
-// DiskIo_V1_TypeGroup1 class definition
-var DiskIo_V1_TypeGroup1 = &MofClassDef{
+// mofDiskIo_V1_TypeGroup1 class definition
+var mofDiskIo_V1_TypeGroup1 = &MofClassDef{
     Name: "DiskIo_V1_TypeGroup1",
     Base: "DiskIo_V1",
-    GUID: DiskIo_V1.GUID,
-    Version: DiskIo_V1.Version,
+    GUID: mofDiskIo_V1.GUID,
+    Version: mofDiskIo_V1.Version,
     EventTypes: []uint8{ 10,  11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT32},
@@ -1802,12 +1802,12 @@ var DiskIo_V1_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(5), read ] uint32 MinorFunction;
 //   [ WmiDataId(6), pointer, read ] uint32 FileObject;
 // };
-// V1_DriverMajorFunctionCall class definition
-var V1_DriverMajorFunctionCall = &MofClassDef{
+// mofV1_DriverMajorFunctionCall class definition
+var mofV1_DriverMajorFunctionCall = &MofClassDef{
     Name: "V1_DriverMajorFunctionCall",
     Base: "DiskIo_V1",
-    GUID: DiskIo_V1.GUID,
-    Version: DiskIo_V1.Version,
+    GUID: mofDiskIo_V1.GUID,
+    Version: mofDiskIo_V1.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "UniqMatchId", InType: TDH_INTYPE_UINT32},
@@ -1821,8 +1821,8 @@ var V1_DriverMajorFunctionCall = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{9aec974b-5b8e-4118-9b92-3186d8002ce5}"),
 //          EventVersion(2)] class UmsEvent : MSNT_SystemTrace{};
-// UmsEvent class definition
-var UmsEvent = &MofClassDef{
+// mofUmsEvent class definition
+var mofUmsEvent = &MofClassDef{
     Name: "UmsEvent",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{9aec974b-5b8e-4118-9b92-3186d8002ce5}"),
@@ -1836,12 +1836,12 @@ var UmsEvent = &MofClassDef{
 //   [ WmiDataId(4), read ] uint32 MixedYieldCount;
 //   [ WmiDataId(5), read ] uint32 YieldCount;
 // };
-// UmsContextSwitch class definition
-var UmsContextSwitch = &MofClassDef{
+// mofUmsContextSwitch class definition
+var mofUmsContextSwitch = &MofClassDef{
     Name: "UmsContextSwitch",
     Base: "UmsEvent",
-    GUID: UmsEvent.GUID,
-    Version: UmsEvent.Version,
+    GUID: mofUmsEvent.GUID,
+    Version: mofUmsEvent.Version,
     EventTypes: []uint8{ 36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ScheduledThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1858,12 +1858,12 @@ var UmsContextSwitch = &MofClassDef{
 //   [ WmiDataId(3), format("x"), read ] uint32 PrimaryThreadId;
 //   [ WmiDataId(4), format("x"), read ] uint32 SwitchFlags;
 // };
-// UmsDirectedSwitchEnd class definition
-var UmsDirectedSwitchEnd = &MofClassDef{
+// mofUmsDirectedSwitchEnd class definition
+var mofUmsDirectedSwitchEnd = &MofClassDef{
     Name: "UmsDirectedSwitchEnd",
     Base: "UmsEvent",
-    GUID: UmsEvent.GUID,
-    Version: UmsEvent.Version,
+    GUID: mofUmsEvent.GUID,
+    Version: mofUmsEvent.Version,
     EventTypes: []uint8{ 33 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1878,12 +1878,12 @@ var UmsDirectedSwitchEnd = &MofClassDef{
 //   [ WmiDataId(2), format("x"), read ] uint32 ScheduledThreadId;
 //   [ WmiDataId(3), format("x"), read ] uint32 ParkFlags;
 // };
-// UmsScheduledPark class definition
-var UmsScheduledPark = &MofClassDef{
+// mofUmsScheduledPark class definition
+var mofUmsScheduledPark = &MofClassDef{
     Name: "UmsScheduledPark",
     Base: "UmsEvent",
-    GUID: UmsEvent.GUID,
-    Version: UmsEvent.Version,
+    GUID: mofUmsEvent.GUID,
+    Version: mofUmsEvent.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1899,12 +1899,12 @@ var UmsScheduledPark = &MofClassDef{
 //   [ WmiDataId(4), format("x"), read ] uint32 UmsApcControlFlags;
 //   [ WmiDataId(5), format("x"), read ] uint32 Status;
 // };
-// UmsDisassociate class definition
-var UmsDisassociate = &MofClassDef{
+// mofUmsDisassociate class definition
+var mofUmsDisassociate = &MofClassDef{
     Name: "UmsDisassociate",
     Base: "UmsEvent",
-    GUID: UmsEvent.GUID,
-    Version: UmsEvent.Version,
+    GUID: mofUmsEvent.GUID,
+    Version: mofUmsEvent.Version,
     EventTypes: []uint8{ 35 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1921,12 +1921,12 @@ var UmsDisassociate = &MofClassDef{
 //   [ WmiDataId(3), format("x"), read ] uint32 PrimaryThreadId;
 //   [ WmiDataId(4), format("x"), read ] uint32 SwitchFlags;
 // };
-// UmsDirectedSwitchStart class definition
-var UmsDirectedSwitchStart = &MofClassDef{
+// mofUmsDirectedSwitchStart class definition
+var mofUmsDirectedSwitchStart = &MofClassDef{
     Name: "UmsDirectedSwitchStart",
     Base: "UmsEvent",
-    GUID: UmsEvent.GUID,
-    Version: UmsEvent.Version,
+    GUID: mofUmsEvent.GUID,
+    Version: mofUmsEvent.Version,
     EventTypes: []uint8{ 32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -1938,8 +1938,8 @@ var UmsDirectedSwitchStart = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}"),
 //          EventVersion(3)] class PerfInfo : MSNT_SystemTrace{};
-// PerfInfo class definition
-var PerfInfo = &MofClassDef{
+// mofPerfInfo class definition
+var mofPerfInfo = &MofClassDef{
     Name: "PerfInfo",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}"),
@@ -1956,12 +1956,12 @@ var PerfInfo = &MofClassDef{
 //     read
 //   ] string SourceName;
 // };
-// SampledProfileInterval_V3 class definition
-var SampledProfileInterval_V3 = &MofClassDef{
+// mofSampledProfileInterval_V3 class definition
+var mofSampledProfileInterval_V3 = &MofClassDef{
     Name: "SampledProfileInterval_V3",
     Base: "PerfInfo",
-    GUID: PerfInfo.GUID,
-    Version: PerfInfo.Version,
+    GUID: mofPerfInfo.GUID,
+    Version: mofPerfInfo.Version,
     EventTypes: []uint8{ 73,  74 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Source", InType: TDH_INTYPE_UINT32},
@@ -1977,12 +1977,12 @@ var SampledProfileInterval_V3 = &MofClassDef{
 //   [ WmiDataId(3), read ] uint32 SpinLockAcquireSampleRate;
 //   [ WmiDataId(4), read ] uint32 SpinLockHoldThreshold;
 // };
-// SpinLockConfig_V3 class definition
-var SpinLockConfig_V3 = &MofClassDef{
+// mofSpinLockConfig_V3 class definition
+var mofSpinLockConfig_V3 = &MofClassDef{
     Name: "SpinLockConfig_V3",
     Base: "PerfInfo",
-    GUID: PerfInfo.GUID,
-    Version: PerfInfo.Version,
+    GUID: mofPerfInfo.GUID,
+    Version: mofPerfInfo.Version,
     EventTypes: []uint8{ 75,  76 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "SpinLockSpinThreshold", InType: TDH_INTYPE_UINT32},
@@ -1994,8 +1994,8 @@ var SpinLockConfig_V3 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{9a280ac0-c8e0-11d1-84e2-00c04fb998a2}"),
 //          EventVersion(1)] class TcpIp_V1 : MSNT_SystemTrace{};
-// TcpIp_V1 class definition
-var TcpIp_V1 = &MofClassDef{
+// mofTcpIp_V1 class definition
+var mofTcpIp_V1 = &MofClassDef{
     Name: "TcpIp_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{9a280ac0-c8e0-11d1-84e2-00c04fb998a2}"),
@@ -2005,12 +2005,12 @@ var TcpIp_V1 = &MofClassDef{
 // [dynamic:ToInstance, EventType(17)] class TcpIp_V1_Fail : TcpIp_V1 {
 //   [ WmiDataId(1), read ] uint32 Proto;
 // };
-// TcpIp_V1_Fail class definition
-var TcpIp_V1_Fail = &MofClassDef{
+// mofTcpIp_V1_Fail class definition
+var mofTcpIp_V1_Fail = &MofClassDef{
     Name: "TcpIp_V1_Fail",
     Base: "TcpIp_V1",
-    GUID: TcpIp_V1.GUID,
-    Version: TcpIp_V1.Version,
+    GUID: mofTcpIp_V1.GUID,
+    Version: mofTcpIp_V1.Version,
     EventTypes: []uint8{ 17 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Proto", InType: TDH_INTYPE_UINT32},
@@ -2028,12 +2028,12 @@ var TcpIp_V1_Fail = &MofClassDef{
 //   [ WmiDataId(7), PointerType, read ] uint32 connid;
 //   [ WmiDataId(8), read ] uint32 seqnum;
 // };
-// TcpIp_V1_TypeGroup3 class definition
-var TcpIp_V1_TypeGroup3 = &MofClassDef{
+// mofTcpIp_V1_TypeGroup3 class definition
+var mofTcpIp_V1_TypeGroup3 = &MofClassDef{
     Name: "TcpIp_V1_TypeGroup3",
     Base: "TcpIp_V1",
-    GUID: TcpIp_V1.GUID,
-    Version: TcpIp_V1.Version,
+    GUID: mofTcpIp_V1.GUID,
+    Version: mofTcpIp_V1.Version,
     EventTypes: []uint8{ 18,  19,  20,  21,  22 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -2059,12 +2059,12 @@ var TcpIp_V1_TypeGroup3 = &MofClassDef{
 //   [ WmiDataId(9), PointerType, read ] uint32 connid;
 //   [ WmiDataId(10), read ] uint32 seqnum;
 // };
-// TcpIp_V1_Send class definition
-var TcpIp_V1_Send = &MofClassDef{
+// mofTcpIp_V1_Send class definition
+var mofTcpIp_V1_Send = &MofClassDef{
     Name: "TcpIp_V1_Send",
     Base: "TcpIp_V1",
-    GUID: TcpIp_V1.GUID,
-    Version: TcpIp_V1.Version,
+    GUID: mofTcpIp_V1.GUID,
+    Version: mofTcpIp_V1.Version,
     EventTypes: []uint8{ 10 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -2091,12 +2091,12 @@ var TcpIp_V1_Send = &MofClassDef{
 //   [ WmiDataId(7), PointerType, read ] uint32 connid;
 //   [ WmiDataId(8), read ] uint32 seqnum;
 // };
-// TcpIp_V1_TypeGroup1 class definition
-var TcpIp_V1_TypeGroup1 = &MofClassDef{
+// mofTcpIp_V1_TypeGroup1 class definition
+var mofTcpIp_V1_TypeGroup1 = &MofClassDef{
     Name: "TcpIp_V1_TypeGroup1",
     Base: "TcpIp_V1",
-    GUID: TcpIp_V1.GUID,
-    Version: TcpIp_V1.Version,
+    GUID: mofTcpIp_V1.GUID,
+    Version: mofTcpIp_V1.Version,
     EventTypes: []uint8{ 13,  14,  16 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -2127,12 +2127,12 @@ var TcpIp_V1_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(14), PointerType, read ] uint32 connid;
 //   [ WmiDataId(15), read ] uint32 seqnum;
 // };
-// TcpIp_V1_TypeGroup2 class definition
-var TcpIp_V1_TypeGroup2 = &MofClassDef{
+// mofTcpIp_V1_TypeGroup2 class definition
+var mofTcpIp_V1_TypeGroup2 = &MofClassDef{
     Name: "TcpIp_V1_TypeGroup2",
     Base: "TcpIp_V1",
-    GUID: TcpIp_V1.GUID,
-    Version: TcpIp_V1.Version,
+    GUID: mofTcpIp_V1.GUID,
+    Version: mofTcpIp_V1.Version,
     EventTypes: []uint8{ 12,  15 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -2163,12 +2163,12 @@ var TcpIp_V1_TypeGroup2 = &MofClassDef{
 //   [ WmiDataId(7), PointerType, read ] uint32 connid;
 //   [ WmiDataId(8), read ] uint32 seqnum;
 // };
-// TcpIp_V1_Receive class definition
-var TcpIp_V1_Receive = &MofClassDef{
+// mofTcpIp_V1_Receive class definition
+var mofTcpIp_V1_Receive = &MofClassDef{
     Name: "TcpIp_V1_Receive",
     Base: "TcpIp_V1",
-    GUID: TcpIp_V1.GUID,
-    Version: TcpIp_V1.Version,
+    GUID: mofTcpIp_V1.GUID,
+    Version: mofTcpIp_V1.Version,
     EventTypes: []uint8{ 11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -2184,8 +2184,8 @@ var TcpIp_V1_Receive = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{68fdd900-4a3e-11d1-84f4-0000f80464e3}"),
 //          EventVersion(2)] class EventTraceEvent : MSNT_SystemTrace{};
-// EventTraceEvent class definition
-var EventTraceEvent = &MofClassDef{
+// mofEventTraceEvent class definition
+var mofEventTraceEvent = &MofClassDef{
     Name: "EventTraceEvent",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{68fdd900-4a3e-11d1-84f4-0000f80464e3}"),
@@ -2197,12 +2197,12 @@ var EventTraceEvent = &MofClassDef{
 //   [ WmiDataId(1), StringTermination("NullTerminated"),
 //     read ] string BuildString;
 // };
-// Header_BuildInfo_TypeGroup class definition
-var Header_BuildInfo_TypeGroup = &MofClassDef{
+// mofHeader_BuildInfo_TypeGroup class definition
+var mofHeader_BuildInfo_TypeGroup = &MofClassDef{
     Name: "Header_BuildInfo_TypeGroup",
     Base: "EventTraceEvent",
-    GUID: EventTraceEvent.GUID,
-    Version: EventTraceEvent.Version,
+    GUID: mofEventTraceEvent.GUID,
+    Version: mofEventTraceEvent.Version,
     EventTypes: []uint8{ 66 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BuildString", InType: TDH_INTYPE_ANSISTRING, OutType: TDH_OUTTYPE_STRING},
@@ -2215,12 +2215,12 @@ var Header_BuildInfo_TypeGroup = &MofClassDef{
 //   [ WmiDataId(2), read ] uint32 Age;
 //   [ WmiDataId(3), StringTermination("NullTerminated"), read ] string PdbName;
 // };
-// Header_DbgIdRSDS_TypeGroup class definition
-var Header_DbgIdRSDS_TypeGroup = &MofClassDef{
+// mofHeader_DbgIdRSDS_TypeGroup class definition
+var mofHeader_DbgIdRSDS_TypeGroup = &MofClassDef{
     Name: "Header_DbgIdRSDS_TypeGroup",
     Base: "EventTraceEvent",
-    GUID: EventTraceEvent.GUID,
-    Version: EventTraceEvent.Version,
+    GUID: mofEventTraceEvent.GUID,
+    Version: mofEventTraceEvent.Version,
     EventTypes: []uint8{ 64 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Guid", InType: TDH_INTYPE_GUID, OutType: TDH_OUTTYPE_GUID},
@@ -2245,11 +2245,11 @@ var Header_DbgIdRSDS_TypeGroup = &MofClassDef{
 //     read
 //   ] string ParentId;
 // };
-// Header_PartitionInfoExtensionV2_TypeGroup class definition
-var Header_PartitionInfoExtensionV2_TypeGroup = &MofClassDef{
+// mofHeader_PartitionInfoExtensionV2_TypeGroup class definition
+var mofHeader_PartitionInfoExtensionV2_TypeGroup = &MofClassDef{
     Name: "Header_PartitionInfoExtensionV2_TypeGroup",
     Base: "EventTraceEvent",
-    GUID: EventTraceEvent.GUID,
+    GUID: mofEventTraceEvent.GUID,
     Version: 2,
     EventTypes: []uint8{ 80 },
     Properties: []MofPropertyDef{
@@ -2274,12 +2274,12 @@ var Header_PartitionInfoExtensionV2_TypeGroup = &MofClassDef{
 //   [ WmiDataId(8), format("x"), read ] uint32 GroupMask8;
 //   [ WmiDataId(9), format("x"), read ] uint32 KernelEventVersion;
 // };
-// Header_Extension_TypeGroup class definition
-var Header_Extension_TypeGroup = &MofClassDef{
+// mofHeader_Extension_TypeGroup class definition
+var mofHeader_Extension_TypeGroup = &MofClassDef{
     Name: "Header_Extension_TypeGroup",
     Base: "EventTraceEvent",
-    GUID: EventTraceEvent.GUID,
-    Version: EventTraceEvent.Version,
+    GUID: mofEventTraceEvent.GUID,
+    Version: mofEventTraceEvent.Version,
     EventTypes: []uint8{ 5,  32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "GroupMask1", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -2300,12 +2300,12 @@ var Header_Extension_TypeGroup = &MofClassDef{
 //   [ WmiDataId(2), read ] uint32 Padding;
 //   [ WmiDataId(3), WmiSizeIs("TimeStampCount"), read ] uint64 TimeStamp;
 // };
-// Header_LastDroppedTimes_TypeGroup class definition
-var Header_LastDroppedTimes_TypeGroup = &MofClassDef{
+// mofHeader_LastDroppedTimes_TypeGroup class definition
+var mofHeader_LastDroppedTimes_TypeGroup = &MofClassDef{
     Name: "Header_LastDroppedTimes_TypeGroup",
     Base: "EventTraceEvent",
-    GUID: EventTraceEvent.GUID,
-    Version: EventTraceEvent.Version,
+    GUID: mofEventTraceEvent.GUID,
+    Version: mofEventTraceEvent.Version,
     EventTypes: []uint8{ 82 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "TimeStampCount", InType: TDH_INTYPE_UINT32},
@@ -2324,11 +2324,11 @@ var Header_LastDroppedTimes_TypeGroup = &MofClassDef{
 //   [ WmiDataId(5), extension("GUID"), read ] object PartitionId;
 //   [ WmiDataId(6), extension("GUID"), read ] object ParentId;
 // };
-// Header_PartitionInfoExtension_TypeGroup class definition
-var Header_PartitionInfoExtension_TypeGroup = &MofClassDef{
+// mofHeader_PartitionInfoExtension_TypeGroup class definition
+var mofHeader_PartitionInfoExtension_TypeGroup = &MofClassDef{
     Name: "Header_PartitionInfoExtension_TypeGroup",
     Base: "EventTraceEvent",
-    GUID: EventTraceEvent.GUID,
+    GUID: mofEventTraceEvent.GUID,
     Version: 0,
     EventTypes: []uint8{ 80 },
     Properties: []MofPropertyDef{
@@ -2373,12 +2373,12 @@ var Header_PartitionInfoExtension_TypeGroup = &MofClassDef{
 //     read
 //   ] string LogFileNameString;
 // };
-// EventTrace_Header class definition
-var EventTrace_Header = &MofClassDef{
+// mofEventTrace_Header class definition
+var mofEventTrace_Header = &MofClassDef{
     Name: "EventTrace_Header",
     Base: "EventTraceEvent",
-    GUID: EventTraceEvent.GUID,
-    Version: EventTraceEvent.Version,
+    GUID: mofEventTraceEvent.GUID,
+    Version: mofEventTraceEvent.Version,
     EventTypes: []uint8{ 0 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BufferSize", InType: TDH_INTYPE_UINT32},
@@ -2396,7 +2396,7 @@ var EventTrace_Header = &MofClassDef{
         {ID: 13, Name: "CPUSpeed", InType: TDH_INTYPE_UINT32},
         {ID: 14, Name: "LoggerName", InType: TDH_INTYPE_POINTER},
         {ID: 15, Name: "LogFileName", InType: TDH_INTYPE_POINTER},
-        {ID: 16, Name: "TimeZoneInformation", InType: TDH_INTYPE_UINT8, IsArray: true, ArraySize: 176},
+        {ID: 16, Name: "TimeZoneInformation", InType: TDH_INTYPE_BINARY, OutType: TDH_OUTTYPE_NULL, IsArray: true, ArraySize: 176},
         {ID: 17, Name: "BootTime", InType: TDH_INTYPE_UINT64},
         {ID: 18, Name: "PerfFreq", InType: TDH_INTYPE_UINT64},
         {ID: 19, Name: "StartTime", InType: TDH_INTYPE_UINT64},
@@ -2416,12 +2416,12 @@ var EventTrace_Header = &MofClassDef{
 //     read
 //   ] string BinaryPath;
 // };
-// Header_ProviderBinaryPath_TypeGroup class definition
-var Header_ProviderBinaryPath_TypeGroup = &MofClassDef{
+// mofHeader_ProviderBinaryPath_TypeGroup class definition
+var mofHeader_ProviderBinaryPath_TypeGroup = &MofClassDef{
     Name: "Header_ProviderBinaryPath_TypeGroup",
     Base: "EventTraceEvent",
-    GUID: EventTraceEvent.GUID,
-    Version: EventTraceEvent.Version,
+    GUID: mofEventTraceEvent.GUID,
+    Version: mofEventTraceEvent.Version,
     EventTypes: []uint8{ 67 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "GuidCount", InType: TDH_INTYPE_UINT32},
@@ -2431,19 +2431,19 @@ var Header_ProviderBinaryPath_TypeGroup = &MofClassDef{
 }
 
 // [dynamic:ToInstance, EventType(8)] class RDComplete : EventTraceEvent{};
-// RDComplete class definition
-var RDComplete = &MofClassDef{
+// mofRDComplete class definition
+var mofRDComplete = &MofClassDef{
     Name: "RDComplete",
     Base: "EventTraceEvent",
-    GUID: EventTraceEvent.GUID,
-    Version: EventTraceEvent.Version,
+    GUID: mofEventTraceEvent.GUID,
+    Version: mofEventTraceEvent.Version,
     EventTypes: []uint8{ 8 },
 }
 
 // [dynamic:ToInstance, Guid("{f8f10121-b617-4a56-868b-9df1b27fe32c}"),
 //          EventVersion(0)] class MMCSSTrace : MSNT_SystemTrace{};
-// MMCSSTrace class definition
-var MMCSSTrace = &MofClassDef{
+// mofMMCSSTrace class definition
+var mofMMCSSTrace = &MofClassDef{
     Name: "MMCSSTrace",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{f8f10121-b617-4a56-868b-9df1b27fe32c}"),
@@ -2456,12 +2456,12 @@ var MMCSSTrace = &MofClassDef{
 //   [ WmiDataId(3), read ] uint32 SchedulingPriority;
 //   [ WmiDataId(4), read ] uint32 TaskIndex;
 // };
-// MMCSSEvent class definition
-var MMCSSEvent = &MofClassDef{
+// mofMMCSSEvent class definition
+var mofMMCSSEvent = &MofClassDef{
     Name: "MMCSSEvent",
     Base: "MMCSSTrace",
-    GUID: MMCSSTrace.GUID,
-    Version: MMCSSTrace.Version,
+    GUID: mofMMCSSTrace.GUID,
+    Version: mofMMCSSTrace.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ScheduledPID", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -2474,12 +2474,12 @@ var MMCSSEvent = &MofClassDef{
 // [dynamic:ToInstance, EventType(35)] class MMCSSWakeup : MMCSSTrace {
 //   [ WmiDataId(1), format("x"), read ] uint32 Reason;
 // };
-// MMCSSWakeup class definition
-var MMCSSWakeup = &MofClassDef{
+// mofMMCSSWakeup class definition
+var mofMMCSSWakeup = &MofClassDef{
     Name: "MMCSSWakeup",
     Base: "MMCSSTrace",
-    GUID: MMCSSTrace.GUID,
-    Version: MMCSSTrace.Version,
+    GUID: mofMMCSSTrace.GUID,
+    Version: mofMMCSSTrace.Version,
     EventTypes: []uint8{ 35 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Reason", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -2488,19 +2488,19 @@ var MMCSSWakeup = &MofClassDef{
 
 // [dynamic:ToInstance, EventType{32, 33, 36, 37}] class MMCSS_TypeGroup
 //     : MMCSSTrace{};
-// MMCSS_TypeGroup class definition
-var MMCSS_TypeGroup = &MofClassDef{
+// mofMMCSS_TypeGroup class definition
+var mofMMCSS_TypeGroup = &MofClassDef{
     Name: "MMCSS_TypeGroup",
     Base: "MMCSSTrace",
-    GUID: MMCSSTrace.GUID,
-    Version: MMCSSTrace.Version,
+    GUID: mofMMCSSTrace.GUID,
+    Version: mofMMCSSTrace.Version,
     EventTypes: []uint8{ 32,  33,  36,  37 },
 }
 
 // [dynamic:ToInstance, Guid("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
 //          EventVersion(1)] class SystemConfig_V1 : MSNT_SystemTrace{};
-// SystemConfig_V1 class definition
-var SystemConfig_V1 = &MofClassDef{
+// mofSystemConfig_V1 class definition
+var mofSystemConfig_V1 = &MofClassDef{
     Name: "SystemConfig_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
@@ -2525,12 +2525,12 @@ var SystemConfig_V1 = &MofClassDef{
 //   [ WmiDataId(14), read, MAX(16) ] char16 FileSystem;
 //   [ WmiDataId(15), read ] uint32 VolumeExt;
 // };
-// SystemConfig_V1_LogDisk class definition
-var SystemConfig_V1_LogDisk = &MofClassDef{
+// mofSystemConfig_V1_LogDisk class definition
+var mofSystemConfig_V1_LogDisk = &MofClassDef{
     Name: "SystemConfig_V1_LogDisk",
     Base: "SystemConfig_V1",
-    GUID: SystemConfig_V1.GUID,
-    Version: SystemConfig_V1.Version,
+    GUID: mofSystemConfig_V1.GUID,
+    Version: mofSystemConfig_V1.Version,
     EventTypes: []uint8{ 12 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "StartOffset", InType: TDH_INTYPE_UINT64},
@@ -2569,12 +2569,12 @@ var SystemConfig_V1_LogDisk = &MofClassDef{
 //   [ WmiDataId(14), read, MAX(3) ] char16 BootDriveLetter;
 //   [ WmiDataId(15), read, MAX(2) ] char16 Spare;
 // };
-// SystemConfig_V1_PhyDisk class definition
-var SystemConfig_V1_PhyDisk = &MofClassDef{
+// mofSystemConfig_V1_PhyDisk class definition
+var mofSystemConfig_V1_PhyDisk = &MofClassDef{
     Name: "SystemConfig_V1_PhyDisk",
     Base: "SystemConfig_V1",
-    GUID: SystemConfig_V1.GUID,
-    Version: SystemConfig_V1.Version,
+    GUID: mofSystemConfig_V1.GUID,
+    Version: mofSystemConfig_V1.Version,
     EventTypes: []uint8{ 11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT32},
@@ -2605,12 +2605,12 @@ var SystemConfig_V1_PhyDisk = &MofClassDef{
 //     read
 //   ] string DeviceDescription;
 // };
-// SystemConfig_V1_IRQ class definition
-var SystemConfig_V1_IRQ = &MofClassDef{
+// mofSystemConfig_V1_IRQ class definition
+var mofSystemConfig_V1_IRQ = &MofClassDef{
     Name: "SystemConfig_V1_IRQ",
     Base: "SystemConfig_V1",
-    GUID: SystemConfig_V1.GUID,
-    Version: SystemConfig_V1.Version,
+    GUID: mofSystemConfig_V1.GUID,
+    Version: mofSystemConfig_V1.Version,
     EventTypes: []uint8{ 21 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IRQAffinity", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_HEXINT64},
@@ -2631,12 +2631,12 @@ var SystemConfig_V1_IRQ = &MofClassDef{
 //   [ WmiDataId(7), read, MAX(132) ] char16 DomainName;
 //   [ WmiDataId(8), pointer, read ] uint32 HyperThreadingFlag;
 // };
-// SystemConfig_V1_CPU class definition
-var SystemConfig_V1_CPU = &MofClassDef{
+// mofSystemConfig_V1_CPU class definition
+var mofSystemConfig_V1_CPU = &MofClassDef{
     Name: "SystemConfig_V1_CPU",
     Base: "SystemConfig_V1",
-    GUID: SystemConfig_V1.GUID,
-    Version: SystemConfig_V1.Version,
+    GUID: mofSystemConfig_V1.GUID,
+    Version: mofSystemConfig_V1.Version,
     EventTypes: []uint8{ 10 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MHz", InType: TDH_INTYPE_UINT32},
@@ -2661,12 +2661,12 @@ var SystemConfig_V1_CPU = &MofClassDef{
 //   [ WmiDataId(7), read ] uint8 Pad2;
 //   [ WmiDataId(8), read ] uint8 Pad3;
 // };
-// SystemConfig_V1_Power class definition
-var SystemConfig_V1_Power = &MofClassDef{
+// mofSystemConfig_V1_Power class definition
+var mofSystemConfig_V1_Power = &MofClassDef{
     Name: "SystemConfig_V1_Power",
     Base: "SystemConfig_V1",
-    GUID: SystemConfig_V1.GUID,
-    Version: SystemConfig_V1.Version,
+    GUID: mofSystemConfig_V1.GUID,
+    Version: mofSystemConfig_V1.Version,
     EventTypes: []uint8{ 16 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "S1", InType: TDH_INTYPE_UINT8},
@@ -2694,12 +2694,12 @@ var SystemConfig_V1_Power = &MofClassDef{
 //   [ WmiDataId(10), read, MAX(256) ] char16 DeviceId;
 //   [ WmiDataId(11), format("x"), read ] uint32 StateFlags;
 // };
-// SystemConfig_V1_Video class definition
-var SystemConfig_V1_Video = &MofClassDef{
+// mofSystemConfig_V1_Video class definition
+var mofSystemConfig_V1_Video = &MofClassDef{
     Name: "SystemConfig_V1_Video",
     Base: "SystemConfig_V1",
-    GUID: SystemConfig_V1.GUID,
-    Version: SystemConfig_V1.Version,
+    GUID: mofSystemConfig_V1.GUID,
+    Version: mofSystemConfig_V1.Version,
     EventTypes: []uint8{ 14 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MemorySize", InType: TDH_INTYPE_UINT32},
@@ -2723,12 +2723,12 @@ var SystemConfig_V1_Video = &MofClassDef{
 //   [ WmiDataId(3), read, MAX(34) ] char16 ProcessName;
 //   [ WmiDataId(4), read ] uint32 ProcessId;
 // };
-// SystemConfig_V1_Services class definition
-var SystemConfig_V1_Services = &MofClassDef{
+// mofSystemConfig_V1_Services class definition
+var mofSystemConfig_V1_Services = &MofClassDef{
     Name: "SystemConfig_V1_Services",
     Base: "SystemConfig_V1",
-    GUID: SystemConfig_V1.GUID,
-    Version: SystemConfig_V1.Version,
+    GUID: mofSystemConfig_V1.GUID,
+    Version: mofSystemConfig_V1.Version,
     EventTypes: []uint8{ 15 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ServiceName", InType: TDH_INTYPE_UNICODECHAR, IsArray: true, ArraySize: 34},
@@ -2756,12 +2756,12 @@ var SystemConfig_V1_Services = &MofClassDef{
 //     read
 //   ] string FriendlyName;
 // };
-// SystemConfig_V1_PnP class definition
-var SystemConfig_V1_PnP = &MofClassDef{
+// mofSystemConfig_V1_PnP class definition
+var mofSystemConfig_V1_PnP = &MofClassDef{
     Name: "SystemConfig_V1_PnP",
     Base: "SystemConfig_V1",
-    GUID: SystemConfig_V1.GUID,
-    Version: SystemConfig_V1.Version,
+    GUID: mofSystemConfig_V1.GUID,
+    Version: mofSystemConfig_V1.Version,
     EventTypes: []uint8{ 22 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IDLength", InType: TDH_INTYPE_UINT32},
@@ -2792,12 +2792,12 @@ var SystemConfig_V1_PnP = &MofClassDef{
 //   [ WmiDataId(15), read ] sint32 DnsServer4;
 //   [ WmiDataId(16), read ] uint32 Data;
 // };
-// SystemConfig_V1_NIC class definition
-var SystemConfig_V1_NIC = &MofClassDef{
+// mofSystemConfig_V1_NIC class definition
+var mofSystemConfig_V1_NIC = &MofClassDef{
     Name: "SystemConfig_V1_NIC",
     Base: "SystemConfig_V1",
-    GUID: SystemConfig_V1.GUID,
-    Version: SystemConfig_V1.Version,
+    GUID: mofSystemConfig_V1.GUID,
+    Version: mofSystemConfig_V1.Version,
     EventTypes: []uint8{ 13 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "NICName", InType: TDH_INTYPE_UNICODECHAR, IsArray: true, ArraySize: 256},
@@ -2821,8 +2821,8 @@ var SystemConfig_V1_NIC = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{ae53722e-c863-11d2-8659-00c04fa321a1}"),
 //          EventVersion(2)] class Registry : MSNT_SystemTrace{};
-// Registry class definition
-var Registry = &MofClassDef{
+// mofRegistry class definition
+var mofRegistry = &MofClassDef{
     Name: "Registry",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{ae53722e-c863-11d2-8659-00c04fa321a1}"),
@@ -2837,12 +2837,12 @@ var Registry = &MofClassDef{
 //   ] string LinkPath;
 //   [ WmiDataId(3), read ] uint32 DirtyReason;
 // };
-// Registry_HiveDirty class definition
-var Registry_HiveDirty = &MofClassDef{
+// mofRegistry_HiveDirty class definition
+var mofRegistry_HiveDirty = &MofClassDef{
     Name: "Registry_HiveDirty",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 40 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Hive", InType: TDH_INTYPE_POINTER},
@@ -2854,12 +2854,12 @@ var Registry_HiveDirty = &MofClassDef{
 // [dynamic:ToInstance, EventType(35)] class Registry_Config : Registry {
 //   [ WmiDataId(1), read ] uint32 CurrentControlSet;
 // };
-// Registry_Config class definition
-var Registry_Config = &MofClassDef{
+// mofRegistry_Config class definition
+var mofRegistry_Config = &MofClassDef{
     Name: "Registry_Config",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 35 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "CurrentControlSet", InType: TDH_INTYPE_UINT32},
@@ -2877,12 +2877,12 @@ var Registry_Config = &MofClassDef{
 //     read
 //   ] string Path;
 // };
-// Registry_HiveDestroy class definition
-var Registry_HiveDestroy = &MofClassDef{
+// mofRegistry_HiveDestroy class definition
+var mofRegistry_HiveDestroy = &MofClassDef{
     Name: "Registry_HiveDestroy",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 37 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Hive", InType: TDH_INTYPE_POINTER},
@@ -2904,12 +2904,12 @@ var Registry_HiveDestroy = &MofClassDef{
 //   [ WmiDataId(10), read ] uint64 Counter10;
 //   [ WmiDataId(11), read ] uint64 Counter11;
 // };
-// Registry_Counters class definition
-var Registry_Counters = &MofClassDef{
+// mofRegistry_Counters class definition
+var mofRegistry_Counters = &MofClassDef{
     Name: "Registry_Counters",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Counter1", InType: TDH_INTYPE_UINT64},
@@ -2940,12 +2940,12 @@ var Registry_Counters = &MofClassDef{
 //     read
 //   ] string KeyName;
 // };
-// Registry_TypeGroup1 class definition
-var Registry_TypeGroup1 = &MofClassDef{
+// mofRegistry_TypeGroup1 class definition
+var mofRegistry_TypeGroup1 = &MofClassDef{
     Name: "Registry_TypeGroup1",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 10,  11,  12,  13,  14,  15,  16,  17,  18,  19, 
              20,  21,  22,  23,  24,  25,  26,  27,  28,  29 },
     Properties: []MofPropertyDef{
@@ -2967,12 +2967,12 @@ var Registry_TypeGroup1 = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// Registry_HiveInitialize class definition
-var Registry_HiveInitialize = &MofClassDef{
+// mofRegistry_HiveInitialize class definition
+var mofRegistry_HiveInitialize = &MofClassDef{
     Name: "Registry_HiveInitialize",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Hive", InType: TDH_INTYPE_POINTER},
@@ -2993,12 +2993,12 @@ var Registry_HiveInitialize = &MofClassDef{
 //     read
 //   ] string Hive;
 // };
-// Registry_TxR class definition
-var Registry_TxR = &MofClassDef{
+// mofRegistry_TxR class definition
+var mofRegistry_TxR = &MofClassDef{
     Name: "Registry_TxR",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 30,  31,  32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "TxrGUID", InType: TDH_INTYPE_GUID, OutType: TDH_OUTTYPE_GUID},
@@ -3022,12 +3022,12 @@ var Registry_TxR = &MofClassDef{
 //     read
 //   ] string LinkPath;
 // };
-// Registry_HiveRundown class definition
-var Registry_HiveRundown = &MofClassDef{
+// mofRegistry_HiveRundown class definition
+var mofRegistry_HiveRundown = &MofClassDef{
     Name: "Registry_HiveRundown",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 39 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Size", InType: TDH_INTYPE_UINT64},
@@ -3046,12 +3046,12 @@ var Registry_HiveRundown = &MofClassDef{
 //   [ WmiDataId(4), read ] uint8 WatchSubtree;
 //   [ WmiDataId(5), read ] uint8 Primary;
 // };
-// Registry_ChangeNotification class definition
-var Registry_ChangeNotification = &MofClassDef{
+// mofRegistry_ChangeNotification class definition
+var mofRegistry_ChangeNotification = &MofClassDef{
     Name: "Registry_ChangeNotification",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 48 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Notification", InType: TDH_INTYPE_POINTER},
@@ -3069,12 +3069,12 @@ var Registry_ChangeNotification = &MofClassDef{
 //     read
 //   ] string Path;
 // };
-// Registry_HiveLink class definition
-var Registry_HiveLink = &MofClassDef{
+// mofRegistry_HiveLink class definition
+var mofRegistry_HiveLink = &MofClassDef{
     Name: "Registry_HiveLink",
     Base: "Registry",
-    GUID: Registry.GUID,
-    Version: Registry.Version,
+    GUID: mofRegistry.GUID,
+    Version: mofRegistry.Version,
     EventTypes: []uint8{ 38 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Hive", InType: TDH_INTYPE_POINTER},
@@ -3084,8 +3084,8 @@ var Registry_HiveLink = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d3-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(3)] class PageFault : MSNT_SystemTrace{};
-// PageFault class definition
-var PageFault = &MofClassDef{
+// mofPageFault class definition
+var mofPageFault = &MofClassDef{
     Name: "PageFault",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d3-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -3100,11 +3100,11 @@ var PageFault = &MofClassDef{
 //   [ WmiDataId(4), read ] uint32 HRRangeCount;
 //   [ WmiDataId(5), read ] uint64 HRHeapTag;
 // };
-// PageFault_HeapRangeRundown_V4 class definition
-var PageFault_HeapRangeRundown_V4 = &MofClassDef{
+// mofPageFault_HeapRangeRundown_V4 class definition
+var mofPageFault_HeapRangeRundown_V4 = &MofClassDef{
     Name: "PageFault_HeapRangeRundown_V4",
     Base: "PageFault",
-    GUID: PageFault.GUID,
+    GUID: mofPageFault.GUID,
     Version: 4,
     EventTypes: []uint8{ 100 },
     Properties: []MofPropertyDef{
@@ -3118,8 +3118,8 @@ var PageFault_HeapRangeRundown_V4 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{68fdd900-4a3e-11d1-84f4-0000f80464e3}"),
 //          EventVersion(0)] class EventTraceEvent_V0 : MSNT_SystemTrace{};
-// EventTraceEvent_V0 class definition
-var EventTraceEvent_V0 = &MofClassDef{
+// mofEventTraceEvent_V0 class definition
+var mofEventTraceEvent_V0 = &MofClassDef{
     Name: "EventTraceEvent_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{68fdd900-4a3e-11d1-84f4-0000f80464e3}"),
@@ -3127,12 +3127,12 @@ var EventTraceEvent_V0 = &MofClassDef{
 }
 
 // [dynamic:ToInstance, EventType(8)] class RDComplete_V0 : EventTraceEvent_V0{};
-// RDComplete_V0 class definition
-var RDComplete_V0 = &MofClassDef{
+// mofRDComplete_V0 class definition
+var mofRDComplete_V0 = &MofClassDef{
     Name: "RDComplete_V0",
     Base: "EventTraceEvent_V0",
-    GUID: EventTraceEvent_V0.GUID,
-    Version: EventTraceEvent_V0.Version,
+    GUID: mofEventTraceEvent_V0.GUID,
+    Version: mofEventTraceEvent_V0.Version,
     EventTypes: []uint8{ 8 },
 }
 
@@ -3147,12 +3147,12 @@ var RDComplete_V0 = &MofClassDef{
 //   [ WmiDataId(7), format("x"), read ] uint32 GroupMask7;
 //   [ WmiDataId(8), format("x"), read ] uint32 GroupMask8;
 // };
-// Header_Extension_V0_TypeGroup class definition
-var Header_Extension_V0_TypeGroup = &MofClassDef{
+// mofHeader_Extension_V0_TypeGroup class definition
+var mofHeader_Extension_V0_TypeGroup = &MofClassDef{
     Name: "Header_Extension_V0_TypeGroup",
     Base: "EventTraceEvent_V0",
-    GUID: EventTraceEvent_V0.GUID,
-    Version: EventTraceEvent_V0.Version,
+    GUID: mofEventTraceEvent_V0.GUID,
+    Version: mofEventTraceEvent_V0.Version,
     EventTypes: []uint8{ 5,  32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "GroupMask1", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -3199,12 +3199,12 @@ var Header_Extension_V0_TypeGroup = &MofClassDef{
 //     read
 //   ] string LogFileNameString;
 // };
-// EventTrace_V0_Header class definition
-var EventTrace_V0_Header = &MofClassDef{
+// mofEventTrace_V0_Header class definition
+var mofEventTrace_V0_Header = &MofClassDef{
     Name: "EventTrace_V0_Header",
     Base: "EventTraceEvent_V0",
-    GUID: EventTraceEvent_V0.GUID,
-    Version: EventTraceEvent_V0.Version,
+    GUID: mofEventTraceEvent_V0.GUID,
+    Version: mofEventTraceEvent_V0.Version,
     EventTypes: []uint8{ 0 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BufferSize", InType: TDH_INTYPE_UINT32},
@@ -3222,7 +3222,7 @@ var EventTrace_V0_Header = &MofClassDef{
         {ID: 13, Name: "CPUSpeed", InType: TDH_INTYPE_UINT32},
         {ID: 14, Name: "LoggerName", InType: TDH_INTYPE_POINTER},
         {ID: 15, Name: "LogFileName", InType: TDH_INTYPE_POINTER},
-        {ID: 16, Name: "TimeZoneInformation", InType: TDH_INTYPE_UINT8, IsArray: true, ArraySize: 176},
+        {ID: 16, Name: "TimeZoneInformation", InType: TDH_INTYPE_BINARY, OutType: TDH_OUTTYPE_NULL, IsArray: true, ArraySize: 176},
         {ID: 17, Name: "BootTime", InType: TDH_INTYPE_UINT64},
         {ID: 18, Name: "PerfFreq", InType: TDH_INTYPE_UINT64},
         {ID: 19, Name: "StartTime", InType: TDH_INTYPE_UINT64},
@@ -3235,8 +3235,8 @@ var EventTrace_V0_Header = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(1)] class Process_V1 : MSNT_SystemTrace{};
-// Process_V1 class definition
-var Process_V1 = &MofClassDef{
+// mofProcess_V1 class definition
+var mofProcess_V1 = &MofClassDef{
     Name: "Process_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -3254,12 +3254,12 @@ var Process_V1 = &MofClassDef{
 //   [ WmiDataId(7), StringTermination("NullTerminated"),
 //     read ] string ImageFileName;
 // };
-// Process_V1_TypeGroup1 class definition
-var Process_V1_TypeGroup1 = &MofClassDef{
+// mofProcess_V1_TypeGroup1 class definition
+var mofProcess_V1_TypeGroup1 = &MofClassDef{
     Name: "Process_V1_TypeGroup1",
     Base: "Process_V1",
-    GUID: Process_V1.GUID,
-    Version: Process_V1.Version,
+    GUID: mofProcess_V1.GUID,
+    Version: mofProcess_V1.Version,
     EventTypes: []uint8{ 1,  2,  3,  4 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PageDirectoryBase", InType: TDH_INTYPE_POINTER},
@@ -3274,8 +3274,8 @@ var Process_V1_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}"),
 //          EventVersion(1)] class PerfInfo_V1 : MSNT_SystemTrace{};
-// PerfInfo_V1 class definition
-var PerfInfo_V1 = &MofClassDef{
+// mofPerfInfo_V1 class definition
+var mofPerfInfo_V1 = &MofClassDef{
     Name: "PerfInfo_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}"),
@@ -3287,12 +3287,12 @@ var PerfInfo_V1 = &MofClassDef{
 //   [ WmiDataId(2), read ] uint32 ThreadId;
 //   [ WmiDataId(3), read ] uint16 Count;
 // };
-// SampledProfile_V1 class definition
-var SampledProfile_V1 = &MofClassDef{
+// mofSampledProfile_V1 class definition
+var mofSampledProfile_V1 = &MofClassDef{
     Name: "SampledProfile_V1",
     Base: "PerfInfo_V1",
-    GUID: PerfInfo_V1.GUID,
-    Version: PerfInfo_V1.Version,
+    GUID: mofPerfInfo_V1.GUID,
+    Version: mofPerfInfo_V1.Version,
     EventTypes: []uint8{ 46 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InstructionPointer", InType: TDH_INTYPE_POINTER},
@@ -3305,12 +3305,12 @@ var SampledProfile_V1 = &MofClassDef{
 //   [ WmiDataId(1), extension("WmiTime"), read ] object InitialTime;
 //   [ WmiDataId(2), pointer, read ] uint32 Routine;
 // };
-// DPC_V1 class definition
-var DPC_V1 = &MofClassDef{
+// mofDPC_V1 class definition
+var mofDPC_V1 = &MofClassDef{
     Name: "DPC_V1",
     Base: "PerfInfo_V1",
-    GUID: PerfInfo_V1.GUID,
-    Version: PerfInfo_V1.Version,
+    GUID: mofPerfInfo_V1.GUID,
+    Version: mofPerfInfo_V1.Version,
     EventTypes: []uint8{ 68,  69 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InitialTime", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_DATETIME},
@@ -3323,12 +3323,12 @@ var DPC_V1 = &MofClassDef{
 //   [ WmiDataId(2), pointer, read ] uint32 Routine;
 //   [ WmiDataId(3), read ] uint32 ReturnValue;
 // };
-// ISR_V1 class definition
-var ISR_V1 = &MofClassDef{
+// mofISR_V1 class definition
+var mofISR_V1 = &MofClassDef{
     Name: "ISR_V1",
     Base: "PerfInfo_V1",
-    GUID: PerfInfo_V1.GUID,
-    Version: PerfInfo_V1.Version,
+    GUID: mofPerfInfo_V1.GUID,
+    Version: mofPerfInfo_V1.Version,
     EventTypes: []uint8{ 67,  95 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InitialTime", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_DATETIME},
@@ -3339,8 +3339,8 @@ var ISR_V1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{2cb15d1d-5fc1-11d2-abe1-00a0c911f518}"),
 //          EventVersion(2)] class Image_V2 : MSNT_SystemTrace{};
-// Image_V2 class definition
-var Image_V2 = &MofClassDef{
+// mofImage_V2 class definition
+var mofImage_V2 = &MofClassDef{
     Name: "Image_V2",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{2cb15d1d-5fc1-11d2-abe1-00a0c911f518}"),
@@ -3350,12 +3350,12 @@ var Image_V2 = &MofClassDef{
 // [dynamic:ToInstance, EventType(33)] class KernelImageBase : Image_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 ImageBase;
 // };
-// KernelImageBase class definition
-var KernelImageBase = &MofClassDef{
+// mofKernelImageBase class definition
+var mofKernelImageBase = &MofClassDef{
     Name: "KernelImageBase",
     Base: "Image_V2",
-    GUID: Image_V2.GUID,
-    Version: Image_V2.Version,
+    GUID: mofImage_V2.GUID,
+    Version: mofImage_V2.Version,
     EventTypes: []uint8{ 33 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ImageBase", InType: TDH_INTYPE_POINTER},
@@ -3364,12 +3364,12 @@ var KernelImageBase = &MofClassDef{
 
 // [dynamic:ToInstance, EventType{128, 129, 130, 131, 132, 133, 134,
 //                                135}] class LoaderBasicEvent : Image_V2{};
-// LoaderBasicEvent class definition
-var LoaderBasicEvent = &MofClassDef{
+// mofLoaderBasicEvent class definition
+var mofLoaderBasicEvent = &MofClassDef{
     Name: "LoaderBasicEvent",
     Base: "Image_V2",
-    GUID: Image_V2.GUID,
-    Version: Image_V2.Version,
+    GUID: mofImage_V2.GUID,
+    Version: mofImage_V2.Version,
     EventTypes: []uint8{ 128,  129,  130,  131,  132,  133,  134, 
                                135 },
 }
@@ -3384,12 +3384,12 @@ var LoaderBasicEvent = &MofClassDef{
 //     read
 //   ] string String;
 // };
-// LoaderCodedEvent class definition
-var LoaderCodedEvent = &MofClassDef{
+// mofLoaderCodedEvent class definition
+var mofLoaderCodedEvent = &MofClassDef{
     Name: "LoaderCodedEvent",
     Base: "Image_V2",
-    GUID: Image_V2.GUID,
-    Version: Image_V2.Version,
+    GUID: mofImage_V2.GUID,
+    Version: mofImage_V2.Version,
     EventTypes: []uint8{ 160,  161,  162,  163,  164 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BaseAddress", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_HEXINT64},
@@ -3403,12 +3403,12 @@ var LoaderCodedEvent = &MofClassDef{
 //                                150}] class LoaderBaseEvent : Image_V2 {
 //   [ WmiDataId(1), format("x"), read ] uint64 BaseAddress;
 // };
-// LoaderBaseEvent class definition
-var LoaderBaseEvent = &MofClassDef{
+// mofLoaderBaseEvent class definition
+var mofLoaderBaseEvent = &MofClassDef{
     Name: "LoaderBaseEvent",
     Base: "Image_V2",
-    GUID: Image_V2.GUID,
-    Version: Image_V2.Version,
+    GUID: mofImage_V2.GUID,
+    Version: mofImage_V2.Version,
     EventTypes: []uint8{ 144,  145,  146,  147,  148,  149, 
                                150 },
     Properties: []MofPropertyDef{
@@ -3433,12 +3433,12 @@ var LoaderBaseEvent = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// Image_Load_V2 class definition
-var Image_Load_V2 = &MofClassDef{
+// mofImage_Load_V2 class definition
+var mofImage_Load_V2 = &MofClassDef{
     Name: "Image_Load_V2",
     Base: "Image_V2",
-    GUID: Image_V2.GUID,
-    Version: Image_V2.Version,
+    GUID: mofImage_V2.GUID,
+    Version: mofImage_V2.Version,
     EventTypes: []uint8{ 10,  2,  3,  4 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ImageBase", InType: TDH_INTYPE_POINTER},
@@ -3459,12 +3459,12 @@ var Image_Load_V2 = &MofClassDef{
 // [dynamic:ToInstance, EventType(34)] class HypercallPage : Image_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 HypercallPageVa;
 // };
-// HypercallPage class definition
-var HypercallPage = &MofClassDef{
+// mofHypercallPage class definition
+var mofHypercallPage = &MofClassDef{
     Name: "HypercallPage",
     Base: "Image_V2",
-    GUID: Image_V2.GUID,
-    Version: Image_V2.Version,
+    GUID: mofImage_V2.GUID,
+    Version: mofImage_V2.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "HypercallPageVa", InType: TDH_INTYPE_POINTER},
@@ -3473,8 +3473,8 @@ var HypercallPage = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{bf3a50c5-a9c9-4988-a005-2df0b7c80f80}"),
 //          EventVersion(1)] class UdpIp_V1 : MSNT_SystemTrace{};
-// UdpIp_V1 class definition
-var UdpIp_V1 = &MofClassDef{
+// mofUdpIp_V1 class definition
+var mofUdpIp_V1 = &MofClassDef{
     Name: "UdpIp_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{bf3a50c5-a9c9-4988-a005-2df0b7c80f80}"),
@@ -3489,12 +3489,12 @@ var UdpIp_V1 = &MofClassDef{
 //   [ WmiDataId(5), extension("Port"), read ] object dport;
 //   [ WmiDataId(6), extension("Port"), read ] object sport;
 // };
-// UdpIp_V1_TypeGroup1 class definition
-var UdpIp_V1_TypeGroup1 = &MofClassDef{
+// mofUdpIp_V1_TypeGroup1 class definition
+var mofUdpIp_V1_TypeGroup1 = &MofClassDef{
     Name: "UdpIp_V1_TypeGroup1",
     Base: "UdpIp_V1",
-    GUID: UdpIp_V1.GUID,
-    Version: UdpIp_V1.Version,
+    GUID: mofUdpIp_V1.GUID,
+    Version: mofUdpIp_V1.Version,
     EventTypes: []uint8{ 10,  11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -3508,8 +3508,8 @@ var UdpIp_V1_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{ae53722e-c863-11d2-8659-00c04fa321a1}"),
 //          EventVersion(0)] class Registry_V0 : MSNT_SystemTrace{};
-// Registry_V0 class definition
-var Registry_V0 = &MofClassDef{
+// mofRegistry_V0 class definition
+var mofRegistry_V0 = &MofClassDef{
     Name: "Registry_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{ae53722e-c863-11d2-8659-00c04fa321a1}"),
@@ -3526,12 +3526,12 @@ var Registry_V0 = &MofClassDef{
 //     read
 //   ] string KeyName;
 // };
-// Registry_V0_TypeGroup1 class definition
-var Registry_V0_TypeGroup1 = &MofClassDef{
+// mofRegistry_V0_TypeGroup1 class definition
+var mofRegistry_V0_TypeGroup1 = &MofClassDef{
     Name: "Registry_V0_TypeGroup1",
     Base: "Registry_V0",
-    GUID: Registry_V0.GUID,
-    Version: Registry_V0.Version,
+    GUID: mofRegistry_V0.GUID,
+    Version: mofRegistry_V0.Version,
     EventTypes: []uint8{ 10,  11,  12,  13,  14,  15,  16,  17,  18,  19,  20, 
                                21 },
     Properties: []MofPropertyDef{
@@ -3544,8 +3544,8 @@ var Registry_V0_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(0)] class Process_V0 : MSNT_SystemTrace{};
-// Process_V0 class definition
-var Process_V0 = &MofClassDef{
+// mofProcess_V0 class definition
+var mofProcess_V0 = &MofClassDef{
     Name: "Process_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -3560,12 +3560,12 @@ var Process_V0 = &MofClassDef{
 //   [ WmiDataId(4), StringTermination("NullTerminated"),
 //     read ] string ImageFileName;
 // };
-// Process_V0_TypeGroup1 class definition
-var Process_V0_TypeGroup1 = &MofClassDef{
+// mofProcess_V0_TypeGroup1 class definition
+var mofProcess_V0_TypeGroup1 = &MofClassDef{
     Name: "Process_V0_TypeGroup1",
     Base: "Process_V0",
-    GUID: Process_V0.GUID,
-    Version: Process_V0.Version,
+    GUID: mofProcess_V0.GUID,
+    Version: mofProcess_V0.Version,
     EventTypes: []uint8{ 1,  2,  3,  4 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_POINTER},
@@ -3577,8 +3577,8 @@ var Process_V0_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{90cbdc39-4a3e-11d1-84f4-0000f80464e3}"),
 //          EventVersion(3)] class FileIo : MSNT_SystemTrace{};
-// FileIo class definition
-var FileIo = &MofClassDef{
+// mofFileIo class definition
+var mofFileIo = &MofClassDef{
     Name: "FileIo",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{90cbdc39-4a3e-11d1-84f4-0000f80464e3}"),
@@ -3594,12 +3594,12 @@ var FileIo = &MofClassDef{
 //   [ WmiDataId(6), read ] uint32 IoSize;
 //   [ WmiDataId(7), read ] uint32 IoFlags;
 // };
-// FileIo_ReadWrite class definition
-var FileIo_ReadWrite = &MofClassDef{
+// mofFileIo_ReadWrite class definition
+var mofFileIo_ReadWrite = &MofClassDef{
     Name: "FileIo_ReadWrite",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 67,  68 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Offset", InType: TDH_INTYPE_UINT64},
@@ -3624,12 +3624,12 @@ var FileIo_ReadWrite = &MofClassDef{
 //     read
 //   ] string OpenPath;
 // };
-// FileIo_Create class definition
-var FileIo_Create = &MofClassDef{
+// mofFileIo_Create class definition
+var mofFileIo_Create = &MofClassDef{
     Name: "FileIo_Create",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 64 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -3650,12 +3650,12 @@ var FileIo_Create = &MofClassDef{
 //   [ WmiDataId(5), pointer, read ] uint32 CallbackDataPtr;
 //   [ WmiDataId(6), read ] uint32 MajorFunction;
 // };
-// FltIoInit class definition
-var FltIoInit = &MofClassDef{
+// mofFltIoInit class definition
+var mofFltIoInit = &MofClassDef{
     Name: "FltIoInit",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 96,  97 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "RoutineAddr", InType: TDH_INTYPE_POINTER},
@@ -3676,12 +3676,12 @@ var FltIoInit = &MofClassDef{
 //   [ WmiDataId(6), read ] uint32 MajorFunction;
 //   [ WmiDataId(7), format("x"), read ] uint32 Status;
 // };
-// FltIoFailure class definition
-var FltIoFailure = &MofClassDef{
+// mofFltIoFailure class definition
+var mofFltIoFailure = &MofClassDef{
     Name: "FltIoFailure",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 100,  101 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "RoutineAddr", InType: TDH_INTYPE_POINTER},
@@ -3701,12 +3701,12 @@ var FltIoFailure = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// FileIo_Name class definition
-var FileIo_Name = &MofClassDef{
+// mofFileIo_Name class definition
+var mofFileIo_Name = &MofClassDef{
     Name: "FileIo_Name",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 0,  32,  35,  36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "FileObject", InType: TDH_INTYPE_POINTER},
@@ -3722,12 +3722,12 @@ var FileIo_Name = &MofClassDef{
 //   [ WmiDataId(5), read ] uint32 TTID;
 //   [ WmiDataId(6), read ] uint32 InfoClass;
 // };
-// FileIo_Info class definition
-var FileIo_Info = &MofClassDef{
+// mofFileIo_Info class definition
+var mofFileIo_Info = &MofClassDef{
     Name: "FileIo_Info",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 69,  70,  71,  74,  75 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -3745,12 +3745,12 @@ var FileIo_Info = &MofClassDef{
 //   [ WmiDataId(3), pointer, read ] uint32 FileKey;
 //   [ WmiDataId(4), read ] uint32 TTID;
 // };
-// FileIo_SimpleOp class definition
-var FileIo_SimpleOp = &MofClassDef{
+// mofFileIo_SimpleOp class definition
+var mofFileIo_SimpleOp = &MofClassDef{
     Name: "FileIo_SimpleOp",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 65,  66,  73 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -3769,12 +3769,12 @@ var FileIo_SimpleOp = &MofClassDef{
 //   [ WmiDataId(6), pointer, read ] uint32 CallbackDataPtr;
 //   [ WmiDataId(7), read ] uint32 MajorFunction;
 // };
-// FltIoCompletion class definition
-var FltIoCompletion = &MofClassDef{
+// mofFltIoCompletion class definition
+var mofFltIoCompletion = &MofClassDef{
     Name: "FltIoCompletion",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 98,  99 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "InitialTime", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_DATETIME},
@@ -3800,12 +3800,12 @@ var FltIoCompletion = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// FileIo_DirEnum class definition
-var FileIo_DirEnum = &MofClassDef{
+// mofFileIo_DirEnum class definition
+var mofFileIo_DirEnum = &MofClassDef{
     Name: "FileIo_DirEnum",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 72,  77 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -3832,12 +3832,12 @@ var FileIo_DirEnum = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// FileIo_PathOperation class definition
-var FileIo_PathOperation = &MofClassDef{
+// mofFileIo_PathOperation class definition
+var mofFileIo_PathOperation = &MofClassDef{
     Name: "FileIo_PathOperation",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 79,  80,  81 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -3855,12 +3855,12 @@ var FileIo_PathOperation = &MofClassDef{
 //   [ WmiDataId(2), pointer, read ] uint32 ExtraInfo;
 //   [ WmiDataId(3), read ] uint32 NtStatus;
 // };
-// FileIo_OpEnd class definition
-var FileIo_OpEnd = &MofClassDef{
+// mofFileIo_OpEnd class definition
+var mofFileIo_OpEnd = &MofClassDef{
     Name: "FileIo_OpEnd",
     Base: "FileIo",
-    GUID: FileIo.GUID,
-    Version: FileIo.Version,
+    GUID: mofFileIo.GUID,
+    Version: mofFileIo.Version,
     EventTypes: []uint8{ 76 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IrpPtr", InType: TDH_INTYPE_POINTER},
@@ -3872,8 +3872,8 @@ var FileIo_OpEnd = &MofClassDef{
 // [dynamic:ToInstance, Guid("{d837ca92-12b9-44a5-ad6a-3a65b3578aa8}"),
 //          EventVersion(2), locale("MS\0x409")] class SplitIo
 //     : MSNT_SystemTrace{};
-// SplitIo class definition
-var SplitIo = &MofClassDef{
+// mofSplitIo class definition
+var mofSplitIo = &MofClassDef{
     Name: "SplitIo",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{d837ca92-12b9-44a5-ad6a-3a65b3578aa8}"),
@@ -3885,12 +3885,12 @@ var SplitIo = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 ParentIrp;
 //   [ WmiDataId(2), pointer, read ] uint32 ChildIrp;
 // };
-// SplitIo_Info class definition
-var SplitIo_Info = &MofClassDef{
+// mofSplitIo_Info class definition
+var mofSplitIo_Info = &MofClassDef{
     Name: "SplitIo_Info",
     Base: "SplitIo",
-    GUID: SplitIo.GUID,
-    Version: SplitIo.Version,
+    GUID: mofSplitIo.GUID,
+    Version: mofSplitIo.Version,
     EventTypes: []uint8{ 32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ParentIrp", InType: TDH_INTYPE_POINTER},
@@ -3900,8 +3900,8 @@ var SplitIo_Info = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{9a280ac0-c8e0-11d1-84e2-00c04fb998a2}"),
 //          EventVersion(2)] class TcpIp : MSNT_SystemTrace{};
-// TcpIp class definition
-var TcpIp = &MofClassDef{
+// mofTcpIp class definition
+var mofTcpIp = &MofClassDef{
     Name: "TcpIp",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{9a280ac0-c8e0-11d1-84e2-00c04fb998a2}"),
@@ -3919,12 +3919,12 @@ var TcpIp = &MofClassDef{
 //   [ WmiDataId(7), read ] uint32 seqnum;
 //   [ WmiDataId(8), PointerType, read ] uint32 connid;
 // };
-// TcpIp_TypeGroup3 class definition
-var TcpIp_TypeGroup3 = &MofClassDef{
+// mofTcpIp_TypeGroup3 class definition
+var mofTcpIp_TypeGroup3 = &MofClassDef{
     Name: "TcpIp_TypeGroup3",
     Base: "TcpIp",
-    GUID: TcpIp.GUID,
-    Version: TcpIp.Version,
+    GUID: mofTcpIp.GUID,
+    Version: mofTcpIp.Version,
     EventTypes: []uint8{ 27,  29,  30,  32,  34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -3950,12 +3950,12 @@ var TcpIp_TypeGroup3 = &MofClassDef{
 //   [ WmiDataId(9), read ] uint32 seqnum;
 //   [ WmiDataId(10), PointerType, read ] uint32 connid;
 // };
-// TcpIp_SendIPV4 class definition
-var TcpIp_SendIPV4 = &MofClassDef{
+// mofTcpIp_SendIPV4 class definition
+var mofTcpIp_SendIPV4 = &MofClassDef{
     Name: "TcpIp_SendIPV4",
     Base: "TcpIp",
-    GUID: TcpIp.GUID,
-    Version: TcpIp.Version,
+    GUID: mofTcpIp.GUID,
+    Version: mofTcpIp.Version,
     EventTypes: []uint8{ 10 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -3975,12 +3975,12 @@ var TcpIp_SendIPV4 = &MofClassDef{
 //   [ WmiDataId(1), read ] uint16 Proto;
 //   [ WmiDataId(2), read ] uint16 FailureCode;
 // };
-// TcpIp_Fail class definition
-var TcpIp_Fail = &MofClassDef{
+// mofTcpIp_Fail class definition
+var mofTcpIp_Fail = &MofClassDef{
     Name: "TcpIp_Fail",
     Base: "TcpIp",
-    GUID: TcpIp.GUID,
-    Version: TcpIp.Version,
+    GUID: mofTcpIp.GUID,
+    Version: mofTcpIp.Version,
     EventTypes: []uint8{ 17 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Proto", InType: TDH_INTYPE_UINT16},
@@ -4005,12 +4005,12 @@ var TcpIp_Fail = &MofClassDef{
 //   [ WmiDataId(14), read ] uint32 seqnum;
 //   [ WmiDataId(15), PointerType, read ] uint32 connid;
 // };
-// TcpIp_TypeGroup2 class definition
-var TcpIp_TypeGroup2 = &MofClassDef{
+// mofTcpIp_TypeGroup2 class definition
+var mofTcpIp_TypeGroup2 = &MofClassDef{
     Name: "TcpIp_TypeGroup2",
     Base: "TcpIp",
-    GUID: TcpIp.GUID,
-    Version: TcpIp.Version,
+    GUID: mofTcpIp.GUID,
+    Version: mofTcpIp.Version,
     EventTypes: []uint8{ 12,  15 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -4043,12 +4043,12 @@ var TcpIp_TypeGroup2 = &MofClassDef{
 //   [ WmiDataId(9), read ] uint32 seqnum;
 //   [ WmiDataId(10), PointerType, read ] uint32 connid;
 // };
-// TcpIp_SendIPV6 class definition
-var TcpIp_SendIPV6 = &MofClassDef{
+// mofTcpIp_SendIPV6 class definition
+var mofTcpIp_SendIPV6 = &MofClassDef{
     Name: "TcpIp_SendIPV6",
     Base: "TcpIp",
-    GUID: TcpIp.GUID,
-    Version: TcpIp.Version,
+    GUID: mofTcpIp.GUID,
+    Version: mofTcpIp.Version,
     EventTypes: []uint8{ 26 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -4075,12 +4075,12 @@ var TcpIp_SendIPV6 = &MofClassDef{
 //   [ WmiDataId(7), read ] uint32 seqnum;
 //   [ WmiDataId(8), PointerType, read ] uint32 connid;
 // };
-// TcpIp_TypeGroup1 class definition
-var TcpIp_TypeGroup1 = &MofClassDef{
+// mofTcpIp_TypeGroup1 class definition
+var mofTcpIp_TypeGroup1 = &MofClassDef{
     Name: "TcpIp_TypeGroup1",
     Base: "TcpIp",
-    GUID: TcpIp.GUID,
-    Version: TcpIp.Version,
+    GUID: mofTcpIp.GUID,
+    Version: mofTcpIp.Version,
     EventTypes: []uint8{ 11,  13,  14,  16,  18 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -4111,12 +4111,12 @@ var TcpIp_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(14), read ] uint32 seqnum;
 //   [ WmiDataId(15), PointerType, read ] uint32 connid;
 // };
-// TcpIp_TypeGroup4 class definition
-var TcpIp_TypeGroup4 = &MofClassDef{
+// mofTcpIp_TypeGroup4 class definition
+var mofTcpIp_TypeGroup4 = &MofClassDef{
     Name: "TcpIp_TypeGroup4",
     Base: "TcpIp",
-    GUID: TcpIp.GUID,
-    Version: TcpIp.Version,
+    GUID: mofTcpIp.GUID,
+    Version: mofTcpIp.Version,
     EventTypes: []uint8{ 28,  31 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PID", InType: TDH_INTYPE_UINT32},
@@ -4139,8 +4139,8 @@ var TcpIp_TypeGroup4 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(0)] class Thread_V0 : MSNT_SystemTrace{};
-// Thread_V0 class definition
-var Thread_V0 = &MofClassDef{
+// mofThread_V0 class definition
+var mofThread_V0 = &MofClassDef{
     Name: "Thread_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -4152,12 +4152,12 @@ var Thread_V0 = &MofClassDef{
 //   [ WmiDataId(1), format("x"), read ] uint32 TThreadId;
 //   [ WmiDataId(2), format("x"), read ] uint32 ProcessId;
 // };
-// Thread_V0_TypeGroup1 class definition
-var Thread_V0_TypeGroup1 = &MofClassDef{
+// mofThread_V0_TypeGroup1 class definition
+var mofThread_V0_TypeGroup1 = &MofClassDef{
     Name: "Thread_V0_TypeGroup1",
     Base: "Thread_V0",
-    GUID: Thread_V0.GUID,
-    Version: Thread_V0.Version,
+    GUID: mofThread_V0.GUID,
+    Version: mofThread_V0.Version,
     EventTypes: []uint8{ 1,  2,  3,  4 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "TThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -4167,8 +4167,8 @@ var Thread_V0_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{ae53722e-c863-11d2-8659-00c04fa321a1}"),
 //          EventVersion(1)] class Registry_V1 : MSNT_SystemTrace{};
-// Registry_V1 class definition
-var Registry_V1 = &MofClassDef{
+// mofRegistry_V1 class definition
+var mofRegistry_V1 = &MofClassDef{
     Name: "Registry_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{ae53722e-c863-11d2-8659-00c04fa321a1}"),
@@ -4186,12 +4186,12 @@ var Registry_V1 = &MofClassDef{
 //     read
 //   ] string KeyName;
 // };
-// Registry_V1_TypeGroup1 class definition
-var Registry_V1_TypeGroup1 = &MofClassDef{
+// mofRegistry_V1_TypeGroup1 class definition
+var mofRegistry_V1_TypeGroup1 = &MofClassDef{
     Name: "Registry_V1_TypeGroup1",
     Base: "Registry_V1",
-    GUID: Registry_V1.GUID,
-    Version: Registry_V1.Version,
+    GUID: mofRegistry_V1.GUID,
+    Version: mofRegistry_V1.Version,
     EventTypes: []uint8{ 10,  11,  12,  13,  14,  15,  16,  17,  18,  19,  20,  21, 
                                22 },
     Properties: []MofPropertyDef{
@@ -4205,8 +4205,8 @@ var Registry_V1_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{2cb15d1d-5fc1-11d2-abe1-00a0c911f518}"),
 //          EventVersion(0)] class Image_V0 : MSNT_SystemTrace{};
-// Image_V0 class definition
-var Image_V0 = &MofClassDef{
+// mofImage_V0 class definition
+var mofImage_V0 = &MofClassDef{
     Name: "Image_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{2cb15d1d-5fc1-11d2-abe1-00a0c911f518}"),
@@ -4221,12 +4221,12 @@ var Image_V0 = &MofClassDef{
 //     read
 //   ] string ImageFileName;
 // };
-// Image_V0_Load class definition
-var Image_V0_Load = &MofClassDef{
+// mofImage_V0_Load class definition
+var mofImage_V0_Load = &MofClassDef{
     Name: "Image_V0_Load",
     Base: "Image_V0",
-    GUID: Image_V0.GUID,
-    Version: Image_V0.Version,
+    GUID: mofImage_V0.GUID,
+    Version: mofImage_V0.Version,
     EventTypes: []uint8{ 10 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BaseAddress", InType: TDH_INTYPE_POINTER},
@@ -4237,8 +4237,8 @@ var Image_V0_Load = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
 //          EventVersion(4)] class SystemConfig_V4 : MSNT_SystemTrace{};
-// SystemConfig_V4 class definition
-var SystemConfig_V4 = &MofClassDef{
+// mofSystemConfig_V4 class definition
+var mofSystemConfig_V4 = &MofClassDef{
     Name: "SystemConfig_V4",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
@@ -4276,12 +4276,12 @@ var SystemConfig_V4 = &MofClassDef{
 //     read
 //   ] string BspVersion;
 // };
-// SystemConfig_V4_MobilePlatform class definition
-var SystemConfig_V4_MobilePlatform = &MofClassDef{
+// mofSystemConfig_V4_MobilePlatform class definition
+var mofSystemConfig_V4_MobilePlatform = &MofClassDef{
     Name: "SystemConfig_V4_MobilePlatform",
     Base: "SystemConfig_V4",
-    GUID: SystemConfig_V4.GUID,
-    Version: SystemConfig_V4.Version,
+    GUID: mofSystemConfig_V4.GUID,
+    Version: mofSystemConfig_V4.Version,
     EventTypes: []uint8{ 32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DeviceManufacturer", InType: TDH_INTYPE_UNICODESTRING, OutType: TDH_OUTTYPE_STRING},
@@ -4330,12 +4330,12 @@ var SystemConfig_V4_MobilePlatform = &MofClassDef{
 //     read
 //   ] string LowerFilters;
 // };
-// SystemConfig_V4_PnP class definition
-var SystemConfig_V4_PnP = &MofClassDef{
+// mofSystemConfig_V4_PnP class definition
+var mofSystemConfig_V4_PnP = &MofClassDef{
     Name: "SystemConfig_V4_PnP",
     Base: "SystemConfig_V4",
-    GUID: SystemConfig_V4.GUID,
-    Version: SystemConfig_V4.Version,
+    GUID: mofSystemConfig_V4.GUID,
+    Version: mofSystemConfig_V4.Version,
     EventTypes: []uint8{ 22 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ClassGuid", InType: TDH_INTYPE_GUID, OutType: TDH_OUTTYPE_GUID},
@@ -4353,8 +4353,8 @@ var SystemConfig_V4_PnP = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{2cb15d1d-5fc1-11d2-abe1-00a0c911f518}"),
 //          EventVersion(1)] class Image_V1 : MSNT_SystemTrace{};
-// Image_V1 class definition
-var Image_V1 = &MofClassDef{
+// mofImage_V1 class definition
+var mofImage_V1 = &MofClassDef{
     Name: "Image_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{2cb15d1d-5fc1-11d2-abe1-00a0c911f518}"),
@@ -4370,12 +4370,12 @@ var Image_V1 = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// Image_V1_Load class definition
-var Image_V1_Load = &MofClassDef{
+// mofImage_V1_Load class definition
+var mofImage_V1_Load = &MofClassDef{
     Name: "Image_V1_Load",
     Base: "Image_V1",
-    GUID: Image_V1.GUID,
-    Version: Image_V1.Version,
+    GUID: mofImage_V1.GUID,
+    Version: mofImage_V1.Version,
     EventTypes: []uint8{ 10 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ImageBase", InType: TDH_INTYPE_POINTER},
@@ -4387,8 +4387,8 @@ var Image_V1_Load = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(3)] class Thread_V3 : MSNT_SystemTrace{};
-// Thread_V3 class definition
-var Thread_V3 = &MofClassDef{
+// mofThread_V3 class definition
+var mofThread_V3 = &MofClassDef{
     Name: "Thread_V3",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -4412,12 +4412,12 @@ var Thread_V3 = &MofClassDef{
 //   [ WmiDataId(13), read ] uint8 IoPriority;
 //   [ WmiDataId(14), read ] uint8 ThreadFlags;
 // };
-// Thread_V3_TypeGroup1 class definition
-var Thread_V3_TypeGroup1 = &MofClassDef{
+// mofThread_V3_TypeGroup1 class definition
+var mofThread_V3_TypeGroup1 = &MofClassDef{
     Name: "Thread_V3_TypeGroup1",
     Base: "Thread_V3",
-    GUID: Thread_V3.GUID,
-    Version: Thread_V3.Version,
+    GUID: mofThread_V3.GUID,
+    Version: mofThread_V3.Version,
     EventTypes: []uint8{ 1,  2,  3,  4 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -4444,12 +4444,12 @@ var Thread_V3_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(3), read ] uint8 NewPriority;
 //   [ WmiDataId(4), read ] uint16 Reserved;
 // };
-// ThreadPriority class definition
-var ThreadPriority = &MofClassDef{
+// mofThreadPriority class definition
+var mofThreadPriority = &MofClassDef{
     Name: "ThreadPriority",
     Base: "Thread_V3",
-    GUID: Thread_V3.GUID,
-    Version: Thread_V3.Version,
+    GUID: mofThread_V3.GUID,
+    Version: mofThread_V3.Version,
     EventTypes: []uint8{ 48,  49,  51,  52 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -4473,12 +4473,12 @@ var ThreadPriority = &MofClassDef{
 //   [ WmiDataId(11), format("x"), read ] uint32 NewThreadWaitTime;
 //   [ WmiDataId(12), read ] uint32 Reserved;
 // };
-// CSwitch_V3 class definition
-var CSwitch_V3 = &MofClassDef{
+// mofCSwitch_V3 class definition
+var mofCSwitch_V3 = &MofClassDef{
     Name: "CSwitch_V3",
     Base: "Thread_V3",
-    GUID: Thread_V3.GUID,
-    Version: Thread_V3.Version,
+    GUID: mofThread_V3.GUID,
+    Version: mofThread_V3.Version,
     EventTypes: []uint8{ 36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "NewThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -4498,8 +4498,8 @@ var CSwitch_V3 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
 //          EventVersion(3)] class SystemConfig_V3 : MSNT_SystemTrace{};
-// SystemConfig_V3 class definition
-var SystemConfig_V3 = &MofClassDef{
+// mofSystemConfig_V3 class definition
+var mofSystemConfig_V3 = &MofClassDef{
     Name: "SystemConfig_V3",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
@@ -4557,12 +4557,12 @@ var SystemConfig_V3 = &MofClassDef{
 //     read
 //   ] string OemSoftwareVersion;
 // };
-// SystemConfig_V3_MobilePlatform class definition
-var SystemConfig_V3_MobilePlatform = &MofClassDef{
+// mofSystemConfig_V3_MobilePlatform class definition
+var mofSystemConfig_V3_MobilePlatform = &MofClassDef{
     Name: "SystemConfig_V3_MobilePlatform",
     Base: "SystemConfig_V3",
-    GUID: SystemConfig_V3.GUID,
-    Version: SystemConfig_V3.Version,
+    GUID: mofSystemConfig_V3.GUID,
+    Version: mofSystemConfig_V3.Version,
     EventTypes: []uint8{ 32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DeviceManufacturer", InType: TDH_INTYPE_UNICODESTRING, OutType: TDH_OUTTYPE_STRING},
@@ -4606,12 +4606,12 @@ var SystemConfig_V3_MobilePlatform = &MofClassDef{
 //     read
 //   ] string SvchostGroup;
 // };
-// SystemConfig_V3_Services class definition
-var SystemConfig_V3_Services = &MofClassDef{
+// mofSystemConfig_V3_Services class definition
+var mofSystemConfig_V3_Services = &MofClassDef{
     Name: "SystemConfig_V3_Services",
     Base: "SystemConfig_V3",
-    GUID: SystemConfig_V3.GUID,
-    Version: SystemConfig_V3.Version,
+    GUID: mofSystemConfig_V3.GUID,
+    Version: mofSystemConfig_V3.Version,
     EventTypes: []uint8{ 15 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -4637,12 +4637,12 @@ var SystemConfig_V3_Services = &MofClassDef{
 //     read
 //   ] string DeviceDescription;
 // };
-// SystemConfig_V3_IRQ class definition
-var SystemConfig_V3_IRQ = &MofClassDef{
+// mofSystemConfig_V3_IRQ class definition
+var mofSystemConfig_V3_IRQ = &MofClassDef{
     Name: "SystemConfig_V3_IRQ",
     Base: "SystemConfig_V3",
-    GUID: SystemConfig_V3.GUID,
-    Version: SystemConfig_V3.Version,
+    GUID: mofSystemConfig_V3.GUID,
+    Version: mofSystemConfig_V3.Version,
     EventTypes: []uint8{ 21 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IRQAffinity", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_HEXINT64},
@@ -4672,12 +4672,12 @@ var SystemConfig_V3_IRQ = &MofClassDef{
 //   [ WmiDataId(14), read ] uint8 NxEnabled;
 //   [ WmiDataId(15), read ] uint32 MemorySpeed;
 // };
-// SystemConfig_V3_CPU class definition
-var SystemConfig_V3_CPU = &MofClassDef{
+// mofSystemConfig_V3_CPU class definition
+var mofSystemConfig_V3_CPU = &MofClassDef{
     Name: "SystemConfig_V3_CPU",
     Base: "SystemConfig_V3",
-    GUID: SystemConfig_V3.GUID,
-    Version: SystemConfig_V3.Version,
+    GUID: mofSystemConfig_V3.GUID,
+    Version: mofSystemConfig_V3.Version,
     EventTypes: []uint8{ 10 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MHz", InType: TDH_INTYPE_UINT32},
@@ -4720,12 +4720,12 @@ var SystemConfig_V3_CPU = &MofClassDef{
 //     read
 //   ] string PdoName;
 // };
-// SystemConfig_V3_PnP class definition
-var SystemConfig_V3_PnP = &MofClassDef{
+// mofSystemConfig_V3_PnP class definition
+var mofSystemConfig_V3_PnP = &MofClassDef{
     Name: "SystemConfig_V3_PnP",
     Base: "SystemConfig_V3",
-    GUID: SystemConfig_V3.GUID,
-    Version: SystemConfig_V3.Version,
+    GUID: mofSystemConfig_V3.GUID,
+    Version: mofSystemConfig_V3.Version,
     EventTypes: []uint8{ 22 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IDLength", InType: TDH_INTYPE_UINT32},
@@ -4740,8 +4740,8 @@ var SystemConfig_V3_PnP = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{90cbdc39-4a3e-11d1-84f4-0000f80464e3}"),
 //          EventVersion(0)] class FileIo_V0 : MSNT_SystemTrace{};
-// FileIo_V0 class definition
-var FileIo_V0 = &MofClassDef{
+// mofFileIo_V0 class definition
+var mofFileIo_V0 = &MofClassDef{
     Name: "FileIo_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{90cbdc39-4a3e-11d1-84f4-0000f80464e3}"),
@@ -4755,12 +4755,12 @@ var FileIo_V0 = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// FileIo_V0_Name class definition
-var FileIo_V0_Name = &MofClassDef{
+// mofFileIo_V0_Name class definition
+var mofFileIo_V0_Name = &MofClassDef{
     Name: "FileIo_V0_Name",
     Base: "FileIo_V0",
-    GUID: FileIo_V0.GUID,
-    Version: FileIo_V0.Version,
+    GUID: mofFileIo_V0.GUID,
+    Version: mofFileIo_V0.Version,
     EventTypes: []uint8{ 0 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "FileObject", InType: TDH_INTYPE_POINTER},
@@ -4770,8 +4770,8 @@ var FileIo_V0_Name = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(4)] class Thread_V4 : MSNT_SystemTrace{};
-// Thread_V4 class definition
-var Thread_V4 = &MofClassDef{
+// mofThread_V4 class definition
+var mofThread_V4 = &MofClassDef{
     Name: "Thread_V4",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -4799,12 +4799,12 @@ var Thread_V4 = &MofClassDef{
 //     read
 //   ] string ThreadName;
 // };
-// Thread_TypeGroup1 class definition
-var Thread_TypeGroup1 = &MofClassDef{
+// mofThread_TypeGroup1 class definition
+var mofThread_TypeGroup1 = &MofClassDef{
     Name: "Thread_TypeGroup1",
     Base: "Thread_V4",
-    GUID: Thread_V4.GUID,
-    Version: Thread_V4.Version,
+    GUID: mofThread_V4.GUID,
+    Version: mofThread_V4.Version,
     EventTypes: []uint8{ 1,  2,  3,  4 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -4839,12 +4839,12 @@ var Thread_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(11), format("x"), read ] uint32 NewThreadWaitTime;
 //   [ WmiDataId(12), read ] uint32 Reserved;
 // };
-// CSwitch_V4 class definition
-var CSwitch_V4 = &MofClassDef{
+// mofCSwitch_V4 class definition
+var mofCSwitch_V4 = &MofClassDef{
     Name: "CSwitch_V4",
     Base: "Thread_V4",
-    GUID: Thread_V4.GUID,
-    Version: Thread_V4.Version,
+    GUID: mofThread_V4.GUID,
+    Version: mofThread_V4.Version,
     EventTypes: []uint8{ 36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "NewThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -4864,8 +4864,8 @@ var CSwitch_V4 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(0)] class DiskIo_V0 : MSNT_SystemTrace{};
-// DiskIo_V0 class definition
-var DiskIo_V0 = &MofClassDef{
+// mofDiskIo_V0 class definition
+var mofDiskIo_V0 = &MofClassDef{
     Name: "DiskIo_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -4880,12 +4880,12 @@ var DiskIo_V0 = &MofClassDef{
 //   [ WmiDataId(5), read ] uint64 ByteOffset;
 //   [ WmiDataId(6), pointer, read ] uint32 FileObject;
 // };
-// DiskIo_V0_TypeGroup1 class definition
-var DiskIo_V0_TypeGroup1 = &MofClassDef{
+// mofDiskIo_V0_TypeGroup1 class definition
+var mofDiskIo_V0_TypeGroup1 = &MofClassDef{
     Name: "DiskIo_V0_TypeGroup1",
     Base: "DiskIo_V0",
-    GUID: DiskIo_V0.GUID,
-    Version: DiskIo_V0.Version,
+    GUID: mofDiskIo_V0.GUID,
+    Version: mofDiskIo_V0.Version,
     EventTypes: []uint8{ 10,  11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT32},
@@ -4899,8 +4899,8 @@ var DiskIo_V0_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
 //          EventVersion(5)] class SystemConfig : MSNT_SystemTrace{};
-// SystemConfig class definition
-var SystemConfig = &MofClassDef{
+// mofSystemConfig class definition
+var mofSystemConfig = &MofClassDef{
     Name: "SystemConfig",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
@@ -4944,12 +4944,12 @@ var SystemConfig = &MofClassDef{
 //     read
 //   ] string LowerFilters;
 // };
-// SystemConfig_PnP class definition
-var SystemConfig_PnP = &MofClassDef{
+// mofSystemConfig_PnP class definition
+var mofSystemConfig_PnP = &MofClassDef{
     Name: "SystemConfig_PnP",
     Base: "SystemConfig",
-    GUID: SystemConfig.GUID,
-    Version: SystemConfig.Version,
+    GUID: mofSystemConfig.GUID,
+    Version: mofSystemConfig.Version,
     EventTypes: []uint8{ 22 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ClassGuid", InType: TDH_INTYPE_GUID, OutType: TDH_OUTTYPE_GUID},
@@ -4969,8 +4969,8 @@ var SystemConfig_PnP = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(5)] class Process : MSNT_SystemTrace{};
-// Process class definition
-var Process = &MofClassDef{
+// mofProcess class definition
+var mofProcess = &MofClassDef{
     Name: "Process",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -5001,12 +5001,12 @@ var Process = &MofClassDef{
 //   ] string ApplicationId;
 //   [ WmiDataId(13), read ] uint64 ExitTime;
 // };
-// Process_Defunct_TypeGroup1 class definition
-var Process_Defunct_TypeGroup1 = &MofClassDef{
+// mofProcess_Defunct_TypeGroup1 class definition
+var mofProcess_Defunct_TypeGroup1 = &MofClassDef{
     Name: "Process_Defunct_TypeGroup1",
     Base: "Process",
-    GUID: Process.GUID,
-    Version: Process.Version,
+    GUID: mofProcess.GUID,
+    Version: mofProcess.Version,
     EventTypes: []uint8{ 39 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "UniqueProcessKey", InType: TDH_INTYPE_POINTER},
@@ -5026,8 +5026,8 @@ var Process_Defunct_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{0268a8b6-74fd-4302-9dd0-6e8f1795c0cf}"),
 //          EventVersion(2)] class PoolTrace : MSNT_SystemTrace{};
-// PoolTrace class definition
-var PoolTrace = &MofClassDef{
+// mofPoolTrace class definition
+var mofPoolTrace = &MofClassDef{
     Name: "PoolTrace",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{0268a8b6-74fd-4302-9dd0-6e8f1795c0cf}"),
@@ -5040,12 +5040,12 @@ var PoolTrace = &MofClassDef{
 //   [ WmiDataId(3), extension("SizeT"), read ] object NumberOfBytes;
 //   [ WmiDataId(4), pointer, read ] uint32 Entry;
 // };
-// PoolAllocFree class definition
-var PoolAllocFree = &MofClassDef{
+// mofPoolAllocFree class definition
+var mofPoolAllocFree = &MofClassDef{
     Name: "PoolAllocFree",
     Base: "PoolTrace",
-    GUID: PoolTrace.GUID,
-    Version: PoolTrace.Version,
+    GUID: mofPoolTrace.GUID,
+    Version: mofPoolTrace.Version,
     EventTypes: []uint8{ 32,  34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Type", InType: TDH_INTYPE_UINT32},
@@ -5062,12 +5062,12 @@ var PoolAllocFree = &MofClassDef{
 //   [ WmiDataId(4), pointer, read ] uint32 Entry;
 //   [ WmiDataId(5), read ] uint32 SessionId;
 // };
-// SessionPoolAllocFree class definition
-var SessionPoolAllocFree = &MofClassDef{
+// mofSessionPoolAllocFree class definition
+var mofSessionPoolAllocFree = &MofClassDef{
     Name: "SessionPoolAllocFree",
     Base: "PoolTrace",
-    GUID: PoolTrace.GUID,
-    Version: PoolTrace.Version,
+    GUID: mofPoolTrace.GUID,
+    Version: mofPoolTrace.Version,
     EventTypes: []uint8{ 33,  35 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Type", InType: TDH_INTYPE_UINT32},
@@ -5080,20 +5080,20 @@ var SessionPoolAllocFree = &MofClassDef{
 
 // [dynamic:ToInstance, EventType{40, 41, 42, 43, 44, 45, 46,
 //                                47}] class PoolSnapshot : PoolTrace{};
-// PoolSnapshot class definition
-var PoolSnapshot = &MofClassDef{
+// mofPoolSnapshot class definition
+var mofPoolSnapshot = &MofClassDef{
     Name: "PoolSnapshot",
     Base: "PoolTrace",
-    GUID: PoolTrace.GUID,
-    Version: PoolTrace.Version,
+    GUID: mofPoolTrace.GUID,
+    Version: mofPoolTrace.Version,
     EventTypes: []uint8{ 40,  41,  42,  43,  44,  45,  46, 
                                47 },
 }
 
 // [dynamic:ToInstance, Guid("{3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(3)] class DiskIo : MSNT_SystemTrace{};
-// DiskIo class definition
-var DiskIo = &MofClassDef{
+// mofDiskIo class definition
+var mofDiskIo = &MofClassDef{
     Name: "DiskIo",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -5105,12 +5105,12 @@ var DiskIo = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 Irp;
 //   [ WmiDataId(2), read ] uint32 IssuingThreadId;
 // };
-// DiskIo_TypeGroup2 class definition
-var DiskIo_TypeGroup2 = &MofClassDef{
+// mofDiskIo_TypeGroup2 class definition
+var mofDiskIo_TypeGroup2 = &MofClassDef{
     Name: "DiskIo_TypeGroup2",
     Base: "DiskIo",
-    GUID: DiskIo.GUID,
-    Version: DiskIo.Version,
+    GUID: mofDiskIo.GUID,
+    Version: mofDiskIo.Version,
     EventTypes: []uint8{ 12,  13,  15,  58,  59,  60 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Irp", InType: TDH_INTYPE_POINTER},
@@ -5130,12 +5130,12 @@ var DiskIo_TypeGroup2 = &MofClassDef{
 //   [ WmiDataId(8), read ] uint64 HighResResponseTime;
 //   [ WmiDataId(9), read ] uint32 IssuingThreadId;
 // };
-// DiskIo_TypeGroup1 class definition
-var DiskIo_TypeGroup1 = &MofClassDef{
+// mofDiskIo_TypeGroup1 class definition
+var mofDiskIo_TypeGroup1 = &MofClassDef{
     Name: "DiskIo_TypeGroup1",
     Base: "DiskIo",
-    GUID: DiskIo.GUID,
-    Version: DiskIo.Version,
+    GUID: mofDiskIo.GUID,
+    Version: mofDiskIo.Version,
     EventTypes: []uint8{ 10,  11,  55,  56 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT32},
@@ -5157,12 +5157,12 @@ var DiskIo_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(4), pointer, read ] uint32 Irp;
 //   [ WmiDataId(5), read ] uint32 IssuingThreadId;
 // };
-// DiskIo_TypeGroup3 class definition
-var DiskIo_TypeGroup3 = &MofClassDef{
+// mofDiskIo_TypeGroup3 class definition
+var mofDiskIo_TypeGroup3 = &MofClassDef{
     Name: "DiskIo_TypeGroup3",
     Base: "DiskIo",
-    GUID: DiskIo.GUID,
-    Version: DiskIo.Version,
+    GUID: mofDiskIo.GUID,
+    Version: mofDiskIo.Version,
     EventTypes: []uint8{ 14,  57 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT32},
@@ -5175,8 +5175,8 @@ var DiskIo_TypeGroup3 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{6a399ae0-4bc6-4de9-870b-3657f8947e7e}"),
 //          EventVersion(0)] class Lost_Event : MSNT_SystemTrace{};
-// Lost_Event class definition
-var Lost_Event = &MofClassDef{
+// mofLost_Event class definition
+var mofLost_Event = &MofClassDef{
     Name: "Lost_Event",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{6a399ae0-4bc6-4de9-870b-3657f8947e7e}"),
@@ -5184,19 +5184,19 @@ var Lost_Event = &MofClassDef{
 }
 
 // [dynamic:ToInstance, EventType{32, 33, 34}] class RT_LostEvent : Lost_Event{};
-// RT_LostEvent class definition
-var RT_LostEvent = &MofClassDef{
+// mofRT_LostEvent class definition
+var mofRT_LostEvent = &MofClassDef{
     Name: "RT_LostEvent",
     Base: "Lost_Event",
-    GUID: Lost_Event.GUID,
-    Version: Lost_Event.Version,
+    GUID: mofLost_Event.GUID,
+    Version: mofLost_Event.Version,
     EventTypes: []uint8{ 32,  33,  34 },
 }
 
 // [dynamic:ToInstance, Guid("{90cbdc39-4a3e-11d1-84f4-0000f80464e3}"),
 //          EventVersion(1)] class FileIo_V1 : MSNT_SystemTrace{};
-// FileIo_V1 class definition
-var FileIo_V1 = &MofClassDef{
+// mofFileIo_V1 class definition
+var mofFileIo_V1 = &MofClassDef{
     Name: "FileIo_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{90cbdc39-4a3e-11d1-84f4-0000f80464e3}"),
@@ -5210,12 +5210,12 @@ var FileIo_V1 = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// FileIo_V1_Name class definition
-var FileIo_V1_Name = &MofClassDef{
+// mofFileIo_V1_Name class definition
+var mofFileIo_V1_Name = &MofClassDef{
     Name: "FileIo_V1_Name",
     Base: "FileIo_V1",
-    GUID: FileIo_V1.GUID,
-    Version: FileIo_V1.Version,
+    GUID: mofFileIo_V1.GUID,
+    Version: mofFileIo_V1.Version,
     EventTypes: []uint8{ 0,  32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "FileObject", InType: TDH_INTYPE_POINTER},
@@ -5225,8 +5225,8 @@ var FileIo_V1_Name = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{68fdd900-4a3e-11d1-84f4-0000f80464e3}"),
 //          EventVersion(1)] class EventTraceEvent_V1 : MSNT_SystemTrace{};
-// EventTraceEvent_V1 class definition
-var EventTraceEvent_V1 = &MofClassDef{
+// mofEventTraceEvent_V1 class definition
+var mofEventTraceEvent_V1 = &MofClassDef{
     Name: "EventTraceEvent_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{68fdd900-4a3e-11d1-84f4-0000f80464e3}"),
@@ -5266,12 +5266,12 @@ var EventTraceEvent_V1 = &MofClassDef{
 //     read
 //   ] string LogFileNameString;
 // };
-// EventTrace_V1_Header class definition
-var EventTrace_V1_Header = &MofClassDef{
+// mofEventTrace_V1_Header class definition
+var mofEventTrace_V1_Header = &MofClassDef{
     Name: "EventTrace_V1_Header",
     Base: "EventTraceEvent_V1",
-    GUID: EventTraceEvent_V1.GUID,
-    Version: EventTraceEvent_V1.Version,
+    GUID: mofEventTraceEvent_V1.GUID,
+    Version: mofEventTraceEvent_V1.Version,
     EventTypes: []uint8{ 0 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BufferSize", InType: TDH_INTYPE_UINT32},
@@ -5289,7 +5289,7 @@ var EventTrace_V1_Header = &MofClassDef{
         {ID: 13, Name: "CPUSpeed", InType: TDH_INTYPE_UINT32},
         {ID: 14, Name: "LoggerName", InType: TDH_INTYPE_POINTER},
         {ID: 15, Name: "LogFileName", InType: TDH_INTYPE_POINTER},
-        {ID: 16, Name: "TimeZoneInformation", InType: TDH_INTYPE_UINT8, IsArray: true, ArraySize: 176},
+        {ID: 16, Name: "TimeZoneInformation", InType: TDH_INTYPE_BINARY, OutType: TDH_OUTTYPE_NULL, IsArray: true, ArraySize: 176},
         {ID: 17, Name: "BootTime", InType: TDH_INTYPE_UINT64},
         {ID: 18, Name: "PerfFreq", InType: TDH_INTYPE_UINT64},
         {ID: 19, Name: "StartTime", InType: TDH_INTYPE_UINT64},
@@ -5301,12 +5301,12 @@ var EventTrace_V1_Header = &MofClassDef{
 }
 
 // [dynamic:ToInstance, EventType(8)] class RDComplete_V1 : EventTraceEvent_V1{};
-// RDComplete_V1 class definition
-var RDComplete_V1 = &MofClassDef{
+// mofRDComplete_V1 class definition
+var mofRDComplete_V1 = &MofClassDef{
     Name: "RDComplete_V1",
     Base: "EventTraceEvent_V1",
-    GUID: EventTraceEvent_V1.GUID,
-    Version: EventTraceEvent_V1.Version,
+    GUID: mofEventTraceEvent_V1.GUID,
+    Version: mofEventTraceEvent_V1.Version,
     EventTypes: []uint8{ 8 },
 }
 
@@ -5321,12 +5321,12 @@ var RDComplete_V1 = &MofClassDef{
 //   [ WmiDataId(7), format("x"), read ] uint32 GroupMask7;
 //   [ WmiDataId(8), format("x"), read ] uint32 GroupMask8;
 // };
-// Header_Extension_V1_TypeGroup class definition
-var Header_Extension_V1_TypeGroup = &MofClassDef{
+// mofHeader_Extension_V1_TypeGroup class definition
+var mofHeader_Extension_V1_TypeGroup = &MofClassDef{
     Name: "Header_Extension_V1_TypeGroup",
     Base: "EventTraceEvent_V1",
-    GUID: EventTraceEvent_V1.GUID,
-    Version: EventTraceEvent_V1.Version,
+    GUID: mofEventTraceEvent_V1.GUID,
+    Version: mofEventTraceEvent_V1.Version,
     EventTypes: []uint8{ 5,  32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "GroupMask1", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -5342,8 +5342,8 @@ var Header_Extension_V1_TypeGroup = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{13976d09-a327-438c-950b-7f03192815c7}"),
 //          EventVersion(2)] class Debugger : MSNT_SystemTrace{};
-// Debugger class definition
-var Debugger = &MofClassDef{
+// mofDebugger class definition
+var mofDebugger = &MofClassDef{
     Name: "Debugger",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{13976d09-a327-438c-950b-7f03192815c7}"),
@@ -5355,12 +5355,12 @@ var Debugger = &MofClassDef{
 //   [ WmiDataId(2), read ] uint32 Level;
 //   [ WmiDataId(3), StringTermination("NullTerminated"), read ] string Message;
 // };
-// DebugPrint_Event class definition
-var DebugPrint_Event = &MofClassDef{
+// mofDebugPrint_Event class definition
+var mofDebugPrint_Event = &MofClassDef{
     Name: "DebugPrint_Event",
     Base: "Debugger",
-    GUID: Debugger.GUID,
-    Version: Debugger.Version,
+    GUID: mofDebugger.GUID,
+    Version: mofDebugger.Version,
     EventTypes: []uint8{ 32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Component", InType: TDH_INTYPE_UINT32},
@@ -5371,8 +5371,8 @@ var DebugPrint_Event = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(2)] class DiskIo_V2 : MSNT_SystemTrace{};
-// DiskIo_V2 class definition
-var DiskIo_V2 = &MofClassDef{
+// mofDiskIo_V2 class definition
+var mofDiskIo_V2 = &MofClassDef{
     Name: "DiskIo_V2",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -5389,12 +5389,12 @@ var DiskIo_V2 = &MofClassDef{
 //   [ WmiDataId(7), pointer, read ] uint32 Irp;
 //   [ WmiDataId(8), read ] uint64 HighResResponseTime;
 // };
-// DiskIo_V2_TypeGroup1 class definition
-var DiskIo_V2_TypeGroup1 = &MofClassDef{
+// mofDiskIo_V2_TypeGroup1 class definition
+var mofDiskIo_V2_TypeGroup1 = &MofClassDef{
     Name: "DiskIo_V2_TypeGroup1",
     Base: "DiskIo_V2",
-    GUID: DiskIo_V2.GUID,
-    Version: DiskIo_V2.Version,
+    GUID: mofDiskIo_V2.GUID,
+    Version: mofDiskIo_V2.Version,
     EventTypes: []uint8{ 10,  11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT32},
@@ -5413,12 +5413,12 @@ var DiskIo_V2_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 Irp;
 //   [ WmiDataId(2), read ] uint32 UniqMatchId;
 // };
-// DriverMajorFunctionReturn class definition
-var DriverMajorFunctionReturn = &MofClassDef{
+// mofDriverMajorFunctionReturn class definition
+var mofDriverMajorFunctionReturn = &MofClassDef{
     Name: "DriverMajorFunctionReturn",
     Base: "DiskIo_V2",
-    GUID: DiskIo_V2.GUID,
-    Version: DiskIo_V2.Version,
+    GUID: mofDiskIo_V2.GUID,
+    Version: mofDiskIo_V2.Version,
     EventTypes: []uint8{ 35 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Irp", InType: TDH_INTYPE_POINTER},
@@ -5431,12 +5431,12 @@ var DriverMajorFunctionReturn = &MofClassDef{
 //   [ WmiDataId(2), pointer, read ] uint32 IrpPtr;
 //   [ WmiDataId(3), read ] uint32 UniqMatchId;
 // };
-// DriverCompletionRoutine class definition
-var DriverCompletionRoutine = &MofClassDef{
+// mofDriverCompletionRoutine class definition
+var mofDriverCompletionRoutine = &MofClassDef{
     Name: "DriverCompletionRoutine",
     Base: "DiskIo_V2",
-    GUID: DiskIo_V2.GUID,
-    Version: DiskIo_V2.Version,
+    GUID: mofDiskIo_V2.GUID,
+    Version: mofDiskIo_V2.Version,
     EventTypes: []uint8{ 37 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Routine", InType: TDH_INTYPE_POINTER},
@@ -5453,12 +5453,12 @@ var DriverCompletionRoutine = &MofClassDef{
 //   [ WmiDataId(5), pointer, read ] uint32 Irp;
 //   [ WmiDataId(6), read ] uint32 UniqMatchId;
 // };
-// DriverMajorFunctionCall class definition
-var DriverMajorFunctionCall = &MofClassDef{
+// mofDriverMajorFunctionCall class definition
+var mofDriverMajorFunctionCall = &MofClassDef{
     Name: "DriverMajorFunctionCall",
     Base: "DiskIo_V2",
-    GUID: DiskIo_V2.GUID,
-    Version: DiskIo_V2.Version,
+    GUID: mofDiskIo_V2.GUID,
+    Version: mofDiskIo_V2.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MajorFunction", InType: TDH_INTYPE_UINT32},
@@ -5475,12 +5475,12 @@ var DriverMajorFunctionCall = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 Irp;
 //   [ WmiDataId(2), read ] uint32 UniqMatchId;
 // };
-// DriverCompleteRequestReturn class definition
-var DriverCompleteRequestReturn = &MofClassDef{
+// mofDriverCompleteRequestReturn class definition
+var mofDriverCompleteRequestReturn = &MofClassDef{
     Name: "DriverCompleteRequestReturn",
     Base: "DiskIo_V2",
-    GUID: DiskIo_V2.GUID,
-    Version: DiskIo_V2.Version,
+    GUID: mofDiskIo_V2.GUID,
+    Version: mofDiskIo_V2.Version,
     EventTypes: []uint8{ 53 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Irp", InType: TDH_INTYPE_POINTER},
@@ -5494,12 +5494,12 @@ var DriverCompleteRequestReturn = &MofClassDef{
 //   [ WmiDataId(3), read ] uint64 HighResResponseTime;
 //   [ WmiDataId(4), pointer, read ] uint32 Irp;
 // };
-// DiskIo_V2_TypeGroup3 class definition
-var DiskIo_V2_TypeGroup3 = &MofClassDef{
+// mofDiskIo_V2_TypeGroup3 class definition
+var mofDiskIo_V2_TypeGroup3 = &MofClassDef{
     Name: "DiskIo_V2_TypeGroup3",
     Base: "DiskIo_V2",
-    GUID: DiskIo_V2.GUID,
-    Version: DiskIo_V2.Version,
+    GUID: mofDiskIo_V2.GUID,
+    Version: mofDiskIo_V2.Version,
     EventTypes: []uint8{ 14 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT32},
@@ -5513,12 +5513,12 @@ var DiskIo_V2_TypeGroup3 = &MofClassDef{
 //     : DiskIo_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 Irp;
 // };
-// DiskIo_V2_TypeGroup2 class definition
-var DiskIo_V2_TypeGroup2 = &MofClassDef{
+// mofDiskIo_V2_TypeGroup2 class definition
+var mofDiskIo_V2_TypeGroup2 = &MofClassDef{
     Name: "DiskIo_V2_TypeGroup2",
     Base: "DiskIo_V2",
-    GUID: DiskIo_V2.GUID,
-    Version: DiskIo_V2.Version,
+    GUID: mofDiskIo_V2.GUID,
+    Version: mofDiskIo_V2.Version,
     EventTypes: []uint8{ 12,  13,  15 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Irp", InType: TDH_INTYPE_POINTER},
@@ -5530,12 +5530,12 @@ var DiskIo_V2_TypeGroup2 = &MofClassDef{
 //   [ WmiDataId(2), pointer, read ] uint32 Irp;
 //   [ WmiDataId(3), read ] uint32 UniqMatchId;
 // };
-// DriverCompleteRequest class definition
-var DriverCompleteRequest = &MofClassDef{
+// mofDriverCompleteRequest class definition
+var mofDriverCompleteRequest = &MofClassDef{
     Name: "DriverCompleteRequest",
     Base: "DiskIo_V2",
-    GUID: DiskIo_V2.GUID,
-    Version: DiskIo_V2.Version,
+    GUID: mofDiskIo_V2.GUID,
+    Version: mofDiskIo_V2.Version,
     EventTypes: []uint8{ 52 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "RoutineAddr", InType: TDH_INTYPE_POINTER},
@@ -5546,8 +5546,8 @@ var DriverCompleteRequest = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
 //          EventVersion(0)] class SystemConfig_V0 : MSNT_SystemTrace{};
-// SystemConfig_V0 class definition
-var SystemConfig_V0 = &MofClassDef{
+// mofSystemConfig_V0 class definition
+var mofSystemConfig_V0 = &MofClassDef{
     Name: "SystemConfig_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
@@ -5564,12 +5564,12 @@ var SystemConfig_V0 = &MofClassDef{
 //     read
 //   ] string DeviceDescription;
 // };
-// SystemConfig_V0_IRQ class definition
-var SystemConfig_V0_IRQ = &MofClassDef{
+// mofSystemConfig_V0_IRQ class definition
+var mofSystemConfig_V0_IRQ = &MofClassDef{
     Name: "SystemConfig_V0_IRQ",
     Base: "SystemConfig_V0",
-    GUID: SystemConfig_V0.GUID,
-    Version: SystemConfig_V0.Version,
+    GUID: mofSystemConfig_V0.GUID,
+    Version: mofSystemConfig_V0.Version,
     EventTypes: []uint8{ 21 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IRQAffinity", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_HEXINT64},
@@ -5590,12 +5590,12 @@ var SystemConfig_V0_IRQ = &MofClassDef{
 //   [ WmiDataId(7), read, MAX(132) ] char16 DomainName;
 //   [ WmiDataId(8), pointer, read ] uint32 HyperThreadingFlag;
 // };
-// SystemConfig_V0_CPU class definition
-var SystemConfig_V0_CPU = &MofClassDef{
+// mofSystemConfig_V0_CPU class definition
+var mofSystemConfig_V0_CPU = &MofClassDef{
     Name: "SystemConfig_V0_CPU",
     Base: "SystemConfig_V0",
-    GUID: SystemConfig_V0.GUID,
-    Version: SystemConfig_V0.Version,
+    GUID: mofSystemConfig_V0.GUID,
+    Version: mofSystemConfig_V0.Version,
     EventTypes: []uint8{ 10 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MHz", InType: TDH_INTYPE_UINT32},
@@ -5616,12 +5616,12 @@ var SystemConfig_V0_CPU = &MofClassDef{
 //   [ WmiDataId(3), read, MAX(34) ] char16 ProcessName;
 //   [ WmiDataId(4), read ] uint32 ProcessId;
 // };
-// SystemConfig_V0_Services class definition
-var SystemConfig_V0_Services = &MofClassDef{
+// mofSystemConfig_V0_Services class definition
+var mofSystemConfig_V0_Services = &MofClassDef{
     Name: "SystemConfig_V0_Services",
     Base: "SystemConfig_V0",
-    GUID: SystemConfig_V0.GUID,
-    Version: SystemConfig_V0.Version,
+    GUID: mofSystemConfig_V0.GUID,
+    Version: mofSystemConfig_V0.Version,
     EventTypes: []uint8{ 15 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ServiceName", InType: TDH_INTYPE_UNICODECHAR, IsArray: true, ArraySize: 34},
@@ -5649,12 +5649,12 @@ var SystemConfig_V0_Services = &MofClassDef{
 //   [ WmiDataId(14), read, MAX(16) ] char16 FileSystem;
 //   [ WmiDataId(15), read ] uint32 VolumeExt;
 // };
-// SystemConfig_V0_LogDisk class definition
-var SystemConfig_V0_LogDisk = &MofClassDef{
+// mofSystemConfig_V0_LogDisk class definition
+var mofSystemConfig_V0_LogDisk = &MofClassDef{
     Name: "SystemConfig_V0_LogDisk",
     Base: "SystemConfig_V0",
-    GUID: SystemConfig_V0.GUID,
-    Version: SystemConfig_V0.Version,
+    GUID: mofSystemConfig_V0.GUID,
+    Version: mofSystemConfig_V0.Version,
     EventTypes: []uint8{ 12 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "StartOffset", InType: TDH_INTYPE_UINT64},
@@ -5689,12 +5689,12 @@ var SystemConfig_V0_LogDisk = &MofClassDef{
 //   [ WmiDataId(10), read, MAX(256) ] char16 DeviceId;
 //   [ WmiDataId(11), format("x"), read ] uint32 StateFlags;
 // };
-// SystemConfig_V0_Video class definition
-var SystemConfig_V0_Video = &MofClassDef{
+// mofSystemConfig_V0_Video class definition
+var mofSystemConfig_V0_Video = &MofClassDef{
     Name: "SystemConfig_V0_Video",
     Base: "SystemConfig_V0",
-    GUID: SystemConfig_V0.GUID,
-    Version: SystemConfig_V0.Version,
+    GUID: mofSystemConfig_V0.GUID,
+    Version: mofSystemConfig_V0.Version,
     EventTypes: []uint8{ 14 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MemorySize", InType: TDH_INTYPE_UINT32},
@@ -5729,12 +5729,12 @@ var SystemConfig_V0_Video = &MofClassDef{
 //   [ WmiDataId(14), read, MAX(3) ] char16 BootDriveLetter;
 //   [ WmiDataId(15), read, MAX(2) ] char16 Spare;
 // };
-// SystemConfig_V0_PhyDisk class definition
-var SystemConfig_V0_PhyDisk = &MofClassDef{
+// mofSystemConfig_V0_PhyDisk class definition
+var mofSystemConfig_V0_PhyDisk = &MofClassDef{
     Name: "SystemConfig_V0_PhyDisk",
     Base: "SystemConfig_V0",
-    GUID: SystemConfig_V0.GUID,
-    Version: SystemConfig_V0.Version,
+    GUID: mofSystemConfig_V0.GUID,
+    Version: mofSystemConfig_V0.Version,
     EventTypes: []uint8{ 11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT32},
@@ -5766,12 +5766,12 @@ var SystemConfig_V0_PhyDisk = &MofClassDef{
 //   [ WmiDataId(7), read ] uint8 Pad2;
 //   [ WmiDataId(8), read ] uint8 Pad3;
 // };
-// SystemConfig_V0_Power class definition
-var SystemConfig_V0_Power = &MofClassDef{
+// mofSystemConfig_V0_Power class definition
+var mofSystemConfig_V0_Power = &MofClassDef{
     Name: "SystemConfig_V0_Power",
     Base: "SystemConfig_V0",
-    GUID: SystemConfig_V0.GUID,
-    Version: SystemConfig_V0.Version,
+    GUID: mofSystemConfig_V0.GUID,
+    Version: mofSystemConfig_V0.Version,
     EventTypes: []uint8{ 16 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "S1", InType: TDH_INTYPE_UINT8},
@@ -5803,12 +5803,12 @@ var SystemConfig_V0_Power = &MofClassDef{
 //     read
 //   ] string FriendlyName;
 // };
-// SystemConfig_V0_PnP class definition
-var SystemConfig_V0_PnP = &MofClassDef{
+// mofSystemConfig_V0_PnP class definition
+var mofSystemConfig_V0_PnP = &MofClassDef{
     Name: "SystemConfig_V0_PnP",
     Base: "SystemConfig_V0",
-    GUID: SystemConfig_V0.GUID,
-    Version: SystemConfig_V0.Version,
+    GUID: mofSystemConfig_V0.GUID,
+    Version: mofSystemConfig_V0.Version,
     EventTypes: []uint8{ 22 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IDLength", InType: TDH_INTYPE_UINT32},
@@ -5839,12 +5839,12 @@ var SystemConfig_V0_PnP = &MofClassDef{
 //   [ WmiDataId(15), read ] sint32 DnsServer4;
 //   [ WmiDataId(16), read ] uint32 Data;
 // };
-// SystemConfig_V0_NIC class definition
-var SystemConfig_V0_NIC = &MofClassDef{
+// mofSystemConfig_V0_NIC class definition
+var mofSystemConfig_V0_NIC = &MofClassDef{
     Name: "SystemConfig_V0_NIC",
     Base: "SystemConfig_V0",
-    GUID: SystemConfig_V0.GUID,
-    Version: SystemConfig_V0.Version,
+    GUID: mofSystemConfig_V0.GUID,
+    Version: mofSystemConfig_V0.Version,
     EventTypes: []uint8{ 13 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "NICName", InType: TDH_INTYPE_UNICODECHAR, IsArray: true, ArraySize: 256},
@@ -5868,8 +5868,8 @@ var SystemConfig_V0_NIC = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
 //          EventVersion(2)] class SystemConfig_V2 : MSNT_SystemTrace{};
-// SystemConfig_V2 class definition
-var SystemConfig_V2 = &MofClassDef{
+// mofSystemConfig_V2 class definition
+var mofSystemConfig_V2 = &MofClassDef{
     Name: "SystemConfig_V2",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{01853a65-418f-4f36-aefc-dc0f1d2fd235}"),
@@ -5881,12 +5881,12 @@ var SystemConfig_V2 = &MofClassDef{
 //   [ WmiDataId(1), read ] uint32 NodeCount;
 //   [ WmiDataId(2), WmiSizeIs("NodeCount"), read ] uint64 NodeMap;
 // };
-// SystemConfig_V2_NumaNode class definition
-var SystemConfig_V2_NumaNode = &MofClassDef{
+// mofSystemConfig_V2_NumaNode class definition
+var mofSystemConfig_V2_NumaNode = &MofClassDef{
     Name: "SystemConfig_V2_NumaNode",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 24 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "NodeCount", InType: TDH_INTYPE_UINT32},
@@ -5912,12 +5912,12 @@ var SystemConfig_V2_NumaNode = &MofClassDef{
 //     read
 //   ] string FriendlyName;
 // };
-// SystemConfig_V2_PnP class definition
-var SystemConfig_V2_PnP = &MofClassDef{
+// mofSystemConfig_V2_PnP class definition
+var mofSystemConfig_V2_PnP = &MofClassDef{
     Name: "SystemConfig_V2_PnP",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 22 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IDLength", InType: TDH_INTYPE_UINT32},
@@ -5933,12 +5933,12 @@ var SystemConfig_V2_PnP = &MofClassDef{
 //     : SystemConfig_V2 {
 //   [ WmiDataId(1), read ] uint32 CodeIntegrityInfo;
 // };
-// SystemConfig_V2_CodeIntegrity class definition
-var SystemConfig_V2_CodeIntegrity = &MofClassDef{
+// mofSystemConfig_V2_CodeIntegrity class definition
+var mofSystemConfig_V2_CodeIntegrity = &MofClassDef{
     Name: "SystemConfig_V2_CodeIntegrity",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 29 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "CodeIntegrityInfo", InType: TDH_INTYPE_UINT32},
@@ -5964,12 +5964,12 @@ var SystemConfig_V2_CodeIntegrity = &MofClassDef{
 //   [ WmiDataId(15), read ] uint32 VolumeExt;
 //   [ WmiDataId(16), read ] uint32 Pad3;
 // };
-// SystemConfig_V2_LogDisk class definition
-var SystemConfig_V2_LogDisk = &MofClassDef{
+// mofSystemConfig_V2_LogDisk class definition
+var mofSystemConfig_V2_LogDisk = &MofClassDef{
     Name: "SystemConfig_V2_LogDisk",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 12 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "StartOffset", InType: TDH_INTYPE_UINT64},
@@ -5998,12 +5998,12 @@ var SystemConfig_V2_LogDisk = &MofClassDef{
 //   [ WmiDataId(3), read ] uint8 HyperVisorEnabled;
 //   [ WmiDataId(4), read ] uint8 Reserved;
 // };
-// SystemConfig_Virtualization class definition
-var SystemConfig_Virtualization = &MofClassDef{
+// mofSystemConfig_Virtualization class definition
+var mofSystemConfig_Virtualization = &MofClassDef{
     Name: "SystemConfig_Virtualization",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "VbsEnabled", InType: TDH_INTYPE_UINT8},
@@ -6024,12 +6024,12 @@ var SystemConfig_Virtualization = &MofClassDef{
 //     read
 //   ] string LocationInformation;
 // };
-// SystemConfig_V2_IDEChannel class definition
-var SystemConfig_V2_IDEChannel = &MofClassDef{
+// mofSystemConfig_V2_IDEChannel class definition
+var mofSystemConfig_V2_IDEChannel = &MofClassDef{
     Name: "SystemConfig_V2_IDEChannel",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 23 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "TargetId", InType: TDH_INTYPE_UINT32},
@@ -6048,12 +6048,12 @@ var SystemConfig_V2_IDEChannel = &MofClassDef{
 //   [ WmiDataId(5), read ] uint8 Reserved1;
 //   [ WmiDataId(6), read ] uint8 Reserved2;
 // };
-// SystemConfig_Boot class definition
-var SystemConfig_Boot = &MofClassDef{
+// mofSystemConfig_Boot class definition
+var mofSystemConfig_Boot = &MofClassDef{
     Name: "SystemConfig_Boot",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 37 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BootFlags", InType: TDH_INTYPE_UINT64},
@@ -6070,12 +6070,12 @@ var SystemConfig_Boot = &MofClassDef{
 //   [ WmiDataId(1), read ] uint32 MachineDPI;
 //   [ WmiDataId(2), read ] uint32 UserDPI;
 // };
-// SystemConfig_V2_DPI class definition
-var SystemConfig_V2_DPI = &MofClassDef{
+// mofSystemConfig_V2_DPI class definition
+var mofSystemConfig_V2_DPI = &MofClassDef{
     Name: "SystemConfig_V2_DPI",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 28 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MachineDPI", InType: TDH_INTYPE_UINT32},
@@ -6102,12 +6102,12 @@ var SystemConfig_V2_DPI = &MofClassDef{
 //     read
 //   ] string DnsServerAddresses;
 // };
-// SystemConfig_V2_NIC class definition
-var SystemConfig_V2_NIC = &MofClassDef{
+// mofSystemConfig_V2_NIC class definition
+var mofSystemConfig_V2_NIC = &MofClassDef{
     Name: "SystemConfig_V2_NIC",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 13 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "PhysicalAddr", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_HEXINT64},
@@ -6131,12 +6131,12 @@ var SystemConfig_V2_NIC = &MofClassDef{
 //   [ WmiDataId(7), format("s"), read, MAX(134) ] char16 DomainName;
 //   [ WmiDataId(8), pointer, read ] uint32 HyperThreadingFlag;
 // };
-// SystemConfig_V2_CPU class definition
-var SystemConfig_V2_CPU = &MofClassDef{
+// mofSystemConfig_V2_CPU class definition
+var mofSystemConfig_V2_CPU = &MofClassDef{
     Name: "SystemConfig_V2_CPU",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 10 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MHz", InType: TDH_INTYPE_UINT32},
@@ -6156,12 +6156,12 @@ var SystemConfig_V2_CPU = &MofClassDef{
 //   [ WmiDataId(2), read ] uint32 DeviceFamily;
 //   [ WmiDataId(3), read ] uint32 DeviceForm;
 // };
-// SystemConfig_V2_DeviceFamily class definition
-var SystemConfig_V2_DeviceFamily = &MofClassDef{
+// mofSystemConfig_V2_DeviceFamily class definition
+var mofSystemConfig_V2_DeviceFamily = &MofClassDef{
     Name: "SystemConfig_V2_DeviceFamily",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 33 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "UAPInfo", InType: TDH_INTYPE_UINT64},
@@ -6203,12 +6203,12 @@ var SystemConfig_V2_DeviceFamily = &MofClassDef{
 //     read
 //   ] string ManufacturerName;
 // };
-// SystemConfig_V2_OpticalMedia class definition
-var SystemConfig_V2_OpticalMedia = &MofClassDef{
+// mofSystemConfig_V2_OpticalMedia class definition
+var mofSystemConfig_V2_OpticalMedia = &MofClassDef{
     Name: "SystemConfig_V2_OpticalMedia",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 18 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT16},
@@ -6238,12 +6238,12 @@ var SystemConfig_V2_OpticalMedia = &MofClassDef{
 //   [ WmiDataId(2), format("x"), WmiSizeIs("ProcessorCount"),
 //     read ] uint32 ProcessorNumber;
 // };
-// SystemConfig_V2_ProcNumber class definition
-var SystemConfig_V2_ProcNumber = &MofClassDef{
+// mofSystemConfig_V2_ProcNumber class definition
+var mofSystemConfig_V2_ProcNumber = &MofClassDef{
     Name: "SystemConfig_V2_ProcNumber",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 27 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessorCount", InType: TDH_INTYPE_UINT32},
@@ -6265,12 +6265,12 @@ var SystemConfig_V2_ProcNumber = &MofClassDef{
 //   [ WmiDataId(10), format("s"), read, MAX(256) ] char16 DeviceId;
 //   [ WmiDataId(11), format("x"), read ] uint32 StateFlags;
 // };
-// SystemConfig_V2_Video class definition
-var SystemConfig_V2_Video = &MofClassDef{
+// mofSystemConfig_V2_Video class definition
+var mofSystemConfig_V2_Video = &MofClassDef{
     Name: "SystemConfig_V2_Video",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 14 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MemorySize", InType: TDH_INTYPE_UINT32},
@@ -6294,12 +6294,12 @@ var SystemConfig_V2_Video = &MofClassDef{
 //   [ WmiDataId(3), read ] uint32 MaxUserPort;
 //   [ WmiDataId(4), read ] uint32 TcpTimedWaitDelay;
 // };
-// SystemConfig_V2_Network class definition
-var SystemConfig_V2_Network = &MofClassDef{
+// mofSystemConfig_V2_Network class definition
+var mofSystemConfig_V2_Network = &MofClassDef{
     Name: "SystemConfig_V2_Network",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 17 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "TcbTablePartitions", InType: TDH_INTYPE_UINT32},
@@ -6354,12 +6354,12 @@ var SystemConfig_V2_Network = &MofClassDef{
 //     read
 //   ] string VolumePathNames;
 // };
-// SystemConfig_V2_Defrag class definition
-var SystemConfig_V2_Defrag = &MofClassDef{
+// mofSystemConfig_V2_Defrag class definition
+var mofSystemConfig_V2_Defrag = &MofClassDef{
     Name: "SystemConfig_V2_Defrag",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 31 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "AlignmentClusters", InType: TDH_INTYPE_UINT64},
@@ -6413,12 +6413,12 @@ var SystemConfig_V2_Defrag = &MofClassDef{
 //   [ WmiDataId(5), format("s"), read, MAX(16) ] char16 VendorIdentifier;
 //   [ WmiDataId(6), format("s"), read, MAX(128) ] char16 ProcessorIdentifier;
 // };
-// SystemConfig_V2_Processors class definition
-var SystemConfig_V2_Processors = &MofClassDef{
+// mofSystemConfig_V2_Processors class definition
+var mofSystemConfig_V2_Processors = &MofClassDef{
     Name: "SystemConfig_V2_Processors",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 35 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessorIndex", InType: TDH_INTYPE_UINT32},
@@ -6449,12 +6449,12 @@ var SystemConfig_V2_Processors = &MofClassDef{
 //     read
 //   ] string BiosVersion;
 // };
-// SystemConfig_V2_Platform class definition
-var SystemConfig_V2_Platform = &MofClassDef{
+// mofSystemConfig_V2_Platform class definition
+var mofSystemConfig_V2_Platform = &MofClassDef{
     Name: "SystemConfig_V2_Platform",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 25 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "SystemManufacturer", InType: TDH_INTYPE_UNICODESTRING, OutType: TDH_OUTTYPE_STRING},
@@ -6470,12 +6470,12 @@ var SystemConfig_V2_Platform = &MofClassDef{
 //   [ WmiDataId(2), format("x"), WmiSizeIs("GroupCount"), pointer,
 //     read ] uint32 Affinity;
 // };
-// SystemConfig_V2_ProcGroup class definition
-var SystemConfig_V2_ProcGroup = &MofClassDef{
+// mofSystemConfig_V2_ProcGroup class definition
+var mofSystemConfig_V2_ProcGroup = &MofClassDef{
     Name: "SystemConfig_V2_ProcGroup",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 26 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "GroupCount", InType: TDH_INTYPE_UINT32},
@@ -6501,12 +6501,12 @@ var SystemConfig_V2_ProcGroup = &MofClassDef{
 //     read
 //   ] string ProcessName;
 // };
-// SystemConfig_V2_Services class definition
-var SystemConfig_V2_Services = &MofClassDef{
+// mofSystemConfig_V2_Services class definition
+var mofSystemConfig_V2_Services = &MofClassDef{
     Name: "SystemConfig_V2_Services",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 15 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -6536,12 +6536,12 @@ var SystemConfig_V2_Services = &MofClassDef{
 //   [ WmiDataId(14), format("s"), read, MAX(3) ] char16 BootDriveLetter;
 //   [ WmiDataId(15), read, MAX(2) ] char16 Spare;
 // };
-// SystemConfig_V2_PhyDisk class definition
-var SystemConfig_V2_PhyDisk = &MofClassDef{
+// mofSystemConfig_V2_PhyDisk class definition
+var mofSystemConfig_V2_PhyDisk = &MofClassDef{
     Name: "SystemConfig_V2_PhyDisk",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DiskNumber", InType: TDH_INTYPE_UINT32},
@@ -6573,12 +6573,12 @@ var SystemConfig_V2_PhyDisk = &MofClassDef{
 //   [ WmiDataId(7), read ] uint8 Pad2;
 //   [ WmiDataId(8), read ] uint8 Pad3;
 // };
-// SystemConfig_V2_Power class definition
-var SystemConfig_V2_Power = &MofClassDef{
+// mofSystemConfig_V2_Power class definition
+var mofSystemConfig_V2_Power = &MofClassDef{
     Name: "SystemConfig_V2_Power",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 16 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "S1", InType: TDH_INTYPE_UINT8},
@@ -6603,12 +6603,12 @@ var SystemConfig_V2_Power = &MofClassDef{
 //     read
 //   ] string FlightIdList;
 // };
-// SystemConfig_V2_FlightIds class definition
-var SystemConfig_V2_FlightIds = &MofClassDef{
+// mofSystemConfig_V2_FlightIds class definition
+var mofSystemConfig_V2_FlightIds = &MofClassDef{
     Name: "SystemConfig_V2_FlightIds",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "UpdateId", InType: TDH_INTYPE_UNICODESTRING, OutType: TDH_OUTTYPE_STRING},
@@ -6679,12 +6679,12 @@ var SystemConfig_V2_FlightIds = &MofClassDef{
 //     read
 //   ] string HardwareVariant;
 // };
-// SystemConfig_V2_MobilePlatform class definition
-var SystemConfig_V2_MobilePlatform = &MofClassDef{
+// mofSystemConfig_V2_MobilePlatform class definition
+var mofSystemConfig_V2_MobilePlatform = &MofClassDef{
     Name: "SystemConfig_V2_MobilePlatform",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 32 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BootLoaderVersion", InType: TDH_INTYPE_UNICODESTRING, OutType: TDH_OUTTYPE_STRING},
@@ -6709,12 +6709,12 @@ var SystemConfig_V2_MobilePlatform = &MofClassDef{
 //     : SystemConfig_V2 {
 //   [ WmiDataId(1), extension("GUID"), read ] object MachineId;
 // };
-// SystemConfig_V2_TelemetryInfo class definition
-var SystemConfig_V2_TelemetryInfo = &MofClassDef{
+// mofSystemConfig_V2_TelemetryInfo class definition
+var mofSystemConfig_V2_TelemetryInfo = &MofClassDef{
     Name: "SystemConfig_V2_TelemetryInfo",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 30 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MachineId", InType: TDH_INTYPE_GUID, OutType: TDH_OUTTYPE_GUID},
@@ -6731,12 +6731,12 @@ var SystemConfig_V2_TelemetryInfo = &MofClassDef{
 //     read
 //   ] string DeviceDescription;
 // };
-// SystemConfig_V2_IRQ class definition
-var SystemConfig_V2_IRQ = &MofClassDef{
+// mofSystemConfig_V2_IRQ class definition
+var mofSystemConfig_V2_IRQ = &MofClassDef{
     Name: "SystemConfig_V2_IRQ",
     Base: "SystemConfig_V2",
-    GUID: SystemConfig_V2.GUID,
-    Version: SystemConfig_V2.Version,
+    GUID: mofSystemConfig_V2.GUID,
+    Version: mofSystemConfig_V2.Version,
     EventTypes: []uint8{ 21 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IRQAffinity", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_HEXINT64},
@@ -6748,8 +6748,8 @@ var SystemConfig_V2_IRQ = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(1)] class Thread_V1 : MSNT_SystemTrace{};
-// Thread_V1 class definition
-var Thread_V1 = &MofClassDef{
+// mofThread_V1 class definition
+var mofThread_V1 = &MofClassDef{
     Name: "Thread_V1",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -6760,12 +6760,12 @@ var Thread_V1 = &MofClassDef{
 //   [ WmiDataId(1), format("x"), read ] uint32 ProcessId;
 //   [ WmiDataId(2), format("x"), read ] uint32 TThreadId;
 // };
-// Thread_V1_TypeGroup2 class definition
-var Thread_V1_TypeGroup2 = &MofClassDef{
+// mofThread_V1_TypeGroup2 class definition
+var mofThread_V1_TypeGroup2 = &MofClassDef{
     Name: "Thread_V1_TypeGroup2",
     Base: "Thread_V1",
-    GUID: Thread_V1.GUID,
-    Version: Thread_V1.Version,
+    GUID: mofThread_V1.GUID,
+    Version: mofThread_V1.Version,
     EventTypes: []uint8{ 2 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -6785,12 +6785,12 @@ var Thread_V1_TypeGroup2 = &MofClassDef{
 //   [ WmiDataId(8), pointer, read ] uint32 Win32StartAddr;
 //   [ WmiDataId(9), read ] sint8 WaitMode;
 // };
-// Thread_V1_TypeGroup1 class definition
-var Thread_V1_TypeGroup1 = &MofClassDef{
+// mofThread_V1_TypeGroup1 class definition
+var mofThread_V1_TypeGroup1 = &MofClassDef{
     Name: "Thread_V1_TypeGroup1",
     Base: "Thread_V1",
-    GUID: Thread_V1.GUID,
-    Version: Thread_V1.Version,
+    GUID: mofThread_V1.GUID,
+    Version: mofThread_V1.Version,
     EventTypes: []uint8{ 1,  3,  4 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -6817,12 +6817,12 @@ var Thread_V1_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(9), read ] sint8 OldThreadState;
 //   [ WmiDataId(10), read ] sint8 OldThreadWaitIdealProcessor;
 // };
-// CSwitch_V1 class definition
-var CSwitch_V1 = &MofClassDef{
+// mofCSwitch_V1 class definition
+var mofCSwitch_V1 = &MofClassDef{
     Name: "CSwitch_V1",
     Base: "Thread_V1",
-    GUID: Thread_V1.GUID,
-    Version: Thread_V1.Version,
+    GUID: mofThread_V1.GUID,
+    Version: mofThread_V1.Version,
     EventTypes: []uint8{ 36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "NewThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -6843,12 +6843,12 @@ var CSwitch_V1 = &MofClassDef{
 //   [ WmiDataId(2), read ] uint64 StartTime;
 //   [ WmiDataId(3), pointer, read ] uint32 ThreadRoutine;
 // };
-// WorkerThread_V1 class definition
-var WorkerThread_V1 = &MofClassDef{
+// mofWorkerThread_V1 class definition
+var mofWorkerThread_V1 = &MofClassDef{
     Name: "WorkerThread_V1",
     Base: "Thread_V1",
-    GUID: Thread_V1.GUID,
-    Version: Thread_V1.Version,
+    GUID: mofThread_V1.GUID,
+    Version: mofThread_V1.Version,
     EventTypes: []uint8{ 57 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "TThreadId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -6859,8 +6859,8 @@ var WorkerThread_V1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{9a280ac0-c8e0-11d1-84e2-00c04fb998a2}"),
 //          EventVersion(0)] class TcpIp_V0 : MSNT_SystemTrace{};
-// TcpIp_V0 class definition
-var TcpIp_V0 = &MofClassDef{
+// mofTcpIp_V0 class definition
+var mofTcpIp_V0 = &MofClassDef{
     Name: "TcpIp_V0",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{9a280ac0-c8e0-11d1-84e2-00c04fb998a2}"),
@@ -6876,12 +6876,12 @@ var TcpIp_V0 = &MofClassDef{
 //   [ WmiDataId(5), read ] uint32 size;
 //   [ WmiDataId(6), read ] uint32 PID;
 // };
-// TcpIp_V0_TypeGroup1 class definition
-var TcpIp_V0_TypeGroup1 = &MofClassDef{
+// mofTcpIp_V0_TypeGroup1 class definition
+var mofTcpIp_V0_TypeGroup1 = &MofClassDef{
     Name: "TcpIp_V0_TypeGroup1",
     Base: "TcpIp_V0",
-    GUID: TcpIp_V0.GUID,
-    Version: TcpIp_V0.Version,
+    GUID: mofTcpIp_V0.GUID,
+    Version: mofTcpIp_V0.Version,
     EventTypes: []uint8{ 10,  11,  12,  13,  14, 
                                15 },
     Properties: []MofPropertyDef{
@@ -6896,8 +6896,8 @@ var TcpIp_V0_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(2)] class Process_V2 : MSNT_SystemTrace{};
-// Process_V2 class definition
-var Process_V2 = &MofClassDef{
+// mofProcess_V2 class definition
+var mofProcess_V2 = &MofClassDef{
     Name: "Process_V2",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -6908,12 +6908,12 @@ var Process_V2 = &MofClassDef{
 //     : Process_V2 {
 //   [ WmiDataId(1), pointer, read ] uint32 Object;
 // };
-// Process_V2_TypeGroup5 class definition
-var Process_V2_TypeGroup5 = &MofClassDef{
+// mofProcess_V2_TypeGroup5 class definition
+var mofProcess_V2_TypeGroup5 = &MofClassDef{
     Name: "Process_V2_TypeGroup5",
     Base: "Process_V2",
-    GUID: Process_V2.GUID,
-    Version: Process_V2.Version,
+    GUID: mofProcess_V2.GUID,
+    Version: mofProcess_V2.Version,
     EventTypes: []uint8{ 96,  97,  98,  99 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Object", InType: TDH_INTYPE_POINTER},
@@ -6928,12 +6928,12 @@ var Process_V2_TypeGroup5 = &MofClassDef{
 //   [ WmiDataId(3), format("x"), read ] uint32 ProcessId;
 //   [ WmiDataId(4), read ] uint32 Count;
 // };
-// Process_V2_TypeGroup4 class definition
-var Process_V2_TypeGroup4 = &MofClassDef{
+// mofProcess_V2_TypeGroup4 class definition
+var mofProcess_V2_TypeGroup4 = &MofClassDef{
     Name: "Process_V2_TypeGroup4",
     Base: "Process_V2",
-    GUID: Process_V2.GUID,
-    Version: Process_V2.Version,
+    GUID: mofProcess_V2.GUID,
+    Version: mofProcess_V2.Version,
     EventTypes: []uint8{ 48,  49,  50,  51,  52,  64,  65,  66,  67,  68,  80,  81, 
                                82,  83,  84 },
     Properties: []MofPropertyDef{
@@ -6962,12 +6962,12 @@ var Process_V2_TypeGroup4 = &MofClassDef{
 //   [ WmiDataId(14), extension("SizeT"), read ] object QuotaNonPagedPoolUsage;
 //   [ WmiDataId(15), extension("SizeT"), read ] object PrivatePageCount;
 // };
-// Process_V2_TypeGroup2 class definition
-var Process_V2_TypeGroup2 = &MofClassDef{
+// mofProcess_V2_TypeGroup2 class definition
+var mofProcess_V2_TypeGroup2 = &MofClassDef{
     Name: "Process_V2_TypeGroup2",
     Base: "Process_V2",
-    GUID: Process_V2.GUID,
-    Version: Process_V2.Version,
+    GUID: mofProcess_V2.GUID,
+    Version: mofProcess_V2.Version,
     EventTypes: []uint8{ 32,  33 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -7003,12 +7003,12 @@ var Process_V2_TypeGroup2 = &MofClassDef{
 //     read
 //   ] string CommandLine;
 // };
-// Process_V2_TypeGroup1 class definition
-var Process_V2_TypeGroup1 = &MofClassDef{
+// mofProcess_V2_TypeGroup1 class definition
+var mofProcess_V2_TypeGroup1 = &MofClassDef{
     Name: "Process_V2_TypeGroup1",
     Base: "Process_V2",
-    GUID: Process_V2.GUID,
-    Version: Process_V2.Version,
+    GUID: mofProcess_V2.GUID,
+    Version: mofProcess_V2.Version,
     EventTypes: []uint8{ 1,  2,  3,  4,  39 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "UniqueProcessKey", InType: TDH_INTYPE_POINTER},
@@ -7026,12 +7026,12 @@ var Process_V2_TypeGroup1 = &MofClassDef{
 //     : Process_V2 {
 //   [ WmiDataId(1), format("x"), read ] uint32 ProcessId;
 // };
-// Process_Terminate_TypeGroup1 class definition
-var Process_Terminate_TypeGroup1 = &MofClassDef{
+// mofProcess_Terminate_TypeGroup1 class definition
+var mofProcess_Terminate_TypeGroup1 = &MofClassDef{
     Name: "Process_Terminate_TypeGroup1",
     Base: "Process_V2",
-    GUID: Process_V2.GUID,
-    Version: Process_V2.Version,
+    GUID: mofProcess_V2.GUID,
+    Version: mofProcess_V2.Version,
     EventTypes: []uint8{ 11 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ProcessId", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -7042,12 +7042,12 @@ var Process_Terminate_TypeGroup1 = &MofClassDef{
 //   [ WmiDataId(1), pointer, read ] uint32 DirectoryTableBase;
 //   [ WmiDataId(2), format("x"), read ] uint32 ProcessId;
 // };
-// Process_V2_TypeGroup3 class definition
-var Process_V2_TypeGroup3 = &MofClassDef{
+// mofProcess_V2_TypeGroup3 class definition
+var mofProcess_V2_TypeGroup3 = &MofClassDef{
     Name: "Process_V2_TypeGroup3",
     Base: "Process_V2",
-    GUID: Process_V2.GUID,
-    Version: Process_V2.Version,
+    GUID: mofProcess_V2.GUID,
+    Version: mofProcess_V2.Version,
     EventTypes: []uint8{ 35 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "DirectoryTableBase", InType: TDH_INTYPE_POINTER},
@@ -7057,8 +7057,8 @@ var Process_V2_TypeGroup3 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(4)] class Process_V4 : MSNT_SystemTrace{};
-// Process_V4 class definition
-var Process_V4 = &MofClassDef{
+// mofProcess_V4 class definition
+var mofProcess_V4 = &MofClassDef{
     Name: "Process_V4",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -7089,12 +7089,12 @@ var Process_V4 = &MofClassDef{
 //     read
 //   ] string ApplicationId;
 // };
-// Process_V4_TypeGroup1 class definition
-var Process_V4_TypeGroup1 = &MofClassDef{
+// mofProcess_V4_TypeGroup1 class definition
+var mofProcess_V4_TypeGroup1 = &MofClassDef{
     Name: "Process_V4_TypeGroup1",
     Base: "Process_V4",
-    GUID: Process_V4.GUID,
-    Version: Process_V4.Version,
+    GUID: mofProcess_V4.GUID,
+    Version: mofProcess_V4.Version,
     EventTypes: []uint8{ 1,  2,  3,  4,  39 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "UniqueProcessKey", InType: TDH_INTYPE_POINTER},
@@ -7113,8 +7113,8 @@ var Process_V4_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{e43445e0-0903-48c3-b878-ff0fccebdd04}"),
 //          EventVersion(2)] class PowerEvents : MSNT_SystemTrace{};
-// PowerEvents class definition
-var PowerEvents = &MofClassDef{
+// mofPowerEvents class definition
+var mofPowerEvents = &MofClassDef{
     Name: "PowerEvents",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{e43445e0-0903-48c3-b878-ff0fccebdd04}"),
@@ -7127,12 +7127,12 @@ var PowerEvents = &MofClassDef{
 //   [ WmiDataId(4), read ] uint32 ReturnLatency;
 //   [ WmiDataId(5), read ] uint32 TotalLatency;
 // };
-// IdleExitLatency class definition
-var IdleExitLatency = &MofClassDef{
+// mofIdleExitLatency class definition
+var mofIdleExitLatency = &MofClassDef{
     Name: "IdleExitLatency",
     Base: "PowerEvents",
-    GUID: PowerEvents.GUID,
-    Version: PowerEvents.Version,
+    GUID: mofPowerEvents.GUID,
+    Version: mofPowerEvents.Version,
     EventTypes: []uint8{ 60 },
     Properties: []MofPropertyDef{
         {ID: 2, Name: "PlatformState", InType: TDH_INTYPE_UINT32},
@@ -7144,8 +7144,8 @@ var IdleExitLatency = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
 //          EventVersion(3)] class Process_V3 : MSNT_SystemTrace{};
-// Process_V3 class definition
-var Process_V3 = &MofClassDef{
+// mofProcess_V3 class definition
+var mofProcess_V3 = &MofClassDef{
     Name: "Process_V3",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}"),
@@ -7168,12 +7168,12 @@ var Process_V3 = &MofClassDef{
 //     read
 //   ] string CommandLine;
 // };
-// Process_V3_TypeGroup1 class definition
-var Process_V3_TypeGroup1 = &MofClassDef{
+// mofProcess_V3_TypeGroup1 class definition
+var mofProcess_V3_TypeGroup1 = &MofClassDef{
     Name: "Process_V3_TypeGroup1",
     Base: "Process_V3",
-    GUID: Process_V3.GUID,
-    Version: Process_V3.Version,
+    GUID: mofProcess_V3.GUID,
+    Version: mofProcess_V3.Version,
     EventTypes: []uint8{ 1,  2,  3,  4,  39 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "UniqueProcessKey", InType: TDH_INTYPE_POINTER},
@@ -7190,8 +7190,8 @@ var Process_V3_TypeGroup1 = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{45d8cccd-539f-4b72-a8b7-5c683142609a}"),
 //          EventVersion(2)] class ALPC : MSNT_SystemTrace{};
-// ALPC class definition
-var ALPC = &MofClassDef{
+// mofALPC class definition
+var mofALPC = &MofClassDef{
     Name: "ALPC",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{45d8cccd-539f-4b72-a8b7-5c683142609a}"),
@@ -7201,12 +7201,12 @@ var ALPC = &MofClassDef{
 // [dynamic:ToInstance, EventType(34)] class ALPC_Receive_Message : ALPC {
 //   [ WmiDataId(1), read ] uint32 MessageID;
 // };
-// ALPC_Receive_Message class definition
-var ALPC_Receive_Message = &MofClassDef{
+// mofALPC_Receive_Message class definition
+var mofALPC_Receive_Message = &MofClassDef{
     Name: "ALPC_Receive_Message",
     Base: "ALPC",
-    GUID: ALPC.GUID,
-    Version: ALPC.Version,
+    GUID: mofALPC.GUID,
+    Version: mofALPC.Version,
     EventTypes: []uint8{ 34 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MessageID", InType: TDH_INTYPE_UINT32},
@@ -7216,12 +7216,12 @@ var ALPC_Receive_Message = &MofClassDef{
 // [dynamic:ToInstance, EventType(35)] class ALPC_Wait_For_Reply : ALPC {
 //   [ WmiDataId(1), read ] uint32 MessageID;
 // };
-// ALPC_Wait_For_Reply class definition
-var ALPC_Wait_For_Reply = &MofClassDef{
+// mofALPC_Wait_For_Reply class definition
+var mofALPC_Wait_For_Reply = &MofClassDef{
     Name: "ALPC_Wait_For_Reply",
     Base: "ALPC",
-    GUID: ALPC.GUID,
-    Version: ALPC.Version,
+    GUID: mofALPC.GUID,
+    Version: mofALPC.Version,
     EventTypes: []uint8{ 35 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MessageID", InType: TDH_INTYPE_UINT32},
@@ -7231,12 +7231,12 @@ var ALPC_Wait_For_Reply = &MofClassDef{
 // [dynamic:ToInstance, EventType(33)] class ALPC_Send_Message : ALPC {
 //   [ WmiDataId(1), read ] uint32 MessageID;
 // };
-// ALPC_Send_Message class definition
-var ALPC_Send_Message = &MofClassDef{
+// mofALPC_Send_Message class definition
+var mofALPC_Send_Message = &MofClassDef{
     Name: "ALPC_Send_Message",
     Base: "ALPC",
-    GUID: ALPC.GUID,
-    Version: ALPC.Version,
+    GUID: mofALPC.GUID,
+    Version: mofALPC.Version,
     EventTypes: []uint8{ 33 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "MessageID", InType: TDH_INTYPE_UINT32},
@@ -7246,12 +7246,12 @@ var ALPC_Send_Message = &MofClassDef{
 // [dynamic:ToInstance, EventType(37)] class ALPC_Unwait : ALPC {
 //   [ WmiDataId(1), read ] uint32 Status;
 // };
-// ALPC_Unwait class definition
-var ALPC_Unwait = &MofClassDef{
+// mofALPC_Unwait class definition
+var mofALPC_Unwait = &MofClassDef{
     Name: "ALPC_Unwait",
     Base: "ALPC",
-    GUID: ALPC.GUID,
-    Version: ALPC.Version,
+    GUID: mofALPC.GUID,
+    Version: mofALPC.Version,
     EventTypes: []uint8{ 37 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "Status", InType: TDH_INTYPE_UINT32},
@@ -7265,12 +7265,12 @@ var ALPC_Unwait = &MofClassDef{
 //     read
 //   ] string PortName;
 // };
-// ALPC_Wait_For_New_Message class definition
-var ALPC_Wait_For_New_Message = &MofClassDef{
+// mofALPC_Wait_For_New_Message class definition
+var mofALPC_Wait_For_New_Message = &MofClassDef{
     Name: "ALPC_Wait_For_New_Message",
     Base: "ALPC",
-    GUID: ALPC.GUID,
-    Version: ALPC.Version,
+    GUID: mofALPC.GUID,
+    Version: mofALPC.Version,
     EventTypes: []uint8{ 36 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "IsServerPort", InType: TDH_INTYPE_UINT32},
@@ -7280,8 +7280,8 @@ var ALPC_Wait_For_New_Message = &MofClassDef{
 
 // [dynamic:ToInstance, Guid("{2cb15d1d-5fc1-11d2-abe1-00a0c911f518}"),
 //          EventVersion(3)] class Image : MSNT_SystemTrace{};
-// Image class definition
-var Image = &MofClassDef{
+// mofImage class definition
+var mofImage = &MofClassDef{
     Name: "Image",
     Base: "MSNT_SystemTrace",
     GUID: *MustParseGUID("{2cb15d1d-5fc1-11d2-abe1-00a0c911f518}"),
@@ -7307,12 +7307,12 @@ var Image = &MofClassDef{
 //     read
 //   ] string FileName;
 // };
-// Image_Load class definition
-var Image_Load = &MofClassDef{
+// mofImage_Load class definition
+var mofImage_Load = &MofClassDef{
     Name: "Image_Load",
     Base: "Image",
-    GUID: Image.GUID,
-    Version: Image.Version,
+    GUID: mofImage.GUID,
+    Version: mofImage.Version,
     EventTypes: []uint8{ 10,  2,  3,  4 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "ImageBase", InType: TDH_INTYPE_POINTER},
@@ -7342,12 +7342,12 @@ var Image_Load = &MofClassDef{
 //     read
 //   ] string FullDllName;
 // };
-// LoaderDllSearchResults class definition
-var LoaderDllSearchResults = &MofClassDef{
+// mofLoaderDllSearchResults class definition
+var mofLoaderDllSearchResults = &MofClassDef{
     Name: "LoaderDllSearchResults",
     Base: "Image",
-    GUID: Image.GUID,
-    Version: Image.Version,
+    GUID: mofImage.GUID,
+    Version: mofImage.Version,
     EventTypes: []uint8{ 212 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "LdrLoadFlags", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -7367,12 +7367,12 @@ var LoaderDllSearchResults = &MofClassDef{
 //     read
 //   ] string FilePath;
 // };
-// LoaderNewDllEvent class definition
-var LoaderNewDllEvent = &MofClassDef{
+// mofLoaderNewDllEvent class definition
+var mofLoaderNewDllEvent = &MofClassDef{
     Name: "LoaderNewDllEvent",
     Base: "Image",
-    GUID: Image.GUID,
-    Version: Image.Version,
+    GUID: mofImage.GUID,
+    Version: mofImage.Version,
     EventTypes: []uint8{ 176,  177 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "NewDllBaseAddress", InType: TDH_INTYPE_POINTER},
@@ -7395,12 +7395,12 @@ var LoaderNewDllEvent = &MofClassDef{
 //     read
 //   ] string String2;
 // };
-// LoaderCodedEventPath class definition
-var LoaderCodedEventPath = &MofClassDef{
+// mofLoaderCodedEventPath class definition
+var mofLoaderCodedEventPath = &MofClassDef{
     Name: "LoaderCodedEventPath",
     Base: "Image",
-    GUID: Image.GUID,
-    Version: Image.Version,
+    GUID: mofImage.GUID,
+    Version: mofImage.Version,
     EventTypes: []uint8{ 192,  193 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "BaseAddress", InType: TDH_INTYPE_UINT64, OutType: TDH_OUTTYPE_HEXINT64},
@@ -7422,12 +7422,12 @@ var LoaderCodedEventPath = &MofClassDef{
 //     read
 //   ] string String;
 // };
-// LoaderCodedEventStatus class definition
-var LoaderCodedEventStatus = &MofClassDef{
+// mofLoaderCodedEventStatus class definition
+var mofLoaderCodedEventStatus = &MofClassDef{
     Name: "LoaderCodedEventStatus",
     Base: "Image",
-    GUID: Image.GUID,
-    Version: Image.Version,
+    GUID: mofImage.GUID,
+    Version: mofImage.Version,
     EventTypes: []uint8{ 165,  166,  167,  168,  169,  170,  171,  172,  173,  174, 
                                208,  209,  210,  211 },
     Properties: []MofPropertyDef{
@@ -7457,12 +7457,12 @@ var LoaderCodedEventStatus = &MofClassDef{
 //     read
 //   ] string DllLoadDir;
 // };
-// LoaderPathSearchResults class definition
-var LoaderPathSearchResults = &MofClassDef{
+// mofLoaderPathSearchResults class definition
+var mofLoaderPathSearchResults = &MofClassDef{
     Name: "LoaderPathSearchResults",
     Base: "Image",
-    GUID: Image.GUID,
-    Version: Image.Version,
+    GUID: mofImage.GUID,
+    Version: mofImage.Version,
     EventTypes: []uint8{ 213 },
     Properties: []MofPropertyDef{
         {ID: 1, Name: "SearchInfo", InType: TDH_INTYPE_UINT32, OutType: TDH_OUTTYPE_HEXINT32},
@@ -7473,322 +7473,324 @@ var LoaderPathSearchResults = &MofClassDef{
     },
 }
 
-
 func init() {
-    mofClasses := GlobalMofRegistry
-    mofClasses.Register(FileIo_V2)
-    mofClasses.Register(FileIo_V2_MapFile)
-    mofClasses.Register(FileIo_V2_DirEnum)
-    mofClasses.Register(FileIo_V2_OpEnd)
-    mofClasses.Register(FileIo_V2_SimpleOp)
-    mofClasses.Register(FileIo_V2_ReadWrite)
-    mofClasses.Register(FileIo_V2_Info)
-    mofClasses.Register(FileIo_V2_Name)
-    mofClasses.Register(FileIo_V2_Create)
-    mofClasses.Register(PerfInfo_V0)
-    mofClasses.Register(Mark_V0)
-    mofClasses.Register(ObTrace)
-    mofClasses.Register(ObReferenceEvent)
-    mofClasses.Register(ObTypeEvent)
-    mofClasses.Register(ObHandleRundownEvent)
-    mofClasses.Register(ObObjectEvent)
-    mofClasses.Register(ObHandleDuplicateEvent)
-    mofClasses.Register(ObHandleEvent)
-    mofClasses.Register(PageFault_V2)
-    mofClasses.Register(PageFault_HeapRangeRundown_V3)
-    mofClasses.Register(PageFault_HardFault)
-    mofClasses.Register(PageFault_VirtualAllocRundown)
-    mofClasses.Register(PageFault_VirtualAlloc)
-    mofClasses.Register(PageFault_MemReset)
-    mofClasses.Register(PageFault_HeapRangeRundown_V2)
-    mofClasses.Register(PageFault_HeapRangeDestroy)
-    mofClasses.Register(PageFault_TypeGroup1)
-    mofClasses.Register(PageFault_ImageLoadBacked)
-    mofClasses.Register(PageFault_HeapRangeTypeGroup)
-    mofClasses.Register(PageFault_HeapRangeCreate)
-    mofClasses.Register(PageFault_VirtualRotate)
-    mofClasses.Register(PerfInfo_V2)
-    mofClasses.Register(FinalizeKTimer2)
-    mofClasses.Register(WDF_ISR)
-    mofClasses.Register(WDF_DPC)
-    mofClasses.Register(ISR_Unexpected)
-    mofClasses.Register(SampledProfile)
-    mofClasses.Register(CancelKTimer2)
-    mofClasses.Register(PmcCounterProfile)
-    mofClasses.Register(PmcCounterConfig_V2)
-    mofClasses.Register(SysCallExit)
-    mofClasses.Register(ISR_MSI)
-    mofClasses.Register(DisableKTimer2)
-    mofClasses.Register(SetOrExpireKTimer2)
-    mofClasses.Register(ISR)
-    mofClasses.Register(PmcCounterCorruption_V2)
-    mofClasses.Register(SysCallEnter)
-    mofClasses.Register(IoTimerEvent)
-    mofClasses.Register(WDF_WorkItem)
-    mofClasses.Register(DebuggerEnabled)
-    mofClasses.Register(SampledProfileInterval_V2)
-    mofClasses.Register(HV_Hypercall)
-    mofClasses.Register(DPC)
-    mofClasses.Register(SpinLockConfig_V2)
-    mofClasses.Register(UdpIp)
-    mofClasses.Register(UdpIp_Fail)
-    mofClasses.Register(UdpIp_TypeGroup2)
-    mofClasses.Register(UdpIp_TypeGroup1)
-    mofClasses.Register(Thread_V2)
-    mofClasses.Register(AutoBoostClearFloor)
-    mofClasses.Register(WorkerThread)
-    mofClasses.Register(KernelQueueEnqueue)
-    mofClasses.Register(CSwitch_V2)
-    mofClasses.Register(SubProcessTagChanged)
-    mofClasses.Register(SpinLock)
-    mofClasses.Register(ThreadMigration)
-    mofClasses.Register(KernelQueueDequeue)
-    mofClasses.Register(AutoBoostSetFloor)
-    mofClasses.Register(ThreadAffinity)
-    mofClasses.Register(WorkerThread_StartStop_V2)
-    mofClasses.Register(ThreadSetName)
-    mofClasses.Register(CompCS)
-    mofClasses.Register(AutoBoostEntryExhaustion)
-    mofClasses.Register(ReadyThread)
-    mofClasses.Register(AntiStarvationBoost)
-    mofClasses.Register(Thread_V2_TypeGroup1)
-    mofClasses.Register(UdpIp_V0)
-    mofClasses.Register(UdpIp_V0_TypeGroup1)
-    mofClasses.Register(StackWalk)
-    mofClasses.Register(StackWalk_TypeGroup1)
-    mofClasses.Register(StackWalk_Key)
-    mofClasses.Register(StackWalk_Event)
-    mofClasses.Register(DiskIo_V1)
-    mofClasses.Register(V1_DriverMajorFunctionReturn)
-    mofClasses.Register(V1_DriverCompleteRequest)
-    mofClasses.Register(V1_DriverCompleteRequestReturn)
-    mofClasses.Register(DiskIo_V1_TypeGroup1)
-    mofClasses.Register(V1_DriverMajorFunctionCall)
-    mofClasses.Register(UmsEvent)
-    mofClasses.Register(UmsContextSwitch)
-    mofClasses.Register(UmsDirectedSwitchEnd)
-    mofClasses.Register(UmsScheduledPark)
-    mofClasses.Register(UmsDisassociate)
-    mofClasses.Register(UmsDirectedSwitchStart)
-    mofClasses.Register(PerfInfo)
-    mofClasses.Register(SampledProfileInterval_V3)
-    mofClasses.Register(SpinLockConfig_V3)
-    mofClasses.Register(TcpIp_V1)
-    mofClasses.Register(TcpIp_V1_Fail)
-    mofClasses.Register(TcpIp_V1_TypeGroup3)
-    mofClasses.Register(TcpIp_V1_Send)
-    mofClasses.Register(TcpIp_V1_TypeGroup1)
-    mofClasses.Register(TcpIp_V1_TypeGroup2)
-    mofClasses.Register(TcpIp_V1_Receive)
-    mofClasses.Register(EventTraceEvent)
-    mofClasses.Register(Header_BuildInfo_TypeGroup)
-    mofClasses.Register(Header_DbgIdRSDS_TypeGroup)
-    mofClasses.Register(Header_PartitionInfoExtensionV2_TypeGroup)
-    mofClasses.Register(Header_Extension_TypeGroup)
-    mofClasses.Register(Header_LastDroppedTimes_TypeGroup)
-    mofClasses.Register(Header_PartitionInfoExtension_TypeGroup)
-    mofClasses.Register(EventTrace_Header)
-    mofClasses.Register(Header_ProviderBinaryPath_TypeGroup)
-    mofClasses.Register(RDComplete)
-    mofClasses.Register(MMCSSTrace)
-    mofClasses.Register(MMCSSEvent)
-    mofClasses.Register(MMCSSWakeup)
-    mofClasses.Register(MMCSS_TypeGroup)
-    mofClasses.Register(SystemConfig_V1)
-    mofClasses.Register(SystemConfig_V1_LogDisk)
-    mofClasses.Register(SystemConfig_V1_PhyDisk)
-    mofClasses.Register(SystemConfig_V1_IRQ)
-    mofClasses.Register(SystemConfig_V1_CPU)
-    mofClasses.Register(SystemConfig_V1_Power)
-    mofClasses.Register(SystemConfig_V1_Video)
-    mofClasses.Register(SystemConfig_V1_Services)
-    mofClasses.Register(SystemConfig_V1_PnP)
-    mofClasses.Register(SystemConfig_V1_NIC)
-    mofClasses.Register(Registry)
-    mofClasses.Register(Registry_HiveDirty)
-    mofClasses.Register(Registry_Config)
-    mofClasses.Register(Registry_HiveDestroy)
-    mofClasses.Register(Registry_Counters)
-    mofClasses.Register(Registry_TypeGroup1)
-    mofClasses.Register(Registry_HiveInitialize)
-    mofClasses.Register(Registry_TxR)
-    mofClasses.Register(Registry_HiveRundown)
-    mofClasses.Register(Registry_ChangeNotification)
-    mofClasses.Register(Registry_HiveLink)
-    mofClasses.Register(PageFault)
-    mofClasses.Register(PageFault_HeapRangeRundown_V4)
-    mofClasses.Register(EventTraceEvent_V0)
-    mofClasses.Register(RDComplete_V0)
-    mofClasses.Register(Header_Extension_V0_TypeGroup)
-    mofClasses.Register(EventTrace_V0_Header)
-    mofClasses.Register(Process_V1)
-    mofClasses.Register(Process_V1_TypeGroup1)
-    mofClasses.Register(PerfInfo_V1)
-    mofClasses.Register(SampledProfile_V1)
-    mofClasses.Register(DPC_V1)
-    mofClasses.Register(ISR_V1)
-    mofClasses.Register(Image_V2)
-    mofClasses.Register(KernelImageBase)
-    mofClasses.Register(LoaderBasicEvent)
-    mofClasses.Register(LoaderCodedEvent)
-    mofClasses.Register(LoaderBaseEvent)
-    mofClasses.Register(Image_Load_V2)
-    mofClasses.Register(HypercallPage)
-    mofClasses.Register(UdpIp_V1)
-    mofClasses.Register(UdpIp_V1_TypeGroup1)
-    mofClasses.Register(Registry_V0)
-    mofClasses.Register(Registry_V0_TypeGroup1)
-    mofClasses.Register(Process_V0)
-    mofClasses.Register(Process_V0_TypeGroup1)
-    mofClasses.Register(FileIo)
-    mofClasses.Register(FileIo_ReadWrite)
-    mofClasses.Register(FileIo_Create)
-    mofClasses.Register(FltIoInit)
-    mofClasses.Register(FltIoFailure)
-    mofClasses.Register(FileIo_Name)
-    mofClasses.Register(FileIo_Info)
-    mofClasses.Register(FileIo_SimpleOp)
-    mofClasses.Register(FltIoCompletion)
-    mofClasses.Register(FileIo_DirEnum)
-    mofClasses.Register(FileIo_PathOperation)
-    mofClasses.Register(FileIo_OpEnd)
-    mofClasses.Register(SplitIo)
-    mofClasses.Register(SplitIo_Info)
-    mofClasses.Register(TcpIp)
-    mofClasses.Register(TcpIp_TypeGroup3)
-    mofClasses.Register(TcpIp_SendIPV4)
-    mofClasses.Register(TcpIp_Fail)
-    mofClasses.Register(TcpIp_TypeGroup2)
-    mofClasses.Register(TcpIp_SendIPV6)
-    mofClasses.Register(TcpIp_TypeGroup1)
-    mofClasses.Register(TcpIp_TypeGroup4)
-    mofClasses.Register(Thread_V0)
-    mofClasses.Register(Thread_V0_TypeGroup1)
-    mofClasses.Register(Registry_V1)
-    mofClasses.Register(Registry_V1_TypeGroup1)
-    mofClasses.Register(Image_V0)
-    mofClasses.Register(Image_V0_Load)
-    mofClasses.Register(SystemConfig_V4)
-    mofClasses.Register(SystemConfig_V4_MobilePlatform)
-    mofClasses.Register(SystemConfig_V4_PnP)
-    mofClasses.Register(Image_V1)
-    mofClasses.Register(Image_V1_Load)
-    mofClasses.Register(Thread_V3)
-    mofClasses.Register(Thread_V3_TypeGroup1)
-    mofClasses.Register(ThreadPriority)
-    mofClasses.Register(CSwitch_V3)
-    mofClasses.Register(SystemConfig_V3)
-    mofClasses.Register(SystemConfig_V3_MobilePlatform)
-    mofClasses.Register(SystemConfig_V3_Services)
-    mofClasses.Register(SystemConfig_V3_IRQ)
-    mofClasses.Register(SystemConfig_V3_CPU)
-    mofClasses.Register(SystemConfig_V3_PnP)
-    mofClasses.Register(FileIo_V0)
-    mofClasses.Register(FileIo_V0_Name)
-    mofClasses.Register(Thread_V4)
-    mofClasses.Register(Thread_TypeGroup1)
-    mofClasses.Register(CSwitch_V4)
-    mofClasses.Register(DiskIo_V0)
-    mofClasses.Register(DiskIo_V0_TypeGroup1)
-    mofClasses.Register(SystemConfig)
-    mofClasses.Register(SystemConfig_PnP)
-    mofClasses.Register(Process)
-    mofClasses.Register(Process_Defunct_TypeGroup1)
-    mofClasses.Register(PoolTrace)
-    mofClasses.Register(PoolAllocFree)
-    mofClasses.Register(SessionPoolAllocFree)
-    mofClasses.Register(PoolSnapshot)
-    mofClasses.Register(DiskIo)
-    mofClasses.Register(DiskIo_TypeGroup2)
-    mofClasses.Register(DiskIo_TypeGroup1)
-    mofClasses.Register(DiskIo_TypeGroup3)
-    mofClasses.Register(Lost_Event)
-    mofClasses.Register(RT_LostEvent)
-    mofClasses.Register(FileIo_V1)
-    mofClasses.Register(FileIo_V1_Name)
-    mofClasses.Register(EventTraceEvent_V1)
-    mofClasses.Register(EventTrace_V1_Header)
-    mofClasses.Register(RDComplete_V1)
-    mofClasses.Register(Header_Extension_V1_TypeGroup)
-    mofClasses.Register(Debugger)
-    mofClasses.Register(DebugPrint_Event)
-    mofClasses.Register(DiskIo_V2)
-    mofClasses.Register(DiskIo_V2_TypeGroup1)
-    mofClasses.Register(DriverMajorFunctionReturn)
-    mofClasses.Register(DriverCompletionRoutine)
-    mofClasses.Register(DriverMajorFunctionCall)
-    mofClasses.Register(DriverCompleteRequestReturn)
-    mofClasses.Register(DiskIo_V2_TypeGroup3)
-    mofClasses.Register(DiskIo_V2_TypeGroup2)
-    mofClasses.Register(DriverCompleteRequest)
-    mofClasses.Register(SystemConfig_V0)
-    mofClasses.Register(SystemConfig_V0_IRQ)
-    mofClasses.Register(SystemConfig_V0_CPU)
-    mofClasses.Register(SystemConfig_V0_Services)
-    mofClasses.Register(SystemConfig_V0_LogDisk)
-    mofClasses.Register(SystemConfig_V0_Video)
-    mofClasses.Register(SystemConfig_V0_PhyDisk)
-    mofClasses.Register(SystemConfig_V0_Power)
-    mofClasses.Register(SystemConfig_V0_PnP)
-    mofClasses.Register(SystemConfig_V0_NIC)
-    mofClasses.Register(SystemConfig_V2)
-    mofClasses.Register(SystemConfig_V2_NumaNode)
-    mofClasses.Register(SystemConfig_V2_PnP)
-    mofClasses.Register(SystemConfig_V2_CodeIntegrity)
-    mofClasses.Register(SystemConfig_V2_LogDisk)
-    mofClasses.Register(SystemConfig_Virtualization)
-    mofClasses.Register(SystemConfig_V2_IDEChannel)
-    mofClasses.Register(SystemConfig_Boot)
-    mofClasses.Register(SystemConfig_V2_DPI)
-    mofClasses.Register(SystemConfig_V2_NIC)
-    mofClasses.Register(SystemConfig_V2_CPU)
-    mofClasses.Register(SystemConfig_V2_DeviceFamily)
-    mofClasses.Register(SystemConfig_V2_OpticalMedia)
-    mofClasses.Register(SystemConfig_V2_ProcNumber)
-    mofClasses.Register(SystemConfig_V2_Video)
-    mofClasses.Register(SystemConfig_V2_Network)
-    mofClasses.Register(SystemConfig_V2_Defrag)
-    mofClasses.Register(SystemConfig_V2_Processors)
-    mofClasses.Register(SystemConfig_V2_Platform)
-    mofClasses.Register(SystemConfig_V2_ProcGroup)
-    mofClasses.Register(SystemConfig_V2_Services)
-    mofClasses.Register(SystemConfig_V2_PhyDisk)
-    mofClasses.Register(SystemConfig_V2_Power)
-    mofClasses.Register(SystemConfig_V2_FlightIds)
-    mofClasses.Register(SystemConfig_V2_MobilePlatform)
-    mofClasses.Register(SystemConfig_V2_TelemetryInfo)
-    mofClasses.Register(SystemConfig_V2_IRQ)
-    mofClasses.Register(Thread_V1)
-    mofClasses.Register(Thread_V1_TypeGroup2)
-    mofClasses.Register(Thread_V1_TypeGroup1)
-    mofClasses.Register(CSwitch_V1)
-    mofClasses.Register(WorkerThread_V1)
-    mofClasses.Register(TcpIp_V0)
-    mofClasses.Register(TcpIp_V0_TypeGroup1)
-    mofClasses.Register(Process_V2)
-    mofClasses.Register(Process_V2_TypeGroup5)
-    mofClasses.Register(Process_V2_TypeGroup4)
-    mofClasses.Register(Process_V2_TypeGroup2)
-    mofClasses.Register(Process_V2_TypeGroup1)
-    mofClasses.Register(Process_Terminate_TypeGroup1)
-    mofClasses.Register(Process_V2_TypeGroup3)
-    mofClasses.Register(Process_V4)
-    mofClasses.Register(Process_V4_TypeGroup1)
-    mofClasses.Register(PowerEvents)
-    mofClasses.Register(IdleExitLatency)
-    mofClasses.Register(Process_V3)
-    mofClasses.Register(Process_V3_TypeGroup1)
-    mofClasses.Register(ALPC)
-    mofClasses.Register(ALPC_Receive_Message)
-    mofClasses.Register(ALPC_Wait_For_Reply)
-    mofClasses.Register(ALPC_Send_Message)
-    mofClasses.Register(ALPC_Unwait)
-    mofClasses.Register(ALPC_Wait_For_New_Message)
-    mofClasses.Register(Image)
-    mofClasses.Register(Image_Load)
-    mofClasses.Register(LoaderDllSearchResults)
-    mofClasses.Register(LoaderNewDllEvent)
-    mofClasses.Register(LoaderCodedEventPath)
-    mofClasses.Register(LoaderCodedEventStatus)
-    mofClasses.Register(LoaderPathSearchResults)
+    if !mofKernelClassLoaded {
+       	MofRegister(mofFileIo_V2)
+       	MofRegister(mofFileIo_V2_MapFile)
+       	MofRegister(mofFileIo_V2_DirEnum)
+       	MofRegister(mofFileIo_V2_OpEnd)
+       	MofRegister(mofFileIo_V2_SimpleOp)
+       	MofRegister(mofFileIo_V2_ReadWrite)
+       	MofRegister(mofFileIo_V2_Info)
+       	MofRegister(mofFileIo_V2_Name)
+       	MofRegister(mofFileIo_V2_Create)
+       	MofRegister(mofPerfInfo_V0)
+       	MofRegister(mofMark_V0)
+       	MofRegister(mofObTrace)
+       	MofRegister(mofObReferenceEvent)
+       	MofRegister(mofObTypeEvent)
+       	MofRegister(mofObHandleRundownEvent)
+       	MofRegister(mofObObjectEvent)
+       	MofRegister(mofObHandleDuplicateEvent)
+       	MofRegister(mofObHandleEvent)
+       	MofRegister(mofPageFault_V2)
+       	MofRegister(mofPageFault_HeapRangeRundown_V3)
+       	MofRegister(mofPageFault_HardFault)
+       	MofRegister(mofPageFault_VirtualAllocRundown)
+       	MofRegister(mofPageFault_VirtualAlloc)
+       	MofRegister(mofPageFault_MemReset)
+       	MofRegister(mofPageFault_HeapRangeRundown_V2)
+       	MofRegister(mofPageFault_HeapRangeDestroy)
+       	MofRegister(mofPageFault_TypeGroup1)
+       	MofRegister(mofPageFault_ImageLoadBacked)
+       	MofRegister(mofPageFault_HeapRangeTypeGroup)
+       	MofRegister(mofPageFault_HeapRangeCreate)
+       	MofRegister(mofPageFault_VirtualRotate)
+       	MofRegister(mofPerfInfo_V2)
+       	MofRegister(mofFinalizeKTimer2)
+       	MofRegister(mofWDF_ISR)
+       	MofRegister(mofWDF_DPC)
+       	MofRegister(mofISR_Unexpected)
+       	MofRegister(mofSampledProfile)
+       	MofRegister(mofCancelKTimer2)
+       	MofRegister(mofPmcCounterProfile)
+       	MofRegister(mofPmcCounterConfig_V2)
+       	MofRegister(mofSysCallExit)
+       	MofRegister(mofISR_MSI)
+       	MofRegister(mofDisableKTimer2)
+       	MofRegister(mofSetOrExpireKTimer2)
+       	MofRegister(mofISR)
+       	MofRegister(mofPmcCounterCorruption_V2)
+       	MofRegister(mofSysCallEnter)
+       	MofRegister(mofIoTimerEvent)
+       	MofRegister(mofWDF_WorkItem)
+       	MofRegister(mofDebuggerEnabled)
+       	MofRegister(mofSampledProfileInterval_V2)
+       	MofRegister(mofHV_Hypercall)
+       	MofRegister(mofDPC)
+       	MofRegister(mofSpinLockConfig_V2)
+       	MofRegister(mofUdpIp)
+       	MofRegister(mofUdpIp_Fail)
+       	MofRegister(mofUdpIp_TypeGroup2)
+       	MofRegister(mofUdpIp_TypeGroup1)
+       	MofRegister(mofThread_V2)
+       	MofRegister(mofAutoBoostClearFloor)
+       	MofRegister(mofWorkerThread)
+       	MofRegister(mofKernelQueueEnqueue)
+       	MofRegister(mofCSwitch_V2)
+       	MofRegister(mofSubProcessTagChanged)
+       	MofRegister(mofSpinLock)
+       	MofRegister(mofThreadMigration)
+       	MofRegister(mofKernelQueueDequeue)
+       	MofRegister(mofAutoBoostSetFloor)
+       	MofRegister(mofThreadAffinity)
+       	MofRegister(mofWorkerThread_StartStop_V2)
+       	MofRegister(mofThreadSetName)
+       	MofRegister(mofCompCS)
+       	MofRegister(mofAutoBoostEntryExhaustion)
+       	MofRegister(mofReadyThread)
+       	MofRegister(mofAntiStarvationBoost)
+       	MofRegister(mofThread_V2_TypeGroup1)
+       	MofRegister(mofUdpIp_V0)
+       	MofRegister(mofUdpIp_V0_TypeGroup1)
+       	MofRegister(mofStackWalk)
+       	MofRegister(mofStackWalk_TypeGroup1)
+       	MofRegister(mofStackWalk_Key)
+       	MofRegister(mofStackWalk_Event)
+       	MofRegister(mofDiskIo_V1)
+       	MofRegister(mofV1_DriverMajorFunctionReturn)
+       	MofRegister(mofV1_DriverCompleteRequest)
+       	MofRegister(mofV1_DriverCompleteRequestReturn)
+       	MofRegister(mofDiskIo_V1_TypeGroup1)
+       	MofRegister(mofV1_DriverMajorFunctionCall)
+       	MofRegister(mofUmsEvent)
+       	MofRegister(mofUmsContextSwitch)
+       	MofRegister(mofUmsDirectedSwitchEnd)
+       	MofRegister(mofUmsScheduledPark)
+       	MofRegister(mofUmsDisassociate)
+       	MofRegister(mofUmsDirectedSwitchStart)
+       	MofRegister(mofPerfInfo)
+       	MofRegister(mofSampledProfileInterval_V3)
+       	MofRegister(mofSpinLockConfig_V3)
+       	MofRegister(mofTcpIp_V1)
+       	MofRegister(mofTcpIp_V1_Fail)
+       	MofRegister(mofTcpIp_V1_TypeGroup3)
+       	MofRegister(mofTcpIp_V1_Send)
+       	MofRegister(mofTcpIp_V1_TypeGroup1)
+       	MofRegister(mofTcpIp_V1_TypeGroup2)
+       	MofRegister(mofTcpIp_V1_Receive)
+       	MofRegister(mofEventTraceEvent)
+       	MofRegister(mofHeader_BuildInfo_TypeGroup)
+       	MofRegister(mofHeader_DbgIdRSDS_TypeGroup)
+       	MofRegister(mofHeader_PartitionInfoExtensionV2_TypeGroup)
+       	MofRegister(mofHeader_Extension_TypeGroup)
+       	MofRegister(mofHeader_LastDroppedTimes_TypeGroup)
+       	MofRegister(mofHeader_PartitionInfoExtension_TypeGroup)
+       	MofRegister(mofEventTrace_Header)
+       	MofRegister(mofHeader_ProviderBinaryPath_TypeGroup)
+       	MofRegister(mofRDComplete)
+       	MofRegister(mofMMCSSTrace)
+       	MofRegister(mofMMCSSEvent)
+       	MofRegister(mofMMCSSWakeup)
+       	MofRegister(mofMMCSS_TypeGroup)
+       	MofRegister(mofSystemConfig_V1)
+       	MofRegister(mofSystemConfig_V1_LogDisk)
+       	MofRegister(mofSystemConfig_V1_PhyDisk)
+       	MofRegister(mofSystemConfig_V1_IRQ)
+       	MofRegister(mofSystemConfig_V1_CPU)
+       	MofRegister(mofSystemConfig_V1_Power)
+       	MofRegister(mofSystemConfig_V1_Video)
+       	MofRegister(mofSystemConfig_V1_Services)
+       	MofRegister(mofSystemConfig_V1_PnP)
+       	MofRegister(mofSystemConfig_V1_NIC)
+       	MofRegister(mofRegistry)
+       	MofRegister(mofRegistry_HiveDirty)
+       	MofRegister(mofRegistry_Config)
+       	MofRegister(mofRegistry_HiveDestroy)
+       	MofRegister(mofRegistry_Counters)
+       	MofRegister(mofRegistry_TypeGroup1)
+       	MofRegister(mofRegistry_HiveInitialize)
+       	MofRegister(mofRegistry_TxR)
+       	MofRegister(mofRegistry_HiveRundown)
+       	MofRegister(mofRegistry_ChangeNotification)
+       	MofRegister(mofRegistry_HiveLink)
+       	MofRegister(mofPageFault)
+       	MofRegister(mofPageFault_HeapRangeRundown_V4)
+       	MofRegister(mofEventTraceEvent_V0)
+       	MofRegister(mofRDComplete_V0)
+       	MofRegister(mofHeader_Extension_V0_TypeGroup)
+       	MofRegister(mofEventTrace_V0_Header)
+       	MofRegister(mofProcess_V1)
+       	MofRegister(mofProcess_V1_TypeGroup1)
+       	MofRegister(mofPerfInfo_V1)
+       	MofRegister(mofSampledProfile_V1)
+       	MofRegister(mofDPC_V1)
+       	MofRegister(mofISR_V1)
+       	MofRegister(mofImage_V2)
+       	MofRegister(mofKernelImageBase)
+       	MofRegister(mofLoaderBasicEvent)
+       	MofRegister(mofLoaderCodedEvent)
+       	MofRegister(mofLoaderBaseEvent)
+       	MofRegister(mofImage_Load_V2)
+       	MofRegister(mofHypercallPage)
+       	MofRegister(mofUdpIp_V1)
+       	MofRegister(mofUdpIp_V1_TypeGroup1)
+       	MofRegister(mofRegistry_V0)
+       	MofRegister(mofRegistry_V0_TypeGroup1)
+       	MofRegister(mofProcess_V0)
+       	MofRegister(mofProcess_V0_TypeGroup1)
+       	MofRegister(mofFileIo)
+       	MofRegister(mofFileIo_ReadWrite)
+       	MofRegister(mofFileIo_Create)
+       	MofRegister(mofFltIoInit)
+       	MofRegister(mofFltIoFailure)
+       	MofRegister(mofFileIo_Name)
+       	MofRegister(mofFileIo_Info)
+       	MofRegister(mofFileIo_SimpleOp)
+       	MofRegister(mofFltIoCompletion)
+       	MofRegister(mofFileIo_DirEnum)
+       	MofRegister(mofFileIo_PathOperation)
+       	MofRegister(mofFileIo_OpEnd)
+       	MofRegister(mofSplitIo)
+       	MofRegister(mofSplitIo_Info)
+       	MofRegister(mofTcpIp)
+       	MofRegister(mofTcpIp_TypeGroup3)
+       	MofRegister(mofTcpIp_SendIPV4)
+       	MofRegister(mofTcpIp_Fail)
+       	MofRegister(mofTcpIp_TypeGroup2)
+       	MofRegister(mofTcpIp_SendIPV6)
+       	MofRegister(mofTcpIp_TypeGroup1)
+       	MofRegister(mofTcpIp_TypeGroup4)
+       	MofRegister(mofThread_V0)
+       	MofRegister(mofThread_V0_TypeGroup1)
+       	MofRegister(mofRegistry_V1)
+       	MofRegister(mofRegistry_V1_TypeGroup1)
+       	MofRegister(mofImage_V0)
+       	MofRegister(mofImage_V0_Load)
+       	MofRegister(mofSystemConfig_V4)
+       	MofRegister(mofSystemConfig_V4_MobilePlatform)
+       	MofRegister(mofSystemConfig_V4_PnP)
+       	MofRegister(mofImage_V1)
+       	MofRegister(mofImage_V1_Load)
+       	MofRegister(mofThread_V3)
+       	MofRegister(mofThread_V3_TypeGroup1)
+       	MofRegister(mofThreadPriority)
+       	MofRegister(mofCSwitch_V3)
+       	MofRegister(mofSystemConfig_V3)
+       	MofRegister(mofSystemConfig_V3_MobilePlatform)
+       	MofRegister(mofSystemConfig_V3_Services)
+       	MofRegister(mofSystemConfig_V3_IRQ)
+       	MofRegister(mofSystemConfig_V3_CPU)
+       	MofRegister(mofSystemConfig_V3_PnP)
+       	MofRegister(mofFileIo_V0)
+       	MofRegister(mofFileIo_V0_Name)
+       	MofRegister(mofThread_V4)
+       	MofRegister(mofThread_TypeGroup1)
+       	MofRegister(mofCSwitch_V4)
+       	MofRegister(mofDiskIo_V0)
+       	MofRegister(mofDiskIo_V0_TypeGroup1)
+       	MofRegister(mofSystemConfig)
+       	MofRegister(mofSystemConfig_PnP)
+       	MofRegister(mofProcess)
+       	MofRegister(mofProcess_Defunct_TypeGroup1)
+       	MofRegister(mofPoolTrace)
+       	MofRegister(mofPoolAllocFree)
+       	MofRegister(mofSessionPoolAllocFree)
+       	MofRegister(mofPoolSnapshot)
+       	MofRegister(mofDiskIo)
+       	MofRegister(mofDiskIo_TypeGroup2)
+       	MofRegister(mofDiskIo_TypeGroup1)
+       	MofRegister(mofDiskIo_TypeGroup3)
+       	MofRegister(mofLost_Event)
+       	MofRegister(mofRT_LostEvent)
+       	MofRegister(mofFileIo_V1)
+       	MofRegister(mofFileIo_V1_Name)
+       	MofRegister(mofEventTraceEvent_V1)
+       	MofRegister(mofEventTrace_V1_Header)
+       	MofRegister(mofRDComplete_V1)
+       	MofRegister(mofHeader_Extension_V1_TypeGroup)
+       	MofRegister(mofDebugger)
+       	MofRegister(mofDebugPrint_Event)
+       	MofRegister(mofDiskIo_V2)
+       	MofRegister(mofDiskIo_V2_TypeGroup1)
+       	MofRegister(mofDriverMajorFunctionReturn)
+       	MofRegister(mofDriverCompletionRoutine)
+       	MofRegister(mofDriverMajorFunctionCall)
+       	MofRegister(mofDriverCompleteRequestReturn)
+       	MofRegister(mofDiskIo_V2_TypeGroup3)
+       	MofRegister(mofDiskIo_V2_TypeGroup2)
+       	MofRegister(mofDriverCompleteRequest)
+       	MofRegister(mofSystemConfig_V0)
+       	MofRegister(mofSystemConfig_V0_IRQ)
+       	MofRegister(mofSystemConfig_V0_CPU)
+       	MofRegister(mofSystemConfig_V0_Services)
+       	MofRegister(mofSystemConfig_V0_LogDisk)
+       	MofRegister(mofSystemConfig_V0_Video)
+       	MofRegister(mofSystemConfig_V0_PhyDisk)
+       	MofRegister(mofSystemConfig_V0_Power)
+       	MofRegister(mofSystemConfig_V0_PnP)
+       	MofRegister(mofSystemConfig_V0_NIC)
+       	MofRegister(mofSystemConfig_V2)
+       	MofRegister(mofSystemConfig_V2_NumaNode)
+       	MofRegister(mofSystemConfig_V2_PnP)
+       	MofRegister(mofSystemConfig_V2_CodeIntegrity)
+       	MofRegister(mofSystemConfig_V2_LogDisk)
+       	MofRegister(mofSystemConfig_Virtualization)
+       	MofRegister(mofSystemConfig_V2_IDEChannel)
+       	MofRegister(mofSystemConfig_Boot)
+       	MofRegister(mofSystemConfig_V2_DPI)
+       	MofRegister(mofSystemConfig_V2_NIC)
+       	MofRegister(mofSystemConfig_V2_CPU)
+       	MofRegister(mofSystemConfig_V2_DeviceFamily)
+       	MofRegister(mofSystemConfig_V2_OpticalMedia)
+       	MofRegister(mofSystemConfig_V2_ProcNumber)
+       	MofRegister(mofSystemConfig_V2_Video)
+       	MofRegister(mofSystemConfig_V2_Network)
+       	MofRegister(mofSystemConfig_V2_Defrag)
+       	MofRegister(mofSystemConfig_V2_Processors)
+       	MofRegister(mofSystemConfig_V2_Platform)
+       	MofRegister(mofSystemConfig_V2_ProcGroup)
+       	MofRegister(mofSystemConfig_V2_Services)
+       	MofRegister(mofSystemConfig_V2_PhyDisk)
+       	MofRegister(mofSystemConfig_V2_Power)
+       	MofRegister(mofSystemConfig_V2_FlightIds)
+       	MofRegister(mofSystemConfig_V2_MobilePlatform)
+       	MofRegister(mofSystemConfig_V2_TelemetryInfo)
+       	MofRegister(mofSystemConfig_V2_IRQ)
+       	MofRegister(mofThread_V1)
+       	MofRegister(mofThread_V1_TypeGroup2)
+       	MofRegister(mofThread_V1_TypeGroup1)
+       	MofRegister(mofCSwitch_V1)
+       	MofRegister(mofWorkerThread_V1)
+       	MofRegister(mofTcpIp_V0)
+       	MofRegister(mofTcpIp_V0_TypeGroup1)
+       	MofRegister(mofProcess_V2)
+       	MofRegister(mofProcess_V2_TypeGroup5)
+       	MofRegister(mofProcess_V2_TypeGroup4)
+       	MofRegister(mofProcess_V2_TypeGroup2)
+       	MofRegister(mofProcess_V2_TypeGroup1)
+       	MofRegister(mofProcess_Terminate_TypeGroup1)
+       	MofRegister(mofProcess_V2_TypeGroup3)
+       	MofRegister(mofProcess_V4)
+       	MofRegister(mofProcess_V4_TypeGroup1)
+       	MofRegister(mofPowerEvents)
+       	MofRegister(mofIdleExitLatency)
+       	MofRegister(mofProcess_V3)
+       	MofRegister(mofProcess_V3_TypeGroup1)
+       	MofRegister(mofALPC)
+       	MofRegister(mofALPC_Receive_Message)
+       	MofRegister(mofALPC_Wait_For_Reply)
+       	MofRegister(mofALPC_Send_Message)
+       	MofRegister(mofALPC_Unwait)
+       	MofRegister(mofALPC_Wait_For_New_Message)
+       	MofRegister(mofImage)
+       	MofRegister(mofImage_Load)
+       	MofRegister(mofLoaderDllSearchResults)
+       	MofRegister(mofLoaderNewDllEvent)
+       	MofRegister(mofLoaderCodedEventPath)
+       	MofRegister(mofLoaderCodedEventStatus)
+       	MofRegister(mofLoaderPathSearchResults)
+
+	   	mofKernelClassLoaded = true
+	}
 }

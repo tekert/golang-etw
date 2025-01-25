@@ -1049,8 +1049,8 @@ func (e *EventRecord) RelatedActivityID() GUID {
 }
 
 func (e *EventRecord) IsXML() bool {
-    // If not classic/MOF and has provider, it's manifest-based
-    return !e.IsMof() && !e.EventHeader.ProviderId.IsZero() // TODO(tekert): test this
+	// If not classic/MOF and has provider, it's manifest-based
+	return !e.IsMof() && !e.EventHeader.ProviderId.IsZero() // TODO(tekert): test this
 }
 
 // Classic event

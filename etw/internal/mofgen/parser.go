@@ -119,20 +119,20 @@ package etw
 {{- range $line := splitAndComment .MofDefinition}}
 {{$line}}
 {{- end}}
-// {{.Name}} class definition
-var {{.Name}} = &MofClassDef{
+// mof{{.Name}} class definition
+var mof{{.Name}} = &MofClassDef{
     Name: "{{.Name}}",
     {{- if .Base}}
     Base: "{{.Base}}",{{end}}
     {{- if not .InheritsGUID}}
     GUID: *MustParseGUID("{{.GUID}}"),
     {{- else}}
-    GUID: {{.Base}}.GUID,
+    GUID: mof{{.Base}}.GUID,
     {{- end}}
     {{- if not .InheritsVersion}}
     Version: {{.Version}},
     {{- else}}
-    Version: {{.Base}}.Version,
+    Version: mof{{.Base}}.Version,
     {{- end}}
     {{- if .EventTypes}}
     EventTypes: []uint8{ {{.EventTypes}} },{{end}}
@@ -144,12 +144,14 @@ var {{.Name}} = &MofClassDef{
     },{{end}}
 }
 {{end}}
-
 func init() {
-    mofClasses := GlobalMofRegistry
-    {{- range .Classes}}
-    mofClasses.Register({{.Name}})
-    {{- end}}
+    if !mofKernelClassLoaded {
+		{{- range .Classes}}
+       	MofRegister(mof{{.Name}})
+       	{{- end}}
+
+	   	mofKernelClassLoaded = true
+	}
 }`
 
 var funcMap = template.FuncMap{
@@ -160,7 +162,14 @@ var funcMap = template.FuncMap{
 		}
 		return lines
 	},
+	"privateVar": func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		return strings.ToLower(s[:1]) + s[1:]
+	},
 }
+
 
 // generateCode executes the code template with parsed MOF data to generate Go source.
 // Uses p.outputClasses (ordered slice) rather than p.classMap to maintain consistent

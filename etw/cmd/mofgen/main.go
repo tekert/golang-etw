@@ -33,12 +33,12 @@ func findProjectRoot() (string, error) {
 
 func main() {
 
-    projectRoot, err := findProjectRoot()
-    if err != nil {
-        log.Fatalf("Failed to find project root: %v", err)
-    }
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		log.Fatalf("Failed to find project root: %v", err)
+	}
 	mofPath := filepath.Join(projectRoot, "etw", "cmd", "mofgen", "WindowsKernelTrace.mof")
-    outPath := filepath.Join(projectRoot, "etw", "beta_etw_mof_defs_generated3.go")
+	outPath := filepath.Join(projectRoot, "etw", "mof_kerneldefs_generated.go")
 
 	// // Get directory containing main.go
 	// projectRoot, err := os.Getwd()
