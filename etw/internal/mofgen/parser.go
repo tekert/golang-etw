@@ -2,6 +2,7 @@ package mofgen
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 )
@@ -79,32 +80,6 @@ func (p *Parser) parseVersion(content string) {
 }
 
 // codeTemplate defines the Go code structure generated for each MOF class.
-// The template generates ETW class definitions in the format:
-//
-//	var {{.Name}} = &MofClassDef{
-//	    Name: "{{.Name}}",                    // Class name (e.g. "Process_V2")
-//	    Base: "{{.Base}}",                    // Base class (e.g. "MSNT_SystemTrace")
-//	    GUID: {{if .InheritsGUID}}           // Class GUID handling:
-//	        {{.Base}}.GUID,                   // - Inherit from base class
-//	    {{else}}
-//	        *MustParseGUID("{{.GUID}}"),     // - Or use explicit GUID
-//	    {{end}}
-//	    Version: {{if .InheritsVersion}}      // Version handling:
-//	        {{.Base}}.Version,                // - Inherit from base class
-//	    {{else}}
-//	        {{.Version}},                     // - Or use explicit version
-//	    {{end}}
-//	    EventTypes: []uint8{ {{.EventTypes}} }, // Event type IDs
-//	    Properties: []MofPropertyDef{         // Property definitions:
-//	        {ID: {{.ID}},                     // - Property ID
-//	         Name: "{{.Name}}",               // - Property name
-//	         InType: {{.InType}},             // - Input type (TDH_INTYPE_*)
-//	         OutType: {{.OutType}},           // - Output type (TDH_OUTTYPE_*)
-//	         IsArray: {{.IsArray}},           // - Array flag
-//	         ArraySize: {{.ArraySize}},       // - Fixed array size
-//	         SizeFromID: {{.SizeFromID}}},    // - Dynamic array size from property
-//	    },
-//	}
 const codeTemplate = `//go:build windows
 // +build windows
 
@@ -121,36 +96,49 @@ package etw
 {{- end}}
 // mof{{.Name}} class definition
 var mof{{.Name}} = &MofClassDef{
-    Name: "{{.Name}}",
-    {{- if .Base}}
-    Base: "{{.Base}}",{{end}}
-    {{- if not .InheritsGUID}}
-    GUID: *MustParseGUID("{{.GUID}}"),
-    {{- else}}
-    GUID: mof{{.Base}}.GUID,
-    {{- end}}
-    {{- if not .InheritsVersion}}
-    Version: {{.Version}},
-    {{- else}}
-    Version: mof{{.Base}}.Version,
-    {{- end}}
-    {{- if .EventTypes}}
-    EventTypes: []uint8{ {{.EventTypes}} },{{end}}
-    {{- if .Properties}}
-    Properties: []MofPropertyDef{
-        {{- range .Properties}}
-        {ID: {{.ID}}, Name: "{{.Name}}", InType: {{.InType}}{{if .OutType}}, OutType: {{.OutType}}{{end}}{{if .IsArray}}, IsArray: {{.IsArray}}{{end}}{{if .ArraySize}}, ArraySize: {{.ArraySize}}{{end}}{{if .SizeFromID}}, SizeFromID: {{.SizeFromID}}{{end}}},
-        {{- end}}
-    },{{end}}
+	Name: "{{.Name}}",
+	{{- if .Base}}
+	Base: "{{.Base}}",{{end}}
+	{{- if not .InheritsGUID}}
+	GUID: *MustParseGUID("{{.GUID}}"),
+	{{- else}}
+	GUID: mof{{.Base}}.GUID,
+	{{- end}}
+	{{- if not .InheritsVersion}}
+	Version: {{.Version}},
+	{{- else}}
+	Version: mof{{.Base}}.Version,
+	{{- end}}
+	{{- if .EventTypes}}
+	EventTypes: []uint8{ {{.EventTypes}} },{{end}}
+	{{- if .Properties}}
+	Properties: []MofPropertyDef{
+		{{- range .Properties}}
+		{ID: {{.ID}}, Name: "{{.Name}}", InType: {{.InType}}
+			{{- if .OutType}}, OutType: {{.OutType}}{{- end -}}
+			{{- if .IsArray}}, IsArray: {{.IsArray}}{{- end -}}
+			{{- if .ArraySize}}, ArraySize: {{.ArraySize}}{{- end -}}
+			{{- if .SizeFromID}}, SizeFromID: {{.SizeFromID}}{{- end -}}
+		},
+		{{- end}}
+	},{{end}}
 }
 {{end}}
-func init() {
-    if !mofKernelClassLoaded {
-		{{- range .Classes}}
-       	MofRegister(mof{{.Name}})
-       	{{- end}}
 
-	   	mofKernelClassLoaded = true
+// MofClassMapping maps provider GUIDs to class names and base event IDs
+var MofClassMapping2 = map[uint32]MofKernelNames{
+	{{- range $i, $class := .ClassMapping}}
+	guidToUint("{{$class.GUID}}"): {Name: "{{$class.Name}}", BaseId: calcBaseId({{$i}})},
+	{{- end}}
+}
+
+func init() {
+	if !mofKernelClassLoaded {
+		{{- range .Classes}}
+		MofRegister(mof{{.Name}})
+		{{- end}}
+
+		mofKernelClassLoaded = true
 	}
 }`
 
@@ -170,26 +158,52 @@ var funcMap = template.FuncMap{
 	},
 }
 
-
 // generateCode executes the code template with parsed MOF data to generate Go source.
 // Uses p.outputClasses (ordered slice) rather than p.classMap to maintain consistent
 // output ordering. Template data includes:
 //   - Classes: Ordered list of parsed MOF classes with their properties
 //   - Version: MOF version number
 func (p *Parser) generateCode() (string, error) {
-
 	// Generate Go code from template
 	tmpl := template.Must(template.New("code").Funcs(funcMap).Parse(codeTemplate))
 
 	// Execute template with parsed data
 	var buf strings.Builder
 	err := tmpl.Execute(&buf, map[string]interface{}{
-		"Classes": p.outputClasses, // Use ordered slice instead of map
-		"Version": p.version,
+		"Classes":      p.outputClasses, // Use ordered slice instead of map
+		"Version":      p.version,
+//		"ClassMapping": p.generateClassMapping(),
 	})
 	if err != nil {
 		return "", err
 	}
 
 	return buf.String(), nil
+}
+
+// NOT USED
+func (p *Parser) generateClassMapping() []*mofParsedClass {
+	// Use a map to store GUID -> Name mapping
+	bclasses := make([]*mofParsedClass, 0)
+
+	// First pass: collect all GUIDs and find base names
+	for _, class := range p.outputClasses {
+		if class.GUID == "" {
+			continue
+		}
+
+		// Skip if name contains underscore or if it inherits GUID
+		if strings.Contains(class.Name, "_") || class.InheritsGUID {
+			continue
+		}
+
+		bclasses = append(bclasses, class)
+	}
+
+	// Sort alphabetically by name
+	sort.Slice(bclasses, func(i, j int) bool {
+		return bclasses[i].Name < bclasses[j].Name
+	})
+
+	return bclasses
 }

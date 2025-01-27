@@ -20,6 +20,7 @@ type mofParsedClass struct {
 	InheritsGUID    bool
 	InheritsVersion bool
 	MofDefinition   string  // Original MOF class definition text
+	GUIDFirst32Bits string // First 32 bits of GUID for mapping
 }
 
 // Mappings from MOF types to ETW types

@@ -158,7 +158,7 @@ func (c *mofParsedClass) parseProperties(body string) {
 //   - baseClass: Immediate parent class to inherit from
 //
 // Example:
-//   Child (no GUID) inherits from Parent (GUID=123) -> Child.GUID = 123
+//   Child (no GUID defined) inherits from Parent (GUID=123) -> Child.GUID = 123
 func (c *mofParsedClass) processInheritance(baseClass *mofParsedClass) {
 	// Only inherit GUID if not explicitly defined
 	if c.GUID == "" {
