@@ -1,0 +1,11 @@
+This project is a modified version of golang-etw
+Original work Copyright (C) 2022 RawSec SARL (@0xrawsec)
+Modified work Copyright (C) 2024 [Xnfo] (@tekert)
+
+Important Modifications include:
+- Better Core ETW processing (processs all events instead of dropping because of errors or performance)
+- 3 to 5x faster that the original repo and growing...
+- etl File support for Testing, benchmarking..
+
+This program is licensed under the GNU General Public License v3.0.
+See LICENSE file for the complete terms.

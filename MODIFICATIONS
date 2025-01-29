@@ -1,0 +1,23 @@
+# Modifications Log
+
+## Fork Information
+- Original Repository: github.com/0xrawsec/golang-etw
+- Fork Date: January 2024
+- Initial Fork Commit: [ee0b3d8df53e70f9762341537b83c2128ee52f33]
+
+## Changes
+### Refactored > 30% of the code by now.
+- Added tons of new code.
+- Updated go.mod to change module path to github.com/tekert/golang-etw
+- Refactored most of the core processing and parsing/decoding of ETW events (Hot path) 
+  maintained the preparsing structure but completely refactored and rewrote the contents many times over.
+- Most of the additions not having to do with event processing where not modified (for now).
+
+### Project Structure
+- Maintained original GPL-3.0 license structure
+- Added NOTICE file to acknowledge original work and modifications
+- Added MODIFICATIONS tracking file
+
+## Notes
+- Original copyright and license notices maintained as required by GPL-3.0
+- All modifications are also released under GPL-3.0
