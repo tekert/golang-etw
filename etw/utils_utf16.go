@@ -4,8 +4,10 @@
 package etw
 
 import (
-	"syscall"
 	"unsafe"
+
+	// "github.com/tekert/golang-etw/etw/pkg/utf16"
+	etwutf16 "github.com/tekert/golang-etw/etw/pkg/utf16"
 )
 
 // Cache only small property strings, those are the most repeated
@@ -61,34 +63,26 @@ func UTF16AtOffsetToString(pstruct uintptr, offset uintptr) string {
 	return UTF16PtrToString(ptr)
 }
 
-// CacheGetString attempts to get string from cache
-//
-//go:inline
-func UTF16CacheGetString(data []uint16) (string, bool) {
-	return globalUtf16Cache.get(data)
-}
-
-// CacheSetString stores string in cache
-//
-//go:inline
-func UTF16CacheSetString(data []uint16, value string) {
-	if len(data) >= maxUtf16CachedLength {
-		return
-	}
-	globalUtf16Cache.set(data, value)
-}
-
 // Main package function used to convert UTF16 to WTF8 go strings
+// Cache improves overall event prep/parsing by about 6% on average
 // #go:inline
 func UTF16ToStringETW(utf16 []uint16) string {
-	// Try cache first
-	if s, ok := UTF16CacheGetString(utf16); ok {
-		return s
+	usecache := len(utf16) < maxUtf16CachedLength
+	var h uint64
+	if usecache {
+		// Try cache first
+		h = globalUtf16Cache.hash(utf16)
+		if s, ok := globalUtf16Cache.getKey(h); ok {
+			return s
+		}
 	}
 
 	// Convert and cache result
-	//s := etwutf16.DecodeWtf8(utf16)
-	s := syscall.UTF16ToString(utf16)
-	UTF16CacheSetString(utf16, s)
+	s := etwutf16.DecodeWtf8(utf16)
+	//s := syscall.UTF16ToString(utf16) // slower, but barely noticeable on small strings
+	if usecache {
+		globalUtf16Cache.setKey(h, s)
+	}
+
 	return s
 }

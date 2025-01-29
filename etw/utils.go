@@ -8,6 +8,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -285,4 +287,25 @@ func isETLFile(path string) bool {
 	}
 	// Check if absolute path or UNC
 	return filepath.IsAbs(clean) || strings.HasPrefix(clean, "\\\\")
+}
+
+func getGoroutineID() int64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	id := strings.Fields(strings.TrimPrefix(string(buf[:n]), "goroutine "))[0]
+	val, _ := strconv.ParseInt(id, 10, 64)
+	return val
+}
+
+func stackUsage() {
+	buf := make([]byte, 64)
+	for {
+		n := runtime.Stack(buf, false)
+		// If trace fits in buffer
+		if n < len(buf) {
+			fmt.Printf("stack: %d bytes", n)
+			return
+		}
+		buf = make([]byte, 2*len(buf))
+	}
 }

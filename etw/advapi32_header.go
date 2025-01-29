@@ -1094,18 +1094,6 @@ func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, teiBuffer *[]b
 	return tei, buffp, nil
 }
 
-// !NOTE(tekert): Too many memory allocations, delete it later
-func (e *EventRecord) GetEventInformation_old() (tei *TraceEventInfo, err error) {
-	bufferSize := uint32(0)
-	if err = TdhGetEventInformation(e, 0, nil, nil, &bufferSize); err == syscall.ERROR_INSUFFICIENT_BUFFER {
-		// don't know how this would behave
-		buff := make([]byte, bufferSize)
-		tei = ((*TraceEventInfo)(unsafe.Pointer(&buff[0])))
-		err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
-	}
-	return
-}
-
 /*
 // Both MOF-based events and manifest-based events can specify name/value maps. The
 // map values can be integer values or bit values. If the property specifies a value

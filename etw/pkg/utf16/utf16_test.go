@@ -198,8 +198,8 @@ func TestUTF16_To_WTF8(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := DecodeWtf8(tt.input)
 			if string(got) != string(tt.want) {
-				//t.Errorf("DecodeUTF16_CppGoTest(%v) = %v, want %v", tt.input, got, tt.want)
-				t.Errorf("DecodeUTF16_CppGoTest(%v) = [% X] %v, want [% X]", tt.input,
+				//t.Errorf("DecodeWtf8(%v) = %v, want %v", tt.input, got, tt.want)
+				t.Errorf("DecodeWtf8(%v) = [% X] %v, want [% X]", tt.input,
 					[]byte(got), got, tt.want)
 			}
 		})
@@ -209,8 +209,8 @@ func TestUTF16_To_WTF8(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := DecodeWtf8_SliceVer(tt.input)
 			if string(got) != string(tt.want) {
-				//t.Errorf("DecodeUTF16_CppGoTestSlice(%v) = %v, want %v", tt.input, got, tt.want)
-				t.Errorf("DecodeUTF16_CppGoTestSlice(%v) = [% X] %v, want [% X]", tt.input,
+				//t.Errorf("DecodeWtf8_SliceVer(%v) = %v, want %v", tt.input, got, tt.want)
+				t.Errorf("DecodeWtf8_SliceVer(%v) = [% X] %v, want [% X]", tt.input,
 					[]byte(got), got, tt.want)
 			}
 		})
@@ -319,22 +319,22 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 
 		skip:
 			// uses unsafe pointer instead of slice to omit bound cheking. (why is go so inneficient)
-			b.Run(fmt.Sprintf("GoCppTestNobound/%s/%d", tc.name, size), func(b *testing.B) {
+			b.Run(fmt.Sprintf("DecodeWtf8/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
 				for i := 0; i < b.N; i++ {
 					s := DecodeWtf8(input)
 					if len(s) != outSize {
-						b.Fatalf("DecodeUTF16_CppGoTest(%v) = %v, want %v", input, s, outSize)
+						b.Fatalf("DecodeWtf8(%v) = %v, want %v", input, s, outSize)
 					}
 				}
 			})
 
-			b.Run(fmt.Sprintf("GoCppTestSlice/%s/%d", tc.name, size), func(b *testing.B) {
+			b.Run(fmt.Sprintf("DecodeWtf8_SliceVer/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
 				for i := 0; i < b.N; i++ {
 					s := DecodeWtf8_SliceVer(input)
 					if len(s) != outSize {
-						b.Fatalf("DecodeUTF16_CppGoTestSlice(%v) = %v, want %v", input, s, outSize)
+						b.Fatalf("DecodeWtf8_SliceVer(%v) = %v, want %v", input, s, outSize)
 					}
 				}
 			})

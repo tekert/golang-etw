@@ -91,7 +91,7 @@ func isASCII(w uint64) bool {
 	return (w & 0xFF80FF80FF80FF80) == 0
 }
 
-// 5-20% faster depending on string size (larger ones are faster), omits bound cheking.
+// 5-20% faster depending on string size (larger ones run faster), omits bound checking.
 //
 // utf16_convert_nobounds converts UTF-16 encoded text to UTF-8 using direct pointer access.
 // It processes text in 8-character blocks for ASCII and handles UTF-16 surrogate pairs.

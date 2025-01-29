@@ -227,7 +227,7 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 		// Little endian: Suggest 4 fields uint64 (pointers) + 2 uin32
 		// Fails to parse, there is no documentation for this event.
 
-		//  //! TESTING
+		//  //! TESTING find what is opcode 84 of FileIo Kernel events.
 		// if er.EventHeader.EventDescriptor.Opcode != 84 {
 		// 	// Only log if it's not a FileIo event
 		// 	slice := unsafe.Slice((*byte)(unsafe.Pointer(er.UserData)), er.UserDataLength)

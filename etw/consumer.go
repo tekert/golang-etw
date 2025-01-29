@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -222,6 +223,7 @@ func (c *Consumer) handleLostEvent(e *EventRecord) {
 func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 	// ensure userctx is not garbage collected after CloseTrace or it crashes invalid mem.
 	userctx := e.getContext()
+
 	c.tmu.Lock()
 	if userctx != nil && userctx.trace.open {
 		userctx.trace.TraceLogFile = e
@@ -249,7 +251,6 @@ func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 // This callback can be executed concurrently only if there are multiple
 // ProcessTrace goroutines with this callback set.
 func (c *Consumer) callback(er *EventRecord) (re uintptr) {
-
 	// Count the number of events with errors, but only once per event.
 	errorOccurred := false
 	setError := func(err error) {
@@ -541,7 +542,15 @@ func (c *Consumer) Start() (err error) {
 }
 
 func (c *Consumer) processTrace(name string, trace *Trace) {
-	slog.Debug("Starting ProcessTrace", "trace", name)
+	// Lock the goroutine to the OS thread (callback will also be an os thread)
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	goroutineID := getGoroutineID()
+	slog.Info("Starting ProcessTrace",
+		"trace", name,
+		"goroutineID", goroutineID)
+
 	trace.processing = true
 	// https://docs.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-processtrace
 	// Won't return even if canceled until the session buffer is empty
