@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tekert/golang-etw/etw"
 	"github.com/0xrawsec/golang-utils/log"
+	"github.com/tekert/golang-etw/etw"
 )
 
 const (
