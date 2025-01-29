@@ -5,6 +5,7 @@ package etw
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -63,72 +64,133 @@ func max(a, b int) int {
 	return a
 }
 
-// These are faster than the go binary package.
+const hextableu = "0123456789ABCDEF"
+const hextable = "0123456789abcdef"
 
-// SwapBytes converts between little and big endian
-func SwapBytes(b []byte) {
-	for i := 0; i < len(b)/2; i++ {
-		j := len(b) - i - 1
-		b[i], b[j] = b[j], b[i]
-	}
-}
-
-// Swap16 converts uint16 between little and big endian.
-func Swap16(n uint16) uint16 {
-	return (n << 8) | (n >> 8)
-}
-
-// swap32 converts uint32 between little and big endian
-func Swap32(n uint32) uint32 {
-	return (n << 24) | ((n << 8) & 0x00FF0000) |
-		((n >> 8) & 0x0000FF00) | (n >> 24)
-}
-
-// swap64 converts uint64 between little and big endian
-func Swap64(n uint64) uint64 {
-	return (n << 56) | ((n << 40) & 0xFF000000000000) |
-		((n << 24) & 0xFF0000000000) | ((n << 8) & 0xFF00000000) |
-		((n >> 8) & 0xFF000000) | ((n >> 24) & 0xFF0000) |
-		((n >> 40) & 0xFF00) | (n >> 56)
-}
-
-// UTF16BytesToString transforms a bytes array of UTF16 encoded characters to
-// a Go string
-func UTF16BytesToString(utf16 []byte) string {
-	return syscall.UTF16ToString(*(*[]uint16)(unsafe.Pointer(&utf16)))
-}
-
-func Wcslen(uintf16 *uint16) (len uint64) {
-	for it := uintptr((unsafe.Pointer(uintf16))); ; it += 2 {
-		wc := (*uint16)(unsafe.Pointer(it))
-		if *wc == 0 {
-			return
-		}
-		len++
-	}
-}
-
-// Ported from from go syscall packag
+// Ported from the hex package to print uppercase hex efficiently
 //
-// utf16PtrToStringGO is like UTF16ToString, but takes *uint16
-// as a parameter instead of []uint16.
-func UTF16PtrToString(p *uint16) string {
-	if p == nil {
-		return ""
+// Encode encodes src into [EncodedLen](len(src))
+// bytes of dst. As a convenience, it returns the number
+// of bytes written to dst, but this value is always [EncodedLen](len(src)).
+// Encode implements hexadecimal encoding.
+func HexEncodeU(dst, src []byte) int {
+	j := 0
+	for _, v := range src {
+		dst[j] = hextableu[v>>4]
+		dst[j+1] = hextableu[v&0x0f]
+		j += 2
 	}
-	end := unsafe.Pointer(p)
-	n := 0
-	for *(*uint16)(end) != 0 {
-		end = unsafe.Pointer(uintptr(end) + unsafe.Sizeof(*p))
-		n++
-	}
-
-	return syscall.UTF16ToString(unsafe.Slice(p, n))
+	return len(src) * 2
 }
 
-func UTF16AtOffsetToString(pstruct uintptr, offset uintptr) string {
-	ptr := (*uint16)(unsafe.Pointer(pstruct + offset))
-	return UTF16PtrToString(ptr)
+// Ported from the hex package to print lowercase hex just for convenience.
+//
+// Encode encodes src into [EncodedLen](len(src))
+// bytes of dst. As a convenience, it returns the number
+// of bytes written to dst, but this value is always [EncodedLen](len(src)).
+// Encode implements hexadecimal encoding.
+func HexEncode(dst, src []byte) int {
+	j := 0
+	for _, v := range src {
+		dst[j] = hextable[v>>4]
+		dst[j+1] = hextable[v&0x0f]
+		j += 2
+	}
+	return len(src) * 2
+}
+
+// Ported from the hex package to print UPPERCASE hex just for convenience.
+//
+// EncodeToString returns the hexadecimal encoding of src.
+func HexEncodeToStringU(src []byte) string {
+	dst := make([]byte, len(src)*2) // 1 byte = 2 hex chars
+	HexEncodeU(dst, src)
+	return string(dst)
+}
+
+// EncodeToString returns the hexadecimal encoding of src. with prefix 0x
+// Way more efficient than 2 allocations
+func HexEncodeToStringUPrefix(src []byte) string {
+	dst := make([]byte, 2+len(src)*2) // 1 byte = 2 hex chars
+	dst[0] = '0'
+	dst[1] = 'x'
+	HexEncodeU(dst[2:], src)
+	return string(dst)
+}
+
+// Checking len() is costly, so no optional parameters with ... slice
+// have to repeat functions.. go...
+
+// Unsigned integer helpers - uppercase
+
+func Uint64ToHexU(n uint64) string {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, n)
+	return HexEncodeToStringU(b)
+}
+func Uint64ToHexUPrefix(n uint64) string {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, n)
+	return HexEncodeToStringUPrefix(b)
+}
+
+func Uint32ToHexU(n uint32) string {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, n)
+	return HexEncodeToStringU(b)
+}
+func Uint32ToHexUPrefix(n uint32) string {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, n)
+	return HexEncodeToStringUPrefix(b)
+}
+
+func Uint16ToHexU(n uint16) string {
+	b := make([]byte, 2)
+	binary.BigEndian.PutUint16(b, n)
+	return HexEncodeToStringU(b)
+}
+func Uint16ToHexUPrefix(n uint16) string {
+	b := make([]byte, 2)
+	binary.BigEndian.PutUint16(b, n)
+	return HexEncodeToStringUPrefix(b)
+}
+
+func Uint8ToHexU(n uint8) string {
+	return HexEncodeToStringU([]byte{n})
+}
+func Uint8ToHexUPrefix(n uint8) string {
+	return HexEncodeToStringUPrefix([]byte{n})
+}
+
+// Signed integer helpers - uppercase
+
+func Int64ToHexU(n int64) string {
+	return Uint64ToHexU(uint64(n))
+}
+func Int64ToHexUPrefix(n int64) string {
+	return Uint64ToHexUPrefix(uint64(n))
+}
+
+func Int32ToHexU(n int32) string {
+	return Uint32ToHexU(uint32(n))
+}
+func Int32ToHexUPrefix(n int32) string {
+	return Uint32ToHexUPrefix(uint32(n))
+}
+
+func Int16ToHexU(n int16) string {
+	return Uint16ToHexU(uint16(n))
+}
+func Int16ToHexUPrefix(n int16) string {
+	return Uint16ToHexUPrefix(uint16(n))
+}
+
+func Int8ToHexU(n int8) string {
+	return Uint8ToHexU(uint8(n))
+}
+func Int8ToHexUPrefix(n int8) string {
+	return Uint8ToHexUPrefix(uint8(n))
 }
 
 // // UTF16PtrToString transforms a *uint16 to a Go string
@@ -148,18 +210,6 @@ func UTF16AtOffsetToString(pstruct uintptr, offset uintptr) string {
 // 	}
 // 	return syscall.UTF16ToString(out)
 // }
-
-// Copies a null terminated UTF16 string from a pointer to a
-// new allocated memory
-func CopyUTF16Ptr(src *uint16) *uint16 {
-	if src == nil {
-		return nil
-	}
-	length := Wcslen(src)
-	dst := make([]uint16, length+1)
-	copy(dst, unsafe.Slice(src, length+1))
-	return &dst[0]
-}
 
 func CopyData(pointer unsafe.Pointer, size int) []byte {
 	if size <= 0 {

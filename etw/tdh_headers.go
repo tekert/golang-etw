@@ -347,8 +347,8 @@ type TraceEventInfo struct {
 	class. */
 	Union2 uint32 // (EventAttributesOffset | RelatedActivityIDNameOffset)
 
-	PropertyCount         uint32
-	TopLevelPropertyCount uint32
+	PropertyCount         uint32 // Number of properties in the event.
+	TopLevelPropertyCount uint32 // This number does not include members of structures
 
 	Flags                  TemplateFlags
 	EventPropertyInfoArray [1]EventPropertyInfo // This is a variable size array
@@ -372,7 +372,6 @@ func (t *TraceEventInfo) stringAt(offset uintptr) string {
 	return ""
 }
 
-// TODO(tekert): why?
 func (t *TraceEventInfo) cleanStringAt(offset uintptr) string {
 	if offset > 0 {
 		return strings.Trim(t.stringAt(offset), " ")

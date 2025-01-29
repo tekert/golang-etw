@@ -32,11 +32,11 @@ type Property struct {
 	// Size of the property in bytes (will always have the real size)
 	sizeBytes uint32
 
-	// Pointer to the blob of unparsed data inside event UserData.
+	// Pointer to the blob of unparsed data inside UserData.
 	pValue uintptr
 
-	// EventRecord.UserData + EventRecord.UserDataLength
-	userDataLength uint16
+	// Distance in bytes between this prop pointer and the end of UserData.
+	userDataRemaining uint16
 }
 
 var (
@@ -117,7 +117,7 @@ func (p *Property) FormatToString() (string, error) {
 			//p.evtRecordHelper.addPropError() // we have to try the old parser anyway.
 			slog.Debug("failed to parse property with custom parser", "error", err)
 			// try the tdh parser
-			p.value, err = p.formatToStringTdh()
+			p.value, _, err = p.formatToStringTdh()
 		}
 	}
 
@@ -131,7 +131,7 @@ func (p *Property) FormatToStringTdh() (string, error) {
 
 	if p.value == "" && p.Parseable() {
 		// we parse only if not already done
-		p.value, err = p.formatToStringTdh()
+		p.value, _, err = p.formatToStringTdh()
 	}
 
 	return p.value, err
@@ -139,9 +139,10 @@ func (p *Property) FormatToStringTdh() (string, error) {
 
 // formatToStringTdh converts the pValue pointer to to a string using tdh (slow on golang).
 // used as fallback when the custom decoder fails.
-func (p *Property) formatToStringTdh() (value string, err error) {
+// Returns: (parsed string, User Data consumed, error)
+func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 	var mapInfo *EventMapInfo
-	var udc uint16
+	//var udc uint16
 
 	// Get the name/value mapping if the property specifies a value map.
 	if p.evtPropInfo.MapNameOffset() > 0 {
@@ -186,7 +187,7 @@ func (p *Property) formatToStringTdh() (value string, err error) {
 				uint16(p.evtPropInfo.InType()),
 				uint16(p.evtPropInfo.OutType()),
 				p.length,
-				p.userDataLength,
+				p.userDataRemaining,
 				(*byte)(unsafe.Pointer(p.pValue)),
 				&buffSize,
 				&(*buffPtr)[0],
@@ -220,6 +221,7 @@ func (p *Property) formatToStringTdh() (value string, err error) {
 		// "The event data raised by the publisher is not compatible with the event template
 		// definition in the publisher's manifest.
 		// Seems some kernel properties can't be parsed with Tdh, maybe is a pointer to kernel memory?
+		// UPDATE: the MOF classes types are wrong, this is not usuable for kernel events.
 		if p.evtRecordHelper.TraceInfo.IsMof() {
 			if value = p.fixMOFProp(); value != "" {
 				err = nil
@@ -231,7 +233,7 @@ func (p *Property) formatToStringTdh() (value string, err error) {
 
 		if !isDebug {
 			slog.Debug("tdh failed to format property", "error", err)
-			return "", fmt.Errorf("tdh failed to format property: %s", err)
+			return "", udc, fmt.Errorf("tdh failed to format property: %s", err)
 		}
 
 		var e Event
@@ -259,23 +261,23 @@ func (p *Property) formatToStringTdh() (value string, err error) {
 		return
 	}
 
-	value = syscall.UTF16ToString(*buffPtr)
+	value = UTF16ToStringETW(*buffPtr)
 
 	return
 }
 
+// "TcpIp" or "UdpIp" /*9a280ac0-c8e0-11d1-84e2-00c04fb998a2*/
+var gFixTcpIpGuid = MustParseGUID("9a280ac0-c8e0-11d1-84e2-00c04fb998a2")
+
 // temporary measures to handle legacy MOF events (Kernel events)
 func (p *Property) fixMOFProp() string {
-	if t, ok := MofClassMapping[p.evtRecordHelper.TraceInfo.EventGUID.Data1]; ok {
-		if p.evtPropInfo.InType() == TDH_INTYPE_POINTER {
-			// "TcpIp" or "UdpIp" /*9a280ac0-c8e0-11d1-84e2-00c04fb998a2*/
-			if t.BaseId == 4845 || t.BaseId == 5865 {
-				// most likely a pointer to a uint32 connid;
-				return fmt.Sprintf("%d", *(*uint32)(unsafe.Pointer(p.pValue)))
-				// "connid" is always 0 for some reason, the same with "seqnum" prop
-			}
+	if p.evtPropInfo.InType() == TDH_INTYPE_POINTER {
+		// "TcpIp" or "UdpIp"
+		if p.evtRecordHelper.TraceInfo.EventGUID.Equals(gFixTcpIpGuid) {
+			// most likely a pointer to a uint32 connid;
+			return fmt.Sprintf("%d", *(*uint32)(unsafe.Pointer(p.pValue)))
+			// "connid" is always 0 for some reason, the same with "seqnum" prop
 		}
 	}
-
 	return ""
 }

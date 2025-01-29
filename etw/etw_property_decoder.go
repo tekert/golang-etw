@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -149,7 +148,10 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid BOOLEAN InType: %v", inType)
 		}
 		v := *(*int32)(unsafe.Pointer(p.pValue)) // ETW boolean is 4 bytes
-		return fmt.Sprintf("%t", v != 0), nil
+		if v != 0 {
+			return "true", nil
+		}
+		return "false", nil
 
 	case TDH_OUTTYPE_IPV4:
 		// IPV4 uses uint32 as InType (4 bytes)
@@ -202,7 +204,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			TDH_INTYPE_HEXDUMP,
 			TDH_INTYPE_MANIFEST_COUNTEDBINARY:
 			bytes := unsafe.Slice((*byte)(unsafe.Pointer(p.pValue)), p.length)
-			return fmt.Sprintf("0x%X", bytes), nil
+			return HexEncodeToStringUPrefix(bytes), nil
 		default:
 			return "", fmt.Errorf("invalid HEXBINARY InType: %v", inType)
 		}
@@ -212,14 +214,14 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid HEXINT8 InType: %v", inType)
 		}
 		v := *(*uint8)(unsafe.Pointer(p.pValue))
-		return strings.ToUpper(strconv.FormatUint(uint64(v), 16)), nil
+		return Uint8ToHexUPrefix(v), nil
 
 	case TDH_OUTTYPE_HEXINT16:
 		if inType != TDH_INTYPE_UINT16 {
 			return "", fmt.Errorf("invalid HEXINT16 InType: %v", inType)
 		}
 		v := *(*uint16)(unsafe.Pointer(p.pValue))
-		return strings.ToUpper(strconv.FormatUint(uint64(v), 16)), nil
+		return Uint16ToHexUPrefix(v), nil
 
 	case TDH_OUTTYPE_HEXINT32:
 		if inType != TDH_INTYPE_UINT32 &&
@@ -227,7 +229,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid HEXINT32 InType: %v", inType)
 		}
 		v := *(*uint32)(unsafe.Pointer(p.pValue))
-		return strings.ToUpper(strconv.FormatUint(uint64(v), 16)), nil
+		return Uint32ToHexUPrefix(v), nil
 
 	case TDH_OUTTYPE_HEXINT64:
 		if inType != TDH_INTYPE_UINT64 &&
@@ -236,7 +238,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid HEXINT64 InType: %v", inType)
 		}
 		v := *(*uint64)(unsafe.Pointer(p.pValue))
-		return strings.ToUpper(strconv.FormatUint(v, 16)), nil
+		return Uint64ToHexUPrefix(v), nil
 
 	case TDH_OUTTYPE_GUID:
 		if inType != TDH_INTYPE_GUID {
@@ -314,7 +316,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 		case TDH_INTYPE_BINARY,
 			TDH_INTYPE_MANIFEST_COUNTEDBINARY:
 			bytes := unsafe.Slice((*byte)(unsafe.Pointer(p.pValue)), p.length)
-			return fmt.Sprintf("0x%X", bytes), nil
+			return HexEncodeToStringUPrefix(bytes), nil
 		default:
 			return "", fmt.Errorf("invalid PKCS7 InType: %v", inType)
 		}
@@ -330,7 +332,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("0x%X", v), nil
+			return Uint64ToHexUPrefix(v), nil
 		default:
 			return "", fmt.Errorf("invalid CODE_POINTER InType: %v", inType)
 		}
@@ -340,28 +342,28 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			inType != TDH_INTYPE_HEXINT32 {
 			return "", fmt.Errorf("invalid error code InType: %v", inType)
 		}
-		v, err := p.GetUInt()
+		v, err := p.GetUInt() // uint32
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("0x%X", v), nil
+		return Uint32ToHexUPrefix(uint32(v)), nil
 
 	case TDH_OUTTYPE_HRESULT:
 		if inType != TDH_INTYPE_INT32 {
 			return "", fmt.Errorf("invalid HRESULT InType: %v", inType)
 		}
-		v, err := p.GetInt()
+		v, err := p.GetInt() // int32
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("0x%X", v), nil
+		return Int32ToHexUPrefix(int32(v)), nil
 
 	case TDH_OUTTYPE_ERRORCODE:
 		if inType != TDH_INTYPE_UINT32 {
 			return "", fmt.Errorf("invalid ERRORCODE InType: %v", inType)
 		}
 		v := *(*uint32)(unsafe.Pointer(p.pValue))
-		return fmt.Sprintf("0x%X", v), nil
+		return Uint32ToHexUPrefix(v), nil
 
 	case TDH_OUTTYPE_NOPRINT:
 		// Return empty string for NOPRINT as spec indicates field should not be shown
@@ -494,6 +496,11 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 	return "", fmt.Errorf("unsupported OutType, Using TDH as Fallback: %v", outType)
 }
 
+// Fast helper to convert bigendian network data to little endian
+func Swap16(n uint16) uint16 {
+	return (n << 8) | (n >> 8)
+}
+
 // Helper to format socket address
 func formatSockAddr(sa *syscall.RawSockaddrAny) (string, error) {
 	// Convert RawSockaddrAny to actual address
@@ -502,13 +509,13 @@ func formatSockAddr(sa *syscall.RawSockaddrAny) (string, error) {
 		addr4 := (*syscall.RawSockaddrInet4)(unsafe.Pointer(sa))
 		ip := net.IP(addr4.Addr[:])
 		port := Swap16(addr4.Port)
-		return fmt.Sprintf("%s:%d", ip.String(), port), nil
+		return ip.String() + ":" + strconv.Itoa(int(port)), nil
 
 	case syscall.AF_INET6:
 		addr6 := (*syscall.RawSockaddrInet6)(unsafe.Pointer(sa))
 		ip := net.IP(addr6.Addr[:])
 		port := Swap16(addr6.Port)
-		return fmt.Sprintf("[%s]:%d", ip.String(), port), nil
+		return "[" + ip.String() + "]:" + strconv.Itoa(int(port)), nil
 
 	default:
 		return "", fmt.Errorf("unsupported address family: %d", sa.Addr.Family)
@@ -522,7 +529,7 @@ func (p *Property) decodeSIDIntype() (string, error) {
 	}
 
 	// Add validation for minimum SID size (8 bytes header)
-	if int(p.userDataLength) < 8 {
+	if int(p.userDataRemaining) < 8 {
 		return "", fmt.Errorf("invalid SID: data too small for header")
 	}
 
@@ -543,7 +550,7 @@ func (p *Property) decodeSIDIntype() (string, error) {
 	}
 	// Calculate expected size (p.sizeBytes already has it too)
 	expectedSize := 8 + (4 * int(sid.SubAuthorityCount)) // 8 bytes header + 4 bytes per sub-authority
-	if expectedSize > int(p.userDataLength) {
+	if expectedSize > int(p.userDataRemaining) {
 		return "", fmt.Errorf("invalid SID: insufficient data")
 	}
 	// Convert SID to string
@@ -577,11 +584,11 @@ func (p *Property) decodeStringIntype() (string, error) {
 			// Length from another property (in WCHARs)
 			wcharCount := p.length
 			wchars := unsafe.Slice((*uint16)(unsafe.Pointer(p.pValue)), wcharCount)
-			return syscall.UTF16ToString(wchars), nil
+			return UTF16ToStringETW(wchars), nil
 		} else if (p.evtPropInfo.Flags&(PropertyParamFixedLength)) != 0 || p.length > 0 {
 			// Fixed length (in WCHARs)
 			wchars := unsafe.Slice((*uint16)(unsafe.Pointer(p.pValue)), p.length)
-			return syscall.UTF16ToString(wchars), nil
+			return UTF16ToStringETW(wchars), nil
 		} else {
 			if (p.evtPropInfo.Flags & (PropertyParamFixedLength)) != 0 {
 				return "", nil
@@ -589,16 +596,16 @@ func (p *Property) decodeStringIntype() (string, error) {
 			// Null terminated with fallback
 			// For non-null terminated strings, especially at end of event data,
 			// use remaining data length as string length
-			wcharCount := p.userDataLength / 2
+			wcharCount := p.userDataRemaining / 2
 			wchars := unsafe.Slice((*uint16)(unsafe.Pointer(p.pValue)), wcharCount)
 			// Try to find null terminator first
 			for i, w := range wchars {
 				if w == 0 {
-					return syscall.UTF16ToString(wchars[:i]), nil
+					return UTF16ToStringETW(wchars[:i]), nil
 				}
 			}
 			// No null terminator found, use entire remaining buffer
-			return syscall.UTF16ToString(wchars), nil
+			return UTF16ToStringETW(wchars), nil
 		}
 
 	case TDH_INTYPE_ANSISTRING:
@@ -618,7 +625,7 @@ func (p *Property) decodeStringIntype() (string, error) {
 			// Null terminated
 			// For non-null terminated strings, especially at end of event data,
 			// use remaining data length as string length
-			bytes := unsafe.Slice((*byte)(unsafe.Pointer(p.pValue)), p.userDataLength)
+			bytes := unsafe.Slice((*byte)(unsafe.Pointer(p.pValue)), p.userDataRemaining)
 			// Try to find null terminator first
 			for i, b := range bytes {
 				if b == 0 {
@@ -635,7 +642,7 @@ func (p *Property) decodeStringIntype() (string, error) {
 		byteLen := *(*uint16)(unsafe.Pointer(p.pValue))
 		wcharCount := byteLen / 2
 		wchars := unsafe.Slice((*uint16)(unsafe.Add(unsafe.Pointer(p.pValue), 2)), wcharCount)
-		return syscall.UTF16ToString(wchars), nil
+		return UTF16ToStringETW(wchars), nil
 
 	case TDH_INTYPE_MANIFEST_COUNTEDANSISTRING:
 		// Same as COUNTEDANSISTRING but for manifests
@@ -651,7 +658,7 @@ func (p *Property) decodeStringIntype() (string, error) {
 		byteLen := *(*uint16)(unsafe.Pointer(p.pValue))
 		wcharCount := byteLen / 2
 		wchars := unsafe.Slice((*uint16)(unsafe.Add(unsafe.Pointer(p.pValue), 2)), wcharCount)
-		return syscall.UTF16ToString(wchars), nil
+		return UTF16ToStringETW(wchars), nil
 
 	case TDH_INTYPE_COUNTEDANSISTRING:
 		// First 2 bytes contain length in bytes of following string
@@ -664,7 +671,7 @@ func (p *Property) decodeStringIntype() (string, error) {
 		byteLen := Swap16(*(*uint16)(unsafe.Pointer(p.pValue)))
 		wcharCount := byteLen / 2
 		wchars := unsafe.Slice((*uint16)(unsafe.Add(unsafe.Pointer(p.pValue), 2)), wcharCount)
-		return syscall.UTF16ToString(wchars), nil
+		return UTF16ToStringETW(wchars), nil
 
 	case TDH_INTYPE_REVERSEDCOUNTEDANSISTRING:
 		// Like COUNTEDANSISTRING but length is big-endian
@@ -674,13 +681,13 @@ func (p *Property) decodeStringIntype() (string, error) {
 
 	case TDH_INTYPE_NONNULLTERMINATEDSTRING:
 		// String takes up remaining event bytes
-		wcharCount := p.userDataLength / 2
+		wcharCount := p.userDataRemaining / 2
 		wchars := unsafe.Slice((*uint16)(unsafe.Pointer(p.pValue)), wcharCount)
-		return syscall.UTF16ToString(wchars), nil
+		return UTF16ToStringETW(wchars), nil
 
 	case TDH_INTYPE_NONNULLTERMINATEDANSISTRING:
 		// String takes up remaining event bytes
-		bytes := unsafe.Slice((*byte)(unsafe.Pointer(p.pValue)), p.userDataLength)
+		bytes := unsafe.Slice((*byte)(unsafe.Pointer(p.pValue)), p.userDataRemaining)
 		return string(bytes), nil
 	}
 

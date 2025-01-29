@@ -106,7 +106,7 @@ var (
 			Flags:  EVENT_TRACE_FLAG_FILE_IO},
 
 		// Logs the mapping of file IDs to actual (kernel) file names.
-		// Rundown event with opcode 36
+		// Rundown event with opcode 36 (EventType)
 		// https://learn.microsoft.com/en-us/windows/win32/etw/fileio-name
 		// FileObject is used to correlate with other FileIo events that reference the same file
 		// FileKey persists across system reboots and can be used to track the same file over time
