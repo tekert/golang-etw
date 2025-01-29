@@ -110,9 +110,6 @@ type Consumer struct {
 	// to force stop the Consumer ProcessTrace if buffer takes too long to empty.
 	// stores timeout in nanoseconds
 	closeTimeout time.Duration // stores timeout in nanoseconds
-
-	// TODO(tekert) For Testing, delete later
-	useOld bool
 }
 
 type traceContext struct {
@@ -126,15 +123,6 @@ func (er *EventRecord) getUserContext() *traceContext {
 }
 func (e *EventTraceLogfile) getContext() *traceContext {
 	return (*traceContext)(unsafe.Pointer(e.Context))
-}
-
-// Uses the old version using tdhGetProperty (inneficient)
-func NewConsumer_old(ctx context.Context) (c *Consumer) {
-	c = NewConsumer(ctx)
-
-	c.useOld = true
-
-	return c
 }
 
 // NewConsumer creates a new Consumer to consume ETW
@@ -210,16 +198,13 @@ func (c *Consumer) handleLostEvent(e *EventRecord) {
 		case 32:
 			// The RTLostEvent event type indicates that one or more events were lost.
 			u.trace.RTLostEvents++
-			slog.Debug("RTLostEvent", "trace", u.trace.TraceName, "count", u.trace.RTLostEvents)
 		case 33:
 			// The RTLostBuffer event type indicates that one or more buffers were lost
 			u.trace.RTLostBuffer++
-			slog.Debug("RTLostBuffer", "trace", u.trace.TraceName, "count", u.trace.RTLostBuffer)
 		case 34:
 			// The RTLostFile indicates that the backing file used by the AutoLogger
 			// to capture events was lost.
 			u.trace.RTLostFile++
-			slog.Debug("RTLostFile", "trace", u.trace.TraceName, "count", u.trace.RTLostFile)
 		default:
 			slog.Debug("Invalid opcode for lost event",
 				"opcode", traceInfo.EventDescriptor.Opcode)
@@ -298,6 +283,8 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 		}
 	}
 
+	// TODO: some MOF events will not have a TRACE_EVENT_INFO
+
 	// we get the TraceContext from EventRecord.UserContext
 	// Parse TRACE_EVENT_INFO from the event record
 	if h, err := newEventRecordHelper(er); err == nil {
@@ -322,17 +309,9 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 		// initialize record helper
 		h.initialize()
 
-		// prepareProperties_old is inneficient.
-		if c.useOld {
-			if err := h.prepareProperties_old(); err != nil {
-				setError(fmt.Errorf("prepareProperties_old failed: %w", err))
-				return
-			}
-		} else {
-			if err := h.prepareProperties(); err != nil {
-				setError(fmt.Errorf("prepareProperties failed: %w", err))
-				return
-			}
+		if err := h.prepareProperties(); err != nil {
+			setError(fmt.Errorf("prepareProperties failed: %w", err))
+			return
 		}
 
 		// running a hook before parsing event properties
