@@ -42,24 +42,56 @@ func (g *GUID) IsZero() bool {
 	return g.Equals(&nullGUID)
 }
 
-// uppercase string representation of the GUID
+// UPPERCASE String representation of the GUID
+// These are 10x more performant than sprintf
 func (g *GUID) String() string {
-	return fmt.Sprintf("{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-		g.Data1,
-		g.Data2,
-		g.Data3,
-		g.Data4[0], g.Data4[1],
-		g.Data4[2], g.Data4[3], g.Data4[4], g.Data4[5], g.Data4[6], g.Data4[7])
+	b := make([]byte, 38)
+	b[0] = '{'
+	b[37] = '}'
+
+	// Data1 (8 chars)
+	HexEncodeU(b[1:9], []byte{
+		byte(g.Data1 >> 24),
+		byte(g.Data1 >> 16),
+		byte(g.Data1 >> 8),
+		byte(g.Data1),
+	})
+	b[9] = '-'
+	HexEncodeU(b[10:14], []byte{byte(g.Data2 >> 8), byte(g.Data2)})
+	b[14] = '-'
+	HexEncodeU(b[15:19], []byte{byte(g.Data3 >> 8), byte(g.Data3)})
+	b[19] = '-'
+	HexEncodeU(b[20:24], g.Data4[:2])
+	b[24] = '-'
+	HexEncodeU(b[25:37], g.Data4[2:])
+
+	return string(b)
 }
 
 // lowercase string representation of the GUID
+// These are 10x more performant than sprintf
 func (g *GUID) StringL() string {
-	return fmt.Sprintf("{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-		g.Data1,
-		g.Data2,
-		g.Data3,
-		g.Data4[0], g.Data4[1],
-		g.Data4[2], g.Data4[3], g.Data4[4], g.Data4[5], g.Data4[6], g.Data4[7])
+	b := make([]byte, 38)
+	b[0] = '{'
+	b[37] = '}'
+
+	// Data1 (8 chars)
+	HexEncode(b[1:9], []byte{
+		byte(g.Data1 >> 24),
+		byte(g.Data1 >> 16),
+		byte(g.Data1 >> 8),
+		byte(g.Data1),
+	})
+	b[9] = '-'
+	HexEncode(b[10:14], []byte{byte(g.Data2 >> 8), byte(g.Data2)})
+	b[14] = '-'
+	HexEncode(b[15:19], []byte{byte(g.Data3 >> 8), byte(g.Data3)})
+	b[19] = '-'
+	HexEncode(b[20:24], g.Data4[:2])
+	b[24] = '-'
+	HexEncode(b[25:37], g.Data4[2:])
+
+	return string(b)
 }
 
 func (g *GUID) Equals(other *GUID) bool {

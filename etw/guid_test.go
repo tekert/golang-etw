@@ -67,3 +67,51 @@ func TestGUIDEquality(t *testing.T) {
 		tt.Assert(!g1.Equals(&g2))
 	}
 }
+
+func TestGUIDStringConversion(t *testing.T) {
+	tests := []struct {
+		name string
+		guid GUID
+		want string
+	}{
+		{
+			name: "Standard GUID",
+			guid: GUID{
+				Data1: 0x12345678,
+				Data2: 0x9ABC,
+				Data3: 0xDEF0,
+				Data4: [8]byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0},
+			},
+			want: "{12345678-9ABC-DEF0-1234-56789ABCDEF0}",
+		},
+		{
+			name: "Zero GUID",
+			guid: GUID{},
+			want: "{00000000-0000-0000-0000-000000000000}",
+		},
+		{
+			name: "All Fs GUID",
+			guid: GUID{
+				Data1: 0xFFFFFFFF,
+				Data2: 0xFFFF,
+				Data3: 0xFFFF,
+				Data4: [8]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			},
+			want: "{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v1 := tt.guid.String()
+			v2 := tt.guid.StringL()
+
+			if !strings.EqualFold(v1, tt.want) {
+				t.Errorf("String() = %v, want %v", v1, tt.want)
+			}
+			if !strings.EqualFold(v2, v1) {
+				t.Errorf("String() = %v, want %v", v1, tt.want)
+			}
+		})
+	}
+}
