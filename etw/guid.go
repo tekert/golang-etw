@@ -45,53 +45,71 @@ func (g *GUID) IsZero() bool {
 // UPPERCASE String representation of the GUID
 // These are 10x more performant than sprintf
 func (g *GUID) String() string {
-	b := make([]byte, 38)
+	var b [38]byte
 	b[0] = '{'
 	b[37] = '}'
 
-	// Data1 (8 chars)
-	HexEncodeU(b[1:9], []byte{
-		byte(g.Data1 >> 24),
-		byte(g.Data1 >> 16),
-		byte(g.Data1 >> 8),
-		byte(g.Data1),
-	})
-	b[9] = '-'
-	HexEncodeU(b[10:14], []byte{byte(g.Data2 >> 8), byte(g.Data2)})
-	b[14] = '-'
-	HexEncodeU(b[15:19], []byte{byte(g.Data3 >> 8), byte(g.Data3)})
-	b[19] = '-'
-	HexEncodeU(b[20:24], g.Data4[:2])
-	b[24] = '-'
-	HexEncodeU(b[25:37], g.Data4[2:])
+	// Avoid slice allocations
+	var d1 [4]byte
+	d1[0] = byte(g.Data1 >> 24)
+	d1[1] = byte(g.Data1 >> 16)
+	d1[2] = byte(g.Data1 >> 8)
+	d1[3] = byte(g.Data1)
 
-	return string(b)
+	var d2 [2]byte
+	d2[0] = byte(g.Data2 >> 8)
+	d2[1] = byte(g.Data2)
+
+	var d3 [2]byte
+	d3[0] = byte(g.Data3 >> 8)
+	d3[1] = byte(g.Data3)
+
+    HexEncodeU(b[1:9], d1[:])
+    b[9] = '-'
+    HexEncodeU(b[10:14], d2[:])
+    b[14] = '-'
+    HexEncodeU(b[15:19], d3[:])
+    b[19] = '-'
+    HexEncodeU(b[20:24], g.Data4[:2])
+    b[24] = '-'
+    HexEncodeU(b[25:37], g.Data4[2:])
+
+	return string(b[:])
 }
 
 // lowercase string representation of the GUID
 // These are 10x more performant than sprintf
 func (g *GUID) StringL() string {
-	b := make([]byte, 38)
+	var b [38]byte
 	b[0] = '{'
 	b[37] = '}'
 
-	// Data1 (8 chars)
-	HexEncode(b[1:9], []byte{
-		byte(g.Data1 >> 24),
-		byte(g.Data1 >> 16),
-		byte(g.Data1 >> 8),
-		byte(g.Data1),
-	})
-	b[9] = '-'
-	HexEncode(b[10:14], []byte{byte(g.Data2 >> 8), byte(g.Data2)})
-	b[14] = '-'
-	HexEncode(b[15:19], []byte{byte(g.Data3 >> 8), byte(g.Data3)})
-	b[19] = '-'
-	HexEncode(b[20:24], g.Data4[:2])
-	b[24] = '-'
-	HexEncode(b[25:37], g.Data4[2:])
+	// Avoid slice allocations
+	var d1 [4]byte
+	d1[0] = byte(g.Data1 >> 24)
+	d1[1] = byte(g.Data1 >> 16)
+	d1[2] = byte(g.Data1 >> 8)
+	d1[3] = byte(g.Data1)
 
-	return string(b)
+	var d2 [2]byte
+	d2[0] = byte(g.Data2 >> 8)
+	d2[1] = byte(g.Data2)
+
+	var d3 [2]byte
+	d3[0] = byte(g.Data3 >> 8)
+	d3[1] = byte(g.Data3)
+
+    HexEncode(b[1:9], d1[:])
+    b[9] = '-'
+    HexEncode(b[10:14], d2[:])
+    b[14] = '-'
+    HexEncode(b[15:19], d3[:])
+    b[19] = '-'
+    HexEncode(b[20:24], g.Data4[:2])
+    b[24] = '-'
+    HexEncode(b[25:37], g.Data4[2:])
+
+	return string(b[:])
 }
 
 func (g *GUID) Equals(other *GUID) bool {
