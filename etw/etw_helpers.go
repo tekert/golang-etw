@@ -47,10 +47,19 @@ var (
 			return make(map[string][]*Property)
 		},
 	}
-	structuresSlicePool = sync.Pool{
+
+	// for array of structs
+	structArraysMapPool = sync.Pool{
 		New: func() interface{} {
-			s := make([]map[string]*Property, 0)
-			return &s // Return pointer
+			return make(map[string][]map[string]*Property)
+		},
+	}
+
+	// for single structs
+	structSingleMapPool = sync.Pool{
+		New: func() interface{} {
+			s := make([]map[string]*Property, 0, 4)
+			return &s
 		},
 	}
 
@@ -82,20 +91,14 @@ var (
 	}
 )
 
-func maxu32(a, b uint32) uint32 {
-	if a < b {
-		return b
-	}
-	return a
-}
-
 type EventRecordHelper struct {
 	EventRec  *EventRecord
 	TraceInfo *TraceEventInfo
 
 	Properties      map[string]*Property
 	ArrayProperties map[string][]*Property
-	Structures      []map[string]*Property
+	StructArrays    map[string][]map[string]*Property // For arrays of structs
+	StructSingle    []map[string]*Property            // For non-array structs
 
 	Flags struct {
 		Skip      bool
@@ -165,18 +168,32 @@ func (e *EventRecordHelper) release() {
 		arrayPropertyMapPool.Put(e.ArrayProperties)
 	}
 
-	// 3. Reset/Clear and return Structures to the pool
-	if (e.Structures) != nil {
-		for i := range e.Structures {
-			for _, p := range e.Structures[i] {
+	// 3a. StructArrays map
+	if (e.StructArrays) != nil {
+		for _, structs := range e.StructArrays {
+			for _, propStruct := range structs {
+				for _, p := range propStruct {
+					p.release()
+				}
+				clear(propStruct)
+				propertyMapPool.Put(propStruct)
+			}
+		}
+		clear(e.StructArrays)
+		structArraysMapPool.Put(e.StructArrays)
+	}
+
+	// 3b. SingleStructs slice
+	if (e.StructSingle) != nil {
+		for _, propStruct := range e.StructSingle {
+			for _, p := range propStruct {
 				p.release()
 			}
-			clear(e.Structures[i])
-			// Return inner map to pool
-			propertyMapPool.Put(e.Structures[i])
+			clear(propStruct)
+			propertyMapPool.Put(propStruct)
 		}
-		e.Structures = e.Structures[:0] // Reset length, keep capacity
-		structuresSlicePool.Put(&e.Structures)
+		e.StructSingle = e.StructSingle[:0]
+		structSingleMapPool.Put(&e.StructSingle)
 	}
 
 	// 4. Clear and return selectedProperties
@@ -217,7 +234,7 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 	if erh.TraceInfo, erh.teiBuffer, err = er.GetEventInformation(); err != nil {
 		err = fmt.Errorf("GetEventInformation failed : %s", err)
 		slog.Debug("GetEventInformation failed",
-			"GUID", er.EventHeader.ProviderId.String(),
+			"GUID", er.EventHeader.ProviderId.StringU(),
 			"EventType", er.EventHeader.EventDescriptor.Opcode,
 			"Version", er.EventHeader.EventDescriptor.Version)
 		// GUID {90CBDC39-4A3E-11D1-84F4-0000F80464E3} (FileIo)
@@ -245,11 +262,14 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 	return
 }
 
+// This memory was already reseted when it was released.
 func (e *EventRecordHelper) initialize() {
-	// This memory was already reseted when it was released.
 	e.Properties = propertyMapPool.Get().(map[string]*Property)
 	e.ArrayProperties = arrayPropertyMapPool.Get().(map[string][]*Property)
-	e.Structures = *(structuresSlicePool.Get().(*[]map[string]*Property))
+
+	// Structure handling
+	e.StructArrays = structArraysMapPool.Get().(map[string][]map[string]*Property)
+	e.StructSingle = *(structSingleMapPool.Get().(*[]map[string]*Property))
 
 	e.selectedProperties = selectedPropertiesPool.Get().(map[string]bool)
 
@@ -282,7 +302,7 @@ func (e *EventRecordHelper) setEventMetadataNoTrace(event *Event) {
 		event.System.EventID = e.EventRec.EventID()
 		event.System.Version = eventDescriptor.Version
 
-		event.System.Provider.Guid = nullGUIDStr
+		event.System.Provider.Guid = nullGUID
 		event.System.Level.Value = eventDescriptor.Level
 		event.System.Opcode.Value = eventDescriptor.Opcode // eventType
 		event.System.Keywords.Mask = eventDescriptor.Keyword
@@ -298,7 +318,7 @@ func (e *EventRecordHelper) setEventMetadataNoTrace(event *Event) {
 		}
 
 		event.System.EventType = eventType
-		event.System.EventGuid = e.EventRec.EventHeader.ProviderId.String()
+		event.System.EventGuid = e.EventRec.EventHeader.ProviderId
 		event.System.Correlation.ActivityID = nullGUIDStr
 		event.System.Correlation.RelatedActivityID = nullGUIDStr
 
@@ -337,7 +357,7 @@ func (e *EventRecordHelper) setEventMetadata(event *Event) {
 	event.System.Version = e.TraceInfo.EventDescriptor.Version
 	event.System.Channel = e.TraceInfo.ChannelName()
 
-	event.System.Provider.Guid = e.TraceInfo.ProviderGUID.String()
+	event.System.Provider.Guid = e.TraceInfo.ProviderGUID
 	event.System.Provider.Name = e.TraceInfo.ProviderName()
 	event.System.Level.Value = e.TraceInfo.EventDescriptor.Level
 	event.System.Level.Name = e.TraceInfo.LevelName()
@@ -362,22 +382,22 @@ func (e *EventRecordHelper) setEventMetadata(event *Event) {
 		}
 
 		event.System.EventType = eventType
-		event.System.EventGuid = e.TraceInfo.EventGUID.String()
+		event.System.EventGuid = e.TraceInfo.EventGUID
 		event.System.Correlation.ActivityID = e.TraceInfo.ActivityIDName()
 		event.System.Correlation.RelatedActivityID = e.TraceInfo.RelatedActivityIDName()
 	} else {
-		event.System.Correlation.ActivityID = e.EventRec.EventHeader.ActivityId.String()
+		event.System.Correlation.ActivityID = e.EventRec.EventHeader.ActivityId.StringU()
 		if relatedActivityID := e.EventRec.RelatedActivityID(); relatedActivityID.IsZero() {
 			event.System.Correlation.RelatedActivityID = nullGUIDStr
 		} else {
-			event.System.Correlation.RelatedActivityID = relatedActivityID.String()
+			event.System.Correlation.RelatedActivityID = relatedActivityID.StringU()
 		}
 	}
 }
 
 func (e *EventRecordHelper) getPropertySize(i uint32) (size uint32, err error) {
 	dataDesc := PropertyDataDescriptor{}
-	dataDesc.PropertyName = uint64(e.TraceInfo.PropertyNameOffset(i))
+	dataDesc.PropertyName = uint64(e.TraceInfo.PropertyNamePointer(i))
 	dataDesc.ArrayIndex = math.MaxUint32
 	err = TdhGetPropertySize(e.EventRec, 0, nil, 1, &dataDesc, &size)
 	return
@@ -393,23 +413,24 @@ func (e *EventRecordHelper) cacheIntergerValues(i uint32) {
 	// Basically: if !isStruct && !hasParamCount && isSingleValue
 	if (epi.Flags&(PropertyStruct|PropertyParamCount)) == 0 &&
 		epi.Count() == 1 {
+		userdr := e.remainingUserDataLength()
 
 		// integerValues is used secuentally, so we can reuse it without reseting
 		switch inType := TdhInType(epi.InType()); inType {
 		case TDH_INTYPE_INT8,
 			TDH_INTYPE_UINT8:
-			if (e.userDataEnd - e.userDataIt) >= 1 {
+			if (userdr) >= 1 {
 				e.integerValues[i] = uint16(*(*uint8)(unsafe.Pointer(e.userDataIt)))
 			}
 		case TDH_INTYPE_INT16,
 			TDH_INTYPE_UINT16:
-			if (e.userDataEnd - e.userDataIt) >= 2 {
+			if (userdr) >= 2 {
 				e.integerValues[i] = *(*uint16)(unsafe.Pointer(e.userDataIt))
 			}
 		case TDH_INTYPE_INT32,
 			TDH_INTYPE_UINT32,
 			TDH_INTYPE_HEXINT32:
-			if (e.userDataEnd - e.userDataIt) >= 4 {
+			if (userdr) >= 4 {
 				val := *(*uint32)(unsafe.Pointer(e.userDataIt))
 				if val > 0xffff {
 					e.integerValues[i] = 0xffff
@@ -647,6 +668,29 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 		return
 	}
 
+	// // ! TESTING
+	// sizeBytes, _ := e.getPropertySize(i)
+	// propSize := uint32(0)
+	// length := uint32(0)
+	// // ! TESTING
+	// pdd := PropertyDataDescriptor{}
+	// pdd.PropertyName = uint64(e.TraceInfo.PropertyNamePointer(i))
+	// pdd.ArrayIndex = math.MaxUint32
+	// err2 := TdhGetPropertySize(e.EventRec, 0, nil, 1, &pdd, &propSize)
+	// var err3 error
+	// if err2 != nil {
+	// 	err3 = TdhGetProperty(e.EventRec, 0, nil, 1, &pdd, propSize, (*byte)(unsafe.Pointer(&length)))
+	// 	_ = err3
+	// }
+	// if p.sizeBytes != sizeBytes {
+	// 	_, udc, _ := p.formatToStringTdh()
+	// 	p.sizeBytes = uint32(udc)
+	// 	if p.sizeBytes != uint32(udc) {
+	// 		slog.Warn("sizeBytes mismatch2", "sizeBytes", p.sizeBytes, "sizeBytes2", sizeBytes)
+	// 		panic("sizeBytes mismatch2")
+	// 	}
+	// }
+
 	// p.length has to be 0 on strings and structures for TdhFormatProperty to work.
 	// We use size instead to advance when p.length is 0.
 	e.userDataIt += uintptr(p.sizeBytes)
@@ -706,14 +750,43 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		var arrayName string
 		var mofString []uint16
 
+		if isArray {
+			arrayName = UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(epi.NameOffset))
+		}
+
 		// Treat non-array properties as arrays with one element.
 		for arrayIndex := uint16(0); arrayIndex < arrayCount; arrayIndex++ {
-			if isArray {
-				LogTrace("Processing array element", "name", p.name, "index", arrayIndex)
 
-				if arrayName == "" {
-					arrayName = UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(epi.NameOffset))
+			// If this property is a struct, process the child properties
+			// TODO(tekert): save this in a tree structure?
+			if epi.Flags&PropertyStruct != 0 {
+				slog.Debug("Processing struct property", "index", arrayIndex)
+				propStruct := propertyMapPool.Get().(map[string]*Property)
+
+				startIndex := epi.StructStartIndex()
+				lastMember := startIndex + epi.NumOfStructMembers()
+
+				for j := startIndex; j < lastMember; j++ {
+					LogTrace("parsing struct property", "struct_index", j)
+					if p, err = e.prepareProperty(uint32(j)); err != nil {
+						return
+					}
+					propStruct[p.name] = p
 				}
+				// Add to appropriate collection
+				if isArray {
+					// Part of an array - add to StructArrays
+					e.StructArrays[arrayName] = append(e.StructArrays[arrayName], propStruct)
+				} else {
+					// Single struct - add to SingleStructs
+					e.StructSingle = append(e.StructSingle, propStruct)
+				}
+				continue
+			}
+
+			// If is a simple array of props (not structs)
+			if isArray && (epi.Flags&PropertyStruct == 0) {
+				//LogTrace("Processing array element", "name", arrayName, "index", arrayIndex)
 
 				// if this is a MOF event, we don't need to parse the properties of the array
 				// this will be a array of wchars, Kernel events EVENT_HEADER_FLAG_CLASSIC_HEADER
@@ -731,41 +804,18 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 						}
 					}
 				} else {
+					// If this is not an array of structs, we can parse the properties of the array
 					if p, err = e.prepareProperty(i); err != nil {
 						return
 					}
 					array = append(array, p)
+					continue
 				}
 			}
 
-			if epi.Flags&PropertyStruct != 0 {
-				// TODO(tekert): save this in a tree structure.
-				// If this property is a struct, process the child properties
-				slog.Debug("Processing struct property", "index", arrayIndex)
-
-				//propStruct := make(map[string]*Property)
-				propStruct := propertyMapPool.Get().(map[string]*Property)
-
-				startIndex := epi.StructStartIndex()
-				lastMember := startIndex + epi.NumOfStructMembers()
-
-				for j := startIndex; j < lastMember; j++ {
-					LogTrace("parsing struct property", "struct_index", j)
-					if p, err = e.prepareProperty(uint32(j)); err != nil {
-						return
-					} else {
-						propStruct[p.name] = p
-					}
-				}
-
-				e.Structures = append(e.Structures, propStruct)
-
-				continue
-			}
-
-			// Single value that is not a struct.
+			// Single value that is not a struct or array.
 			if arrayCount == 1 && !isArray {
-				LogTrace("parsing scalar property", "index", i)
+				LogTrace("parsing property", "index", i)
 				if p, err = e.prepareProperty(i); err != nil {
 					return
 				}
@@ -799,6 +849,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 			"total", e.EventRec.UserDataLength,
 			"remainingHex", hexStr,
 			"provider", e.TraceInfo.ProviderName(),
+			"providerGUID", e.TraceInfo.ProviderGUID.String(),
 			"eventID", e.TraceInfo.EventID(),
 			"version", e.TraceInfo.EventDescriptor.Version, // MOF class version
 			"opcode", e.TraceInfo.OpcodeName(),
@@ -809,6 +860,8 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 			"channel", e.TraceInfo.ChannelName(),
 			"isMof", e.TraceInfo.IsMof(),
 		)
+
+		e.addPropError()
 	}
 
 	return
@@ -820,8 +873,10 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 // TODO(tekert): use the new kernel mof generated classes to decode this.
 func (e *EventRecordHelper) prepareMofProperty(remainingData []byte, remaining uint32) (last error) {
 
-	// Check if it's just padding
-	if isPadding(remainingData) {
+	// Check if all bytes are padding (zeros)
+	if bytes.IndexFunc(remainingData, func(r rune) bool {
+		return r != 0
+	}) == -1 {
 		return nil
 	}
 
@@ -847,13 +902,6 @@ func (e *EventRecordHelper) prepareMofProperty(remainingData []byte, remaining u
 	}
 
 	return fmt.Errorf("unhandled MOF event %d", eventID)
-}
-
-func isPadding(data []byte) bool {
-	// Check if all bytes are zero
-	return bytes.IndexFunc(data, func(r rune) bool {
-		return r != 0
-	}) == -1
 }
 
 // Get the MOF class GUID
@@ -910,7 +958,7 @@ func (e *EventRecordHelper) parseAndSetProperty(name string, out *Event) (err er
 
 	// parsing array
 	if props, ok := e.ArrayProperties[name]; ok {
-		values := make([]string, len(props))
+		values := make([]string, 0, len(props))
 
 		// iterate over the properties
 		for _, p := range props {
@@ -925,19 +973,20 @@ func (e *EventRecordHelper) parseAndSetProperty(name string, out *Event) (err er
 		eventData[name] = values
 	}
 
-	// parsing structures
-	if name == StructurePropertyName {
-		if len(e.Structures) > 0 {
-			structs := make([]map[string]string, len(e.Structures))
-			for _, m := range e.Structures {
-				s := make(map[string]string)
-				for field, prop := range m {
-					if s[field], err = prop.FormatToString(); err != nil {
-						return fmt.Errorf("%w %s.%s: %s", ErrPropertyParsing, StructurePropertyName, field, err)
-					}
-				}
-			}
+	// Structure arrays
+	if structs, ok := e.StructArrays[name]; ok {
+		if structArray, err := e.formatStructs(structs, name); err != nil {
+			return err
+		} else {
+			eventData[name] = structArray
+		}
+	}
 
+	// Single structs - only check if requesting StructurePropertyName
+	if name == StructurePropertyName && len(e.StructSingle) > 0 {
+		if structs, err := e.formatStructs(e.StructSingle, StructurePropertyName); err != nil {
+			return err
+		} else {
 			eventData[StructurePropertyName] = structs
 		}
 	}
@@ -965,15 +1014,14 @@ func (e *EventRecordHelper) parseAndSetAllProperties(out *Event) (last error) {
 	}
 
 	// Properties
-	for pname, p := range e.Properties {
-		if !e.shouldParse(pname) {
+	for _, p := range e.Properties {
+		if !e.shouldParse(p.name) {
 			continue
 		}
-		/*if err := e.parseAndSetProperty(pname, out); err != nil {
-			last = err
-		}*/
-		if eventData[p.name], err = p.FormatToString(); err != nil {
+		if _, err := p.FormatToString(); err != nil {
 			last = fmt.Errorf("%w %s: %s", ErrPropertyParsing, p.name, err)
+		} else {
+			eventData[p.name] = p.value
 		}
 	}
 
@@ -983,7 +1031,7 @@ func (e *EventRecordHelper) parseAndSetAllProperties(out *Event) (last error) {
 			continue
 		}
 
-		values := make([]string, len(props))
+		values := make([]string, 0, len(props))
 
 		// iterate over the properties
 		for _, p := range props {
@@ -998,27 +1046,44 @@ func (e *EventRecordHelper) parseAndSetAllProperties(out *Event) (last error) {
 		eventData[pname] = values
 	}
 
-	// Structure
-	if !e.shouldParse(StructurePropertyName) {
-		return
+	// Handle struct arrays
+	for name, structs := range e.StructArrays {
+		if !e.shouldParse(name) {
+			continue
+		}
+		if structArray, err := e.formatStructs(structs, name); err != nil {
+			last = err
+		} else {
+			eventData[name] = structArray
+		}
 	}
 
-	// TODO(tekert): optimize this with pools.
-	if len(e.Structures) > 0 {
-		structs := make([]map[string]string, len(e.Structures))
-		for _, m := range e.Structures {
-			s := make(map[string]string)
-			for field, prop := range m {
-				if s[field], err = prop.FormatToString(); err != nil {
-					last = fmt.Errorf("%w %s.%s: %s", ErrPropertyParsing, StructurePropertyName, field, err)
-				}
-			}
+	// Handle single structs
+	if len(e.StructSingle) > 0 && e.shouldParse(StructurePropertyName) {
+		if structs, err := e.formatStructs(e.StructSingle, StructurePropertyName); err != nil {
+			last = err
+		} else {
+			eventData[StructurePropertyName] = structs
 		}
-
-		eventData[StructurePropertyName] = structs
 	}
 
 	return
+}
+
+func (e *EventRecordHelper) formatStructs(structs []map[string]*Property, name string) ([]map[string]string, error) {
+	result := make([]map[string]string, 0, len(structs)) // TODO(tekert): use pools?
+	var err error
+
+	for _, propStruct := range structs {
+		s := make(map[string]string)
+		for field, prop := range propStruct {
+			if s[field], err = prop.FormatToString(); err != nil {
+				return nil, fmt.Errorf("%w struct %s.%s: %s", ErrPropertyParsing, name, field, err)
+			}
+		}
+		result = append(result, s)
+	}
+	return result, nil
 }
 
 /** Public methods **/
@@ -1099,6 +1164,10 @@ func (e *EventRecordHelper) GetPropertyFloat(name string) (float64, error) {
 	return 0, fmt.Errorf("%w %s", ErrUnknownProperty, name)
 }
 
+// SetProperty sets or updates a property value in the Properties map.
+//
+// This is used to set a property value manually. This is useful when
+// you want to add a property that is not present in the event record.
 func (e *EventRecordHelper) SetProperty(name, value string) {
 	if p, ok := e.Properties[name]; ok {
 		p.value = value
@@ -1138,15 +1207,23 @@ func (e *EventRecordHelper) ParseProperty(name string) (err error) {
 		}
 	}
 
-	// parsing structures
-	if name == StructurePropertyName {
-		if len(e.Structures) > 0 {
-			for _, m := range e.Structures {
-				s := make(map[string]string)
-				for field, prop := range m {
-					if s[field], err = prop.FormatToString(); err != nil {
-						return fmt.Errorf("%w %s.%s: %s", ErrPropertyParsing, StructurePropertyName, field, err)
-					}
+	// Structure arrays
+	if structs, ok := e.StructArrays[name]; ok {
+		for _, propStruct := range structs {
+			for field, prop := range propStruct {
+				if _, err = prop.FormatToString(); err != nil {
+					return fmt.Errorf("%w struct %s.%s: %s", ErrPropertyParsing, name, field, err)
+				}
+			}
+		}
+	}
+
+	// Single structs - only check if requesting StructurePropertyName
+	if name == StructurePropertyName && len(e.StructSingle) > 0 {
+		for _, propStruct := range e.StructSingle {
+			for field, prop := range propStruct {
+				if _, err = prop.FormatToString(); err != nil {
+					return fmt.Errorf("%w struct %s.%s: %s", ErrPropertyParsing, StructurePropertyName, field, err)
 				}
 			}
 		}
@@ -1155,10 +1232,21 @@ func (e *EventRecordHelper) ParseProperty(name string) (err error) {
 	return
 }
 
+// Skippable marks the event as "droppable" when the consumer channel is full.
+// Events marked as skippable will not block the ETW callback when trying to send
+// to a full Event channel. Instead, they will be counted in [Consumer.Skipped] and dropped.
+// This is useful for high-volume, low-priority events where losing some events
+// is preferable to blocking the ETW callback.
 func (e *EventRecordHelper) Skippable() {
 	e.Flags.Skippable = true
 }
 
+// Skip marks the event to be completely ignored during processing.
+// When an event is marked with Skip, it will not be parsed or sent to
+// the consumer channel at all. The event processing stops immediately
+// after the current callback returns.
+// This is useful when you want to filter out events early in the
+// processing pipeline before any parsing overhead.
 func (e *EventRecordHelper) Skip() {
 	e.Flags.Skip = true
 }
