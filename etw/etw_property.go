@@ -111,13 +111,17 @@ func (p *Property) FormatToString() (string, error) {
 	var err error
 
 	if p.value == "" && p.Parseable() {
-		// Try custom parser first
-		p.value, err = p.decodeToString(p.evtPropInfo.OutType())
-		if err != nil {
-			//p.evtRecordHelper.addPropError() // we have to try the old parser anyway.
-			slog.Debug("failed to parse property with custom parser", "error", err)
-			// try the tdh parser
-			p.value, _, err = p.formatToStringTdh()
+		// Use tdh if we have map info, else try custom parser first.
+		if p.evtPropInfo.MapNameOffset() > 0 {
+			p.value, _, err = p.formatToStringTdh() // use tdh for maps
+		} else {
+			p.value, err = p.decodeToString(p.evtPropInfo.OutType())
+			if err != nil {
+				//p.evtRecordHelper.addPropError() // we have to try the old parser anyway.
+				slog.Debug("failed to parse property with custom parser", "error", err)
+				// fallback to tdh parser
+				p.value, _, err = p.formatToStringTdh()
+			}
 		}
 	}
 
@@ -141,8 +145,7 @@ func (p *Property) FormatToStringTdh() (string, error) {
 // used as fallback when the custom decoder fails.
 // Returns: (parsed string, User Data consumed, error)
 func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
-	var mapInfo *EventMapInfo
-	//var udc uint16
+	var pMapInfo *EventMapInfo
 
 	// Get the name/value mapping if the property specifies a value map.
 	if p.evtPropInfo.MapNameOffset() > 0 {
@@ -153,10 +156,16 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 			TDH_INTYPE_HEXINT32:
 			pMapName := (*uint16)(unsafe.Pointer(p.evtRecordHelper.TraceInfo.pointerOffset(uintptr(p.evtPropInfo.MapNameOffset()))))
 			decSrc := p.evtRecordHelper.TraceInfo.DecodingSource
-			if mapInfo, err = p.evtRecordHelper.EventRec.GetMapInfo(pMapName, uint32(decSrc)); err != nil {
+			var mapInfoBuffer *EventMapInfoBuffer
+			mapInfoBuffer, err = p.evtRecordHelper.EventRec.GetMapInfo(pMapName, uint32(decSrc))
+			if mapInfoBuffer != nil {
+				defer mapInfoBuffer.Release()
+			}
+			if err != nil {
 				err = fmt.Errorf("failed to get map info: %s", err)
 				return
 			}
+			pMapInfo = mapInfoBuffer.pMapInfo
 		}
 	}
 
@@ -182,7 +191,7 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 		} else {
 			err = TdhFormatProperty(
 				p.evtRecordHelper.TraceInfo,
-				mapInfo,
+				pMapInfo,
 				p.evtRecordHelper.EventRec.PointerSize(),
 				uint16(p.evtPropInfo.InType()),
 				uint16(p.evtPropInfo.OutType()),
@@ -201,10 +210,10 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 		}
 
 		if err == ERROR_EVT_INVALID_EVENT_DATA {
-			if mapInfo == nil {
+			if pMapInfo == nil {
 				break
 			}
-			mapInfo = nil
+			pMapInfo = nil
 			continue
 		}
 

@@ -1072,12 +1072,12 @@ func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, teiBuffer *[]b
 	*buffp = (*buffp)[:cap(*buffp)] // Ensure full capacity
 	bufferSize := uint32(len(*buffp))
 
-	tei = (*TraceEventInfo)(unsafe.Pointer(&(*buffp)[0]))
+	tei = (*TraceEventInfo)(unsafe.Pointer(unsafe.SliceData(*buffp)))
 	err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
 
 	if err == ERROR_INSUFFICIENT_BUFFER {
 		*buffp = make([]byte, bufferSize)
-		tei = (*TraceEventInfo)(unsafe.Pointer(&(*buffp)[0]))
+		tei = (*TraceEventInfo)(unsafe.Pointer(unsafe.SliceData(*buffp)))
 		err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
 	}
 	if err != nil {
@@ -1155,13 +1155,21 @@ var eventMapInfoPool = sync.Pool{
 	},
 }
 
-func (e *EventRecord) GetMapInfo(pMapName *uint16, decodingSource uint32) (pMapInfo *EventMapInfo, err error) {
+type EventMapInfoBuffer struct {
+	pMapInfo *EventMapInfo
+	buff     *[]byte
+}
+
+func (emi EventMapInfoBuffer) Release() {
+	eventMapInfoPool.Put(emi.buff)
+}
+
+func (e *EventRecord) GetMapInfo(pMapName *uint16, decodingSource uint32) (pMapInfoBuff *EventMapInfoBuffer, err error) {
 	// Get buffer from pool (no need to clean it, it will be overwritten)
 	buffPtr := eventMapInfoPool.Get().(*[]byte)
-	defer eventMapInfoPool.Put(buffPtr)
 
 	mapSize := uint32(len(*buffPtr))
-	pMapInfo = (*EventMapInfo)(unsafe.Pointer(&(*buffPtr)[0]))
+	pMapInfo := (*EventMapInfo)(unsafe.Pointer(&(*buffPtr)[0]))
 	err = TdhGetEventMapInformation(e, pMapName, pMapInfo, &mapSize)
 
 	if err == syscall.ERROR_INSUFFICIENT_BUFFER {
@@ -1181,6 +1189,10 @@ func (e *EventRecord) GetMapInfo(pMapName *uint16, decodingSource uint32) (pMapI
 
 	if err == syscall.ERROR_NOT_FOUND {
 		err = nil
+	}
+	pMapInfoBuff = &EventMapInfoBuffer{
+		pMapInfo: pMapInfo,
+		buff:     buffPtr,
 	}
 	return
 }
