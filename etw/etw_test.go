@@ -80,7 +80,8 @@ func TestProducerConsumer(t *testing.T) {
 	start := time.Now()
 	// consuming events in Golang
 	go func() {
-		for e := range c.Events {
+		//for e := range c.Events {
+		c.ProcessEvents(func(e *Event) {
 			eventCount++
 
 			if e.System.Provider.Name == KernelFileProviderName {
@@ -94,7 +95,7 @@ func TestProducerConsumer(t *testing.T) {
 			_, err := json.Marshal(&e)
 			tt.CheckErr(err)
 			//t.Log(string(b))
-		}
+		})
 	}()
 	// sleeping
 	time.Sleep(5 * time.Second)
@@ -145,13 +146,14 @@ func TestKernelSession(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for e := range c.Events {
+		//for e := range c.Events {
+		c.ProcessEvents(func(e *Event) {
 			eventCount++
 
 			_, err := json.Marshal(&e)
 			tt.CheckErr(err)
 			//t.Log(string(b))
-		}
+		})
 	}()
 
 	time.Sleep(5 * time.Second)
@@ -197,7 +199,8 @@ func TestEventMapInfo(t *testing.T) {
 
 	c := NewConsumer(context.Background()).FromSessions(prod)
 	// reducing size of channel so that we are obliged to skip events
-	c.Events = make(chan *Event)
+	c.Events = make(chan []*Event)
+	c.EventsConfig.BatchSize = 1
 	c.EventPreparedCallback = func(erh *EventRecordHelper) error {
 
 		erh.TraceInfo.EventMessage()
@@ -231,7 +234,8 @@ func TestEventMapInfo(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for e := range c.Events {
+		//for e := range c.Events {
+		c.ProcessEvents(func(e *Event) {
 			eventCount++
 
 			_, err := json.Marshal(&e)
@@ -240,7 +244,7 @@ func TestEventMapInfo(t *testing.T) {
 				t.Logf("Provider=%s ActivityID=%s RelatedActivityID=%s", e.System.Provider.Name, e.System.Correlation.ActivityID, e.System.Correlation.RelatedActivityID)
 			}
 			//t.Log(string(b))
-		}
+		})
 	}()
 
 	time.Sleep(10 * time.Second)
@@ -274,7 +278,7 @@ func TestLostEvents(t *testing.T) {
 	tt.CheckErr(ses.EnableProvider(prov))
 	defer ses.Stop()
 
-	//! TODO: TESTING
+	// ! TESTING
 	// Set acces for the Eventlog-Security trace (admin is not enough)
 	const SecurityLogReadFlags2 = TRACELOG_ACCESS_REALTIME |
 		TRACELOG_REGISTER_GUIDS |
@@ -299,9 +303,10 @@ func TestLostEvents(t *testing.T) {
 	tt.CheckErr(c.Start())
 	cnt := uint64(0)
 	go func() {
-		for range c.Events {
+		//for range c.Events {
+		c.ProcessEvents(func(e *Event) {
 			cnt++
-		}
+		})
 	}()
 	time.Sleep(20 * time.Second)
 	tt.CheckErr(c.Stop())
@@ -478,7 +483,8 @@ func TestConsumerCallbacks(t *testing.T) {
 	pid := os.Getpid()
 	// consuming events in Golang
 	go func() {
-		for e := range c.Events {
+		//for e := range c.Events {
+		c.ProcessEvents(func(e *Event) {
 			eventCount++
 
 			_, err := json.Marshal(&e)
@@ -506,7 +512,7 @@ func TestConsumerCallbacks(t *testing.T) {
 					etwwrite++
 				}
 			}
-		}
+		})
 	}()
 
 	// creating test files
@@ -761,9 +767,10 @@ func TestQueryTraceProperties(t *testing.T) {
 
 	eventsReceived := uint32(0)
 	go func() {
-		for range c.Events {
+		//for range c.Events {
+		c.ProcessEvents(func(e *Event) {
 			eventsReceived++
-		}
+		})
 	}()
 
 	// Wait for some events to be processed

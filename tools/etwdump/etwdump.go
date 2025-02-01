@@ -125,7 +125,7 @@ func (s *Stats) Update(e *etw.Event) {
 
 	key := e.System.Channel
 	if key == "" {
-		key = e.System.Provider.Guid
+		key = e.System.Provider.Guid.StringU()
 	}
 
 	if eventIDs, ok = s.s[key]; !ok {
@@ -256,7 +256,7 @@ func main() {
 		maxLen := 0
 		for name, prov := range pmap {
 			// we don't want do display GUID keys
-			if name == prov.GUID.String() {
+			if name == prov.GUID.StringU() {
 				continue
 			}
 			if cregex != nil {
@@ -271,7 +271,7 @@ func main() {
 		}
 		sort.Strings(names)
 		for _, name := range names {
-			fmt.Printf("%s%s %s\n", name, strings.Repeat(" ", maxLen-len(name)), pmap[name].GUID.String())
+			fmt.Printf("%s%s %s\n", name, strings.Repeat(" ", maxLen-len(name)), pmap[name].GUID.StringU())
 		}
 		os.Exit(0)
 	}
@@ -306,7 +306,7 @@ func main() {
 	if autologger != "" {
 		a := etw.AutoLogger{
 			Name:        autologger,
-			GuidS:       unsafeRandomGuid().String(),
+			GuidS:       unsafeRandomGuid().StringU(),
 			LogFileMode: 0x8001c0,
 			BufferSize:  64,
 			ClockType:   2,
@@ -424,7 +424,7 @@ func main() {
 			log.Errorf("Error while stopping consumer: %s", err)
 		}
 
-		log.Infof("Skipped: %d", c.Skipped)
+		log.Infof("Skipped: %d", c.Skipped.Load())
 
 		log.Debug("Stopping producers")
 		for _, p := range producers {
@@ -437,36 +437,39 @@ func main() {
 
 	go func() {
 		log.Debug("Consuming events")
-		for e := range c.Events {
-			if fstats {
-				stats.Update(e)
-				if stats.Count%200 == 0 {
-					clear()
-					stats.Show()
-				}
-				// we write to output if needed
-				if outfile != "" {
-					if b, err := json.Marshal(EventWrapper{e}); err != nil {
-						panic(err)
-					} else {
-						fmt.Fprintf(writer, "%s\n", string(b))
+		for batch := range c.Events {
+			for _, e := range batch {
+				defer e.Release()
+				if fstats {
+					stats.Update(e)
+					if stats.Count%200 == 0 {
+						clear()
+						stats.Show()
 					}
-				}
-				continue
-			}
-
-			if b, err := json.Marshal(EventWrapper{e}); err != nil {
-				panic(err)
-			} else {
-				if cregex != nil {
-					if cregex.Match(b) {
-						if !noout {
+					// we write to output if needed
+					if outfile != "" {
+						if b, err := json.Marshal(EventWrapper{e}); err != nil {
+							panic(err)
+						} else {
 							fmt.Fprintf(writer, "%s\n", string(b))
 						}
 					}
+					continue
+				}
+
+				if b, err := json.Marshal(EventWrapper{e}); err != nil {
+					panic(err)
 				} else {
-					if !noout {
-						fmt.Fprintf(writer, "%s\n", string(b))
+					if cregex != nil {
+						if cregex.Match(b) {
+							if !noout {
+								fmt.Fprintf(writer, "%s\n", string(b))
+							}
+						}
+					} else {
+						if !noout {
+							fmt.Fprintf(writer, "%s\n", string(b))
+						}
 					}
 				}
 			}

@@ -12,7 +12,7 @@ import (
 	"github.com/tekert/golang-etw/etw"
 )
 
-func main() {
+func main2() {
 	// ETW needs a trace to be created before being able to consume from
 	// it. Traces can be created using golang-etw or they might be already
 	// existing (created from an autologgers for instance) like Eventlog-Security.
@@ -44,12 +44,14 @@ func main() {
 	go func() {
 		var b []byte
 		var err error
-		c.ProcessEvents(func(e *etw.Event) {
-			if b, err = json.Marshal(e); err != nil {
-				panic(err)
+		for batch := range c.Events {
+			for _, e := range batch {
+				if b, err = json.Marshal(e); err != nil {
+					panic(err)
+				}
+				fmt.Println(string(b))
 			}
-			fmt.Println(string(b))
-		})
+		}
 	}()
 
 	if err := c.Start(); err != nil {

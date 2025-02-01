@@ -100,7 +100,13 @@ type Consumer struct {
 
 	// The used default callback [DefaultEventCallback] outputs parsed events to this channel.
 	// This channel can be used to consume events in a non-blocking way.
-	Events chan *Event
+	//
+	// The events are batched by size = [Consumer.EventsConfig.BatchSize]
+	// use [Consumer.ProcessEvents] for easier consumption (no need to Release events).
+	//
+	// (if consuming directly from this channel, remember to Event.Release()
+	// when done with the event, increases performance)
+	Events chan []*Event
 
 	// The total number of event's lost.
 	LostEvents atomic.Uint64
@@ -111,6 +117,27 @@ type Consumer struct {
 	// to force stop the Consumer ProcessTrace if buffer takes too long to empty.
 	// stores timeout in nanoseconds
 	closeTimeout time.Duration // stores timeout in nanoseconds
+
+	// EventsBatch channel configutation.
+	EventsConfig EventBufferConfig
+}
+
+type EventBufferConfig struct {
+	// The maximum number of events that can be stored in the batch.
+	// This the ammout of events received before flushing the buffer.
+	// Default: 20
+	BatchSize int
+
+	// The maximum time to wait before flushing the buffer.
+	// Default: 200ms
+	Timeout time.Duration
+
+	skippableEvents    []*Event
+	nonskippableEvents []*Event
+
+	eventsMu   sync.Mutex
+	flushTimer *time.Timer
+	closed     bool
 }
 
 type traceContext struct {
@@ -130,7 +157,13 @@ func (e *EventTraceLogfile) getContext() *traceContext {
 func NewConsumer(ctx context.Context) (c *Consumer) {
 	c = &Consumer{
 		Filter: NewProviderFilter(),
-		Events: make(chan *Event, 4096),
+		Events: make(chan []*Event, 10),
+		EventsConfig: EventBufferConfig{
+			skippableEvents:    make([]*Event, 0, 4096),
+			nonskippableEvents: make([]*Event, 0, 4096),
+			Timeout:            200 * time.Millisecond,
+			BatchSize:          20,
+		},
 	}
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
@@ -388,9 +421,10 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 	}
 	slog.Debug("All ProcessTrace goroutines ended.")
 
-	close(c.Events)
-	c.closed = true
+	c.closeEventsChannel() // also flushes the last events (important)
 	slog.Debug("Events channel closed.")
+
+	c.closed = true
 
 	return
 }
@@ -476,27 +510,186 @@ func (c *Consumer) DefaultEventRecordHelperCallback(h *EventRecordHelper) error 
 
 // DefaultEventCallback is the default [Consumer.EventCallback] method applied
 // to Consumer created with NewConsumer
-// Receives parsed events and sends them to the Consumer.Events channel
-func (c *Consumer) DefaultEventCallback(event *Event) (err error) {
-	// we have to check again here as the lock introduced delay
-	if c.ctx.Err() == nil {
+// Receives parsed events and sends them to the Consumer.Events channel.
+//
+// # Note, this will incurr overhead, it's way better to define your own EventCallback
+// or use batched events (4% overhead only).
+//
+// In benchmarks this performs 16% worse overall (a lot) for high concurrent events.
+// just dont use channels to send events, this is just an example of what happens.
+//
+// While using only 1 callback/ProcessTrace thread: (1 trace only):
+// channels overhead comes from runtime.chansed(2.2%), runtime.send(1.2%),
+// runtime.schedule(3,14%), runtime.wakup (6,6%) (cgo stdcall1 and stdcall2),
+// runtime.mallocgc (1,5%) and runtime.lock2(1,54%)
+// for a total of ~16% of the time is spent on this.
+// In the end, don't use go channels for time sensitive operations.
 
-		// if the event can be skipped we send it in a non-blocking way
-		if event.Flags.Skippable {
-			select {
-			case c.Events <- event:
-			default:
-				c.Skipped.Add(1)
+// func (c *Consumer) DefaultEventCallback_old(event *Event) (err error) {
+// 	// we have to check again here as the lock introduced delay
+// 	if c.ctx.Err() == nil {
+
+// 		// if the event can be skipped we send it in a non-blocking way
+// 		if event.Flags.Skippable {
+// 			select {
+// 			case c.Events <- event:
+// 			default:
+// 				c.Skipped.Add(1)
+// 				event.Release()
+// 			}
+
+// 			return
+// 		}
+
+// 		// if we cannot skip event we send it in a blocking way
+// 		c.Events <- event
+
+// 	}
+
+// 	return
+// }
+
+// Flushes and then closes the channel
+func (c *Consumer) closeEventsChannel() {
+	c.EventsConfig.eventsMu.Lock()
+	if c.EventsConfig.flushTimer != nil {
+		c.EventsConfig.flushTimer.Stop()
+	}
+	c.flushEvents() // important to flush any remaining events
+	c.EventsConfig.closed = true
+	close(c.Events)
+	c.EventsConfig.eventsMu.Unlock()
+}
+
+// Will only work while using the [DefaultEventCallback] method.
+// This is an example of how to read events with channels, 6% overhead
+// vs reading events from custom EventCallback function
+//
+// ProcessEvents processes events from the Consumer.EventsBatch channel.
+// This function blocks.
+// The function fn is called for each event.
+// To cancel it just call [Consumer.Stop()] or close the context, and
+// for the return bool func return false.
+//
+//	go func() {
+//		c.ProcessEvents(func(e *etw.Event) {
+//			_ = e
+//		})
+//	}()
+//
+// or
+//
+//	err := c.ProcessEvents(func(e *Event) error {
+//	    _ = e
+//	   if someCondition {
+//	       return fmt.Errorf("error") // stops processing
+//	   }
+//	   return nil // continues processing
+//	})
+func (c *Consumer) ProcessEvents(fn interface{}) error {
+	switch cb := fn.(type) {
+	case func(*Event):
+		// Simple callback without return
+		for batch := range c.Events {
+			for _, e := range batch {
+				cb(e)
+				e.Release()
 			}
-
-			return
 		}
+	case func(*Event) error:
+		// Callback with bool return to control flow
+		for batch := range c.Events {
+			for _, e := range batch {
+				if err := cb(e); err != nil {
+					e.Release()
+					return err
+				}
+				e.Release()
+			}
+		}
+	}
+	return nil
+}
 
-		// if we cannot skip event we send it in a blocking way
-		c.Events <- event
+// flushEvents processes and dispatches both skippable
+// and non-skippable events through the Events channel.
+// call this with a [Consumer.EventsConfig.eventsMu] mutex.
+func (c *Consumer) flushEvents() {
+	// Process skippable events if any
+	if len(c.EventsConfig.skippableEvents) > 0 {
+		// copy slice (it's going to be reseted after sending it)
+		batch := append([]*Event(nil), c.EventsConfig.skippableEvents...)
+		select {
+		case c.Events <- batch:
+		default:
+			// Channel full, increment skip counter and release events
+			c.Skipped.Add(uint64(len(batch)))
+			for _, e := range batch {
+				e.Release()
+			}
+		}
+		c.EventsConfig.skippableEvents = c.EventsConfig.skippableEvents[:0]
 	}
 
-	return
+	// Process non-skippable events - must send
+	if len(c.EventsConfig.nonskippableEvents) > 0 {
+		batch := append([]*Event(nil), c.EventsConfig.nonskippableEvents...)
+		select {
+		case c.Events <- batch:
+		}
+		// make sure to start at 0 for the next appends
+		c.EventsConfig.nonskippableEvents = c.EventsConfig.nonskippableEvents[:0]
+	}
+}
+
+// DefaultEventCallback is the default [Consumer.EventCallback] method applied
+// to Consumer created with NewConsumer
+// Receives parsed events and sends them in batches to the Consumer.EventsBatch channel.
+//
+// Sends event in batches to the Consumer.EventsBatch channel. (better performance)
+// After 200ms have passed or after 20 events have been queued by default.
+func (c *Consumer) DefaultEventCallback(event *Event) error {
+	c.EventsConfig.eventsMu.Lock()
+	defer c.EventsConfig.eventsMu.Unlock()
+	ec := &c.EventsConfig
+
+	// return if channel is already closed.
+	if ec.closed {
+		return nil
+	}
+
+	// Add event to queue
+	if event.Flags.Skippable {
+		ec.skippableEvents = append(ec.skippableEvents, event)
+	} else {
+		ec.nonskippableEvents = append(ec.nonskippableEvents, event)
+	}
+
+	// Flush if events queues reached maximum size
+	if (len(ec.skippableEvents) + len(ec.nonskippableEvents)) >= ec.BatchSize {
+		// Stop timer since we are flushing
+		if ec.flushTimer != nil {
+			ec.flushTimer.Stop()
+			ec.flushTimer = nil
+		}
+		c.flushEvents()
+		return nil
+	}
+
+	// Start timer to flush queue if not enough events come in.
+	if ec.flushTimer == nil {
+		ec.flushTimer = time.AfterFunc(ec.Timeout, func() {
+			ec.eventsMu.Lock()
+			// if timer is still active, flush events
+			if ec.flushTimer != nil {
+				c.flushEvents()
+				ec.flushTimer = nil
+			}
+			ec.eventsMu.Unlock()
+		})
+	}
+
+	return nil
 }
 
 // Start starts the consumer, for each real time trace opened starts ProcessTrace in new goroutine
