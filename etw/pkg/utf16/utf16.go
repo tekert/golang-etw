@@ -198,6 +198,7 @@ func utf16_convert_nobounds(dst *byte, src *uint16, srcLen int) int {
 }
 
 // 10-20% slower because of bound-cheking, use any go run or test with
+//
 //	-gcflags="-d=ssa/check_bce/debug=1" to check wich lines are bound checked.
 //
 // utf16_convert_slice converts UTF-16 encoded text to UTF-8.

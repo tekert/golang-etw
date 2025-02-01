@@ -2,6 +2,8 @@ package utf16
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"unicode/utf16"
@@ -171,14 +173,39 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			65, 66, 67, 68, 69, 70, 71, 72,
 			73, 74, 75, 76, 77, 78, 79, 240, 159, 152, 128,
 		}},
+
+		{"FullBMPBlock16", []uint16{
+			0x4E00, 0x4E01, 0x4E02, 0x4E03, 0x4E04, 0x4E05, 0x4E06, 0x4E07,
+			0x4E08, 0x4E09, 0x4E0A, 0x4E0B, 0x4E0C, 0x4E0D, 0x4E0E, 0x4E0F,
+		}, []byte{
+			0xE4, 0xB8, 0x80, 0xE4, 0xB8, 0x81, 0xE4, 0xB8, 0x82, 0xE4, 0xB8, 0x83,
+			0xE4, 0xB8, 0x84, 0xE4, 0xB8, 0x85, 0xE4, 0xB8, 0x86, 0xE4, 0xB8, 0x87,
+			0xE4, 0xB8, 0x88, 0xE4, 0xB8, 0x89, 0xE4, 0xB8, 0x8A, 0xE4, 0xB8, 0x8B,
+			0xE4, 0xB8, 0x8C, 0xE4, 0xB8, 0x8D, 0xE4, 0xB8, 0x8E, 0xE4, 0xB8, 0x8F,
+		}},
+		{
+			"FullBMPBlock8", []uint16{
+				0x4E00, 0x4E01, 0x4E02, 0x4E03, 0x4E04, 0x4E05, 0x4E06, 0x4E07,
+			}, []byte{
+				0xE4, 0xB8, 0x80, 0xE4, 0xB8, 0x81, 0xE4, 0xB8, 0x82, 0xE4, 0xB8, 0x83,
+				0xE4, 0xB8, 0x84, 0xE4, 0xB8, 0x85, 0xE4, 0xB8, 0x86, 0xE4, 0xB8, 0x87,
+			}},
+		{
+			"MixedBMPAndASCII", []uint16{
+				0x4E00, 0x0041, 0x4E01, 0x0042, 0x4E02, 0x0043, 0x4E03, 0x0044,
+			}, []byte{
+				0xE4, 0xB8, 0x80, 0x41, 0xE4, 0xB8, 0x81, 0x42,
+				0xE4, 0xB8, 0x82, 0x43, 0xE4, 0xB8, 0x83, 0x44,
+			}},
+
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := DecodeSIMD(tt.input)
 			if string(got) != string(tt.want) {
-				t.Errorf("ConvertUTF16_SSE2(%v) = [% X] %v, want [% X]", tt.input,
-					[]byte(got), got, tt.want)
+				t.Errorf("ConvertUTF16_SSE2(%v) = [% X], want [% X]", tt.input,
+					[]byte(got), tt.want)
 			}
 		})
 	}
@@ -188,8 +215,8 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			got := syscall.UTF16ToString(tt.input)
 			if string(got) != string(tt.want) {
 				//t.Errorf("syscall.UTF16ToString(%v) = %v, want %v", tt.input, got, tt.want)
-				t.Errorf("syscall.UTF16ToString(%v) = [% X] %v, want [% X]", tt.input,
-					[]byte(got), got, tt.want)
+				t.Errorf("syscall.UTF16ToString(%v) = [% X], want [% X]", tt.input,
+					[]byte(got), tt.want)
 			}
 		})
 	}
@@ -199,8 +226,8 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			got := DecodeWtf8(tt.input)
 			if string(got) != string(tt.want) {
 				//t.Errorf("DecodeWtf8(%v) = %v, want %v", tt.input, got, tt.want)
-				t.Errorf("DecodeWtf8(%v) = [% X] %v, want [% X]", tt.input,
-					[]byte(got), got, tt.want)
+				t.Errorf("DecodeWtf8(%v) = [% X], want [% X]", tt.input,
+					[]byte(got), tt.want)
 			}
 		})
 	}
@@ -210,12 +237,11 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			got := DecodeWtf8_SliceVer(tt.input)
 			if string(got) != string(tt.want) {
 				//t.Errorf("DecodeWtf8_SliceVer(%v) = %v, want %v", tt.input, got, tt.want)
-				t.Errorf("DecodeWtf8_SliceVer(%v) = [% X] %v, want [% X]", tt.input,
-					[]byte(got), got, tt.want)
+				t.Errorf("DecodeWtf8_SliceVer(%v) = [% X], want [% X]", tt.input,
+					[]byte(got), tt.want)
 			}
 		})
 	}
-
 }
 
 func BenchmarkDecodeUTF16(b *testing.B) {
@@ -279,11 +305,17 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 
 	//sizes := []int{16, 256, 4096, 65536}
 
-	sizes := []int{8, 16, 32, 256, 65536}
+	sizes := []int{4, 8, 16, 32, 256, 65536}
 
 	for _, size := range sizes {
 		for _, tc := range cases {
 			input, outSize := tc.gen(size)
+
+			// Print header to stderr before each test category
+			fmt.Fprintf(os.Stderr, "\n%s %s %s\n",
+				strings.Repeat("=", 15),
+				tc.name,
+				strings.Repeat("=", 15))
 
 			b.Run(fmt.Sprintf("SIMDv3/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
@@ -295,8 +327,6 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 				}
 			})
 
-			goto skip
-
 			b.Run(fmt.Sprintf("SIMDv2/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
 				for i := 0; i < b.N; i++ {
@@ -307,6 +337,8 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 				}
 			})
 
+			goto skip
+
 			b.Run(fmt.Sprintf("SIMDv1/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
 				for i := 0; i < b.N; i++ {
@@ -316,7 +348,6 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 					}
 				}
 			})
-
 		skip:
 			// uses unsafe pointer instead of slice to omit bound cheking. (why is go so inneficient)
 			b.Run(fmt.Sprintf("DecodeWtf8/%s/%d", tc.name, size), func(b *testing.B) {
@@ -328,6 +359,8 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 					}
 				}
 			})
+
+			goto end
 
 			b.Run(fmt.Sprintf("DecodeWtf8_SliceVer/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
@@ -360,12 +393,10 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 					}
 				}
 			})
-
-			fmt.Println("=====================================")
-
+		end:
 		}
 
-		fmt.Println("")
+		fmt.Println()
 	}
 }
 
