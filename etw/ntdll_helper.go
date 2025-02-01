@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package etw
 
@@ -16,23 +15,23 @@ func GetWindowsVersionInfo() (osvi *OSVERSIONINFOEX) {
 }
 
 func IsWindowsVersionOrGreater(majorVersion, minorVersion, buildNumber uint32) bool {
-    current := GetWindowsVersionInfo()
+	current := GetWindowsVersionInfo()
 
-    if current.MajorVersion > majorVersion {
-        return true
-    }
-    if current.MajorVersion < majorVersion {
-        return false
-    }
+	if current.MajorVersion > majorVersion {
+		return true
+	}
+	if current.MajorVersion < majorVersion {
+		return false
+	}
 
-    if current.MinorVersion > minorVersion {
-        return true
-    }
-    if current.MinorVersion < minorVersion {
-        return false
-    }
+	if current.MinorVersion > minorVersion {
+		return true
+	}
+	if current.MinorVersion < minorVersion {
+		return false
+	}
 
-    return current.BuildNumber >= buildNumber
+	return current.BuildNumber >= buildNumber
 }
 
 // VerSetConditionMask sets the specified bits in the condition mask.

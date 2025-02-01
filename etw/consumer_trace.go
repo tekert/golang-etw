@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package etw
 
@@ -16,7 +15,7 @@ type Trace struct {
 	// handle that OpenTrace returned if open = true, else 0
 	handle syscall.Handle
 
-	open bool          // True is the trace is open
+	open bool // True is the trace is open
 
 	// Keep ETW traceContext alive (don't nil it or they can be crashes.)
 	ctx *traceContext

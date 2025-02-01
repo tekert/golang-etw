@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package etw
 
@@ -81,20 +80,24 @@ func NewPagedRealTimeSession(name string) (s *RealTimeSession) {
 //
 // To use a provider, you must enable it in the session creation
 // like this:
-//   kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("FileIo", "FileIoInit"))
+//
+//	kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("FileIo", "FileIoInit"))
 //
 // For File rundown events (opcode 36)
-//   kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("DiskFileIo"))
+//
+//	kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("DiskFileIo"))
+//
 // or
-//   kernelSession := etw.NewKernelRealTimeSession(etw.EVENT_TRACE_FLAG_DISK_IO | etw.EVENT_TRACE_FLAG_DISK_FILE_IO)
+//
+//	kernelSession := etw.NewKernelRealTimeSession(etw.EVENT_TRACE_FLAG_DISK_IO | etw.EVENT_TRACE_FLAG_DISK_FILE_IO)
 //
 // For a list of kernel providers use:
+//
 //	 for _, pd := range etw.KernelProviders {
 //		 fmt.Printf("\t%s: %s\n", pd.Name, pd.GUID)
 //	 }
 //
 // EnableFlags: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties EnableFlags section
-//
 //
 // NOTE:
 // These are legacy MOF type events. (without a manifest some of these event don't parse well)

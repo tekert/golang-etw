@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package etw
 
@@ -10,7 +9,7 @@ import (
 // TODO(tekert): use kernel32.dll instead, GetVersionExW, there a more useful functions there.
 
 var (
-	modntdll = syscall.NewLazyDLL("ntdll.dll")
-    rtlGetVersion = modntdll.NewProc("RtlGetVersion")
+	modntdll             = syscall.NewLazyDLL("ntdll.dll")
+	rtlGetVersion        = modntdll.NewProc("RtlGetVersion")
 	rtlVerifyVersionInfo = modntdll.NewProc("RtlVerifyVersionInfo")
 )
