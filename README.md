@@ -13,7 +13,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json" // recommend a faster library for json meshing.
 	"fmt"
 	"time"
 
