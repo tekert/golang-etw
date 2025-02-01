@@ -52,12 +52,12 @@ func main() {
 	go func() {
 		var b []byte
 		var err error
-		for e := range c.Events {
+		c.ProcessEvents(func(e *etw.Event) {
 			if b, err = json.Marshal(e); err != nil {
 				panic(err)
 			}
 			fmt.Println(string(b))
-		}
+		})
 	}()
 
 	if err := c.Start(); err != nil {
