@@ -567,8 +567,9 @@ func (c *Consumer) closeEventsChannel() {
 // ProcessEvents processes events from the Consumer.EventsBatch channel.
 // This function blocks.
 // The function fn is called for each event.
-// To cancel it just call [Consumer.Stop()] or close the context, and
-// for the return bool func return false.
+// To cancel it just call [Consumer.Stop()] or close the context.
+//
+// For the func(*Event) error: return err to unblock.
 //
 //	go func() {
 //		c.ProcessEvents(func(e *etw.Event) {
