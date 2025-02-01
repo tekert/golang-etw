@@ -12,19 +12,8 @@ type ProviderDefinition struct {
 	Flags  uint32
 }
 
-// To use a provider, you must enable it in the session creation
-// like this:
-// kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("FileIo", "FileIoInit"))
-//
-// For File rundown events (opcode 36)
-// kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("DiskFileIo"))
-// or
-// kernelSession := etw.NewKernelRealTimeSession(etw.EVENT_TRACE_FLAG_DISK_IO | etw.EVENT_TRACE_FLAG_DISK_FILE_IO)
-//
-// * NOTE:
-// Most of these are Legacy events, using MOF.
-// Some providers for the kernel are very old and not parse well, like NetworkTCPIP, use the manifest providers
-// or the new SystemProvider on Windows 10 SDK build 20348 or later
+// GetKernelProviderFlags returns the flags for the given kernel provider names or GUIDs
+// It is case insensitive
 func GetKernelProviderFlags(terms ...string) (flags uint32) {
 	for _, t := range terms {
 		for _, pd := range KernelProviders {
@@ -49,6 +38,12 @@ func IsKernelProvider(term string) bool {
 
 // https://learn.microsoft.com/en-us/windows/win32/etw/nt-kernel-logger-constants
 var (
+
+	// Most of these are Legacy events, using MOF.
+	// Some providers for the kernel are very old and not parse well, like NetworkTCPIP, use the manifest providers
+	// or the new SystemProvider on Windows 10 SDK build 20348 or later
+	//
+	// But they are still useful for some cases. like obtaining context switches.
 	KernelProviders = []ProviderDefinition{
 
 		// Some comments where taken from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/Parsers/KernelTraceEventParser.cs

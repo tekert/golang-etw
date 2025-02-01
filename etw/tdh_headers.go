@@ -391,7 +391,6 @@ func (t *TraceEventInfo) EventID() uint16 {
 	return 0
 }
 
-
 // Seems to be always empty
 // TODO(tekert): investigate this
 func (t *TraceEventInfo) EventMessage() string {
@@ -408,12 +407,12 @@ func (t *TraceEventInfo) LevelName() string {
 
 /*
 Meaning of this field depends on DecodingSource.
-- XMLFile: The offset to the name of the associated task.
-- Wbem: The offset to the event's MOF "DisplayName" property. For many
-	Wbem providers, ProviderName is a provider category and TaskName is
-	the provider subcategory.
-- WPP: Not used.
-- Tlg: The offset to the name of the event.
+  - XMLFile: The offset to the name of the associated task.
+  - Wbem: The offset to the event's MOF "DisplayName" property. For many
+    Wbem providers, ProviderName is a provider category and TaskName is
+    the provider subcategory.
+  - WPP: Not used.
+  - Tlg: The offset to the name of the event.
 */
 func (t *TraceEventInfo) TaskName() string {
 	return t.cleanStringAt(uintptr(t.TaskNameOffset))
@@ -590,7 +589,7 @@ func (t *TraceEventInfo) GetEventPropertyInfoAt(i uint32) *EventPropertyInfo {
 	panic(fmt.Errorf("index out of range"))
 }
 
-func (t *TraceEventInfo) PropertyNameOffset(i uint32) uintptr {
+func (t *TraceEventInfo) PropertyNamePointer(i uint32) uintptr {
 	return t.pointer() + uintptr(t.GetEventPropertyInfoAt(i).NameOffset)
 }
 

@@ -77,14 +77,30 @@ func NewPagedRealTimeSession(name string) (s *RealTimeSession) {
 // NewKernelRealTimeSession creates a new ETW trace system session to enable reading from the
 // NT Kernel Logger trace events in real time (only one session can be running at any time)
 //
-// EnableFlags: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties EnableFlags section
-//
 // use: [GetKernelProviderFlags] for some predefined flags.
 //
+// To use a provider, you must enable it in the session creation
+// like this:
+//   kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("FileIo", "FileIoInit"))
+//
+// For File rundown events (opcode 36)
+//   kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("DiskFileIo"))
+// or
+//   kernelSession := etw.NewKernelRealTimeSession(etw.EVENT_TRACE_FLAG_DISK_IO | etw.EVENT_TRACE_FLAG_DISK_FILE_IO)
+//
+// For a list of kernel providers use:
+//	 for _, pd := range etw.KernelProviders {
+//		 fmt.Printf("\t%s: %s\n", pd.Name, pd.GUID)
+//	 }
+//
+// EnableFlags: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties EnableFlags section
+//
+//
+// NOTE:
 // These are legacy MOF type events. (without a manifest some of these event don't parse well)
 // Most of the events properties that track something may have a zero value. (kernel memory)
 //
-// *NOTE: Some MOF are not documented on the microsoft site, for example: Process_V4_TypeGroup1 etc..
+// Some MOF are not documented on the microsoft site, for example: Process_V4_TypeGroup1 etc..
 //
 // https://msdn.microsoft.com/en-us/library/windows/desktop/aa364083(v=vs.85).aspx
 func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
