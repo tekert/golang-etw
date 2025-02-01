@@ -4,10 +4,12 @@
 package etw
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 const (
@@ -42,7 +44,42 @@ func (g *GUID) IsZero() bool {
 	return g.Equals(&nullGUID)
 }
 
-// UPPERCASE String representation of the GUID
+// UPPERCASE StringU representation of the GUID
+// These are 10x more performant than sprintf
+func (g *GUID) StringU() string {
+	var b [38]byte
+	b[0] = '{'
+	b[37] = '}'
+
+	// Avoid slice allocations
+	var d1 [4]byte
+	d1[0] = byte(g.Data1 >> 24)
+	d1[1] = byte(g.Data1 >> 16)
+	d1[2] = byte(g.Data1 >> 8)
+	d1[3] = byte(g.Data1)
+
+	var d2 [2]byte
+	d2[0] = byte(g.Data2 >> 8)
+	d2[1] = byte(g.Data2)
+
+	var d3 [2]byte
+	d3[0] = byte(g.Data3 >> 8)
+	d3[1] = byte(g.Data3)
+
+	HexEncodeU(b[1:9], d1[:])
+	b[9] = '-'
+	HexEncodeU(b[10:14], d2[:])
+	b[14] = '-'
+	HexEncodeU(b[15:19], d3[:])
+	b[19] = '-'
+	HexEncodeU(b[20:24], g.Data4[:2])
+	b[24] = '-'
+	HexEncodeU(b[25:37], g.Data4[2:])
+
+	return unsafe.String(unsafe.SliceData(b[:]), len(b))
+}
+
+// lowercase string representation of the GUID
 // These are 10x more performant than sprintf
 func (g *GUID) String() string {
 	var b [38]byte
@@ -64,52 +101,17 @@ func (g *GUID) String() string {
 	d3[0] = byte(g.Data3 >> 8)
 	d3[1] = byte(g.Data3)
 
-    HexEncodeU(b[1:9], d1[:])
-    b[9] = '-'
-    HexEncodeU(b[10:14], d2[:])
-    b[14] = '-'
-    HexEncodeU(b[15:19], d3[:])
-    b[19] = '-'
-    HexEncodeU(b[20:24], g.Data4[:2])
-    b[24] = '-'
-    HexEncodeU(b[25:37], g.Data4[2:])
+	HexEncode(b[1:9], d1[:])
+	b[9] = '-'
+	HexEncode(b[10:14], d2[:])
+	b[14] = '-'
+	HexEncode(b[15:19], d3[:])
+	b[19] = '-'
+	HexEncode(b[20:24], g.Data4[:2])
+	b[24] = '-'
+	HexEncode(b[25:37], g.Data4[2:])
 
-	return string(b[:])
-}
-
-// lowercase string representation of the GUID
-// These are 10x more performant than sprintf
-func (g *GUID) StringL() string {
-	var b [38]byte
-	b[0] = '{'
-	b[37] = '}'
-
-	// Avoid slice allocations
-	var d1 [4]byte
-	d1[0] = byte(g.Data1 >> 24)
-	d1[1] = byte(g.Data1 >> 16)
-	d1[2] = byte(g.Data1 >> 8)
-	d1[3] = byte(g.Data1)
-
-	var d2 [2]byte
-	d2[0] = byte(g.Data2 >> 8)
-	d2[1] = byte(g.Data2)
-
-	var d3 [2]byte
-	d3[0] = byte(g.Data3 >> 8)
-	d3[1] = byte(g.Data3)
-
-    HexEncode(b[1:9], d1[:])
-    b[9] = '-'
-    HexEncode(b[10:14], d2[:])
-    b[14] = '-'
-    HexEncode(b[15:19], d3[:])
-    b[19] = '-'
-    HexEncode(b[20:24], g.Data4[:2])
-    b[24] = '-'
-    HexEncode(b[25:37], g.Data4[2:])
-
-	return string(b[:])
+	return unsafe.String(unsafe.SliceData(b[:]), len(b))
 }
 
 func (g *GUID) Equals(other *GUID) bool {
@@ -179,4 +181,9 @@ func ParseGUID(guid string) (g *GUID, err error) {
 	g.Data4[7] = uint8(u & 0xff)
 
 	return
+}
+
+// Add directly to the GUID type
+func (g GUID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(g.StringU())
 }

@@ -80,7 +80,7 @@ func binaryFilter(filter []uint16) (f string, err error) {
 }
 
 func (a *AutoLogger) EnableProvider(p Provider) (err error) {
-	path := fmt.Sprintf(`%s\%s`, a.Path(), p.GUID.String())
+	path := fmt.Sprintf(`%s\%s`, a.Path(), p.GUID.StringU())
 
 	sargs := [][]string{}
 

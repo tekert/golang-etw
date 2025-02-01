@@ -214,14 +214,14 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid HEXINT8 InType: %v", inType)
 		}
 		v := *(*uint8)(unsafe.Pointer(p.pValue))
-		return Uint8ToHexUPrefix(v), nil
+		return HexUint8UPrefix(v), nil
 
 	case TDH_OUTTYPE_HEXINT16:
 		if inType != TDH_INTYPE_UINT16 {
 			return "", fmt.Errorf("invalid HEXINT16 InType: %v", inType)
 		}
 		v := *(*uint16)(unsafe.Pointer(p.pValue))
-		return Uint16ToHexUPrefix(v), nil
+		return HexUint16UPrefix(v), nil
 
 	case TDH_OUTTYPE_HEXINT32:
 		if inType != TDH_INTYPE_UINT32 &&
@@ -229,7 +229,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid HEXINT32 InType: %v", inType)
 		}
 		v := *(*uint32)(unsafe.Pointer(p.pValue))
-		return Uint32ToHexUPrefix(v), nil
+		return HexUint32UPrefix(v), nil
 
 	case TDH_OUTTYPE_HEXINT64:
 		if inType != TDH_INTYPE_UINT64 &&
@@ -238,14 +238,14 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid HEXINT64 InType: %v", inType)
 		}
 		v := *(*uint64)(unsafe.Pointer(p.pValue))
-		return Uint64ToHexUPrefix(v), nil
+		return HexUint64UPrefix(v), nil
 
 	case TDH_OUTTYPE_GUID:
 		if inType != TDH_INTYPE_GUID {
 			return "", fmt.Errorf("invalid GUID InType: %v", inType)
 		}
 		guid := (*GUID)(unsafe.Pointer(p.pValue))
-		return guid.StringL(), nil
+		return guid.String(), nil
 
 	case TDH_OUTTYPE_DATETIME,
 		TDH_OUTTYPE_DATETIME_UTC,
@@ -332,7 +332,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			return Uint64ToHexUPrefix(v), nil
+			return HexUint64UPrefix(v), nil
 		default:
 			return "", fmt.Errorf("invalid CODE_POINTER InType: %v", inType)
 		}
@@ -346,7 +346,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return Uint32ToHexUPrefix(uint32(v)), nil
+		return HexUint32UPrefix(uint32(v)), nil
 
 	case TDH_OUTTYPE_HRESULT:
 		if inType != TDH_INTYPE_INT32 {
@@ -356,14 +356,14 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return Int32ToHexUPrefix(int32(v)), nil
+		return HexInt32UPrefix(int32(v)), nil
 
 	case TDH_OUTTYPE_ERRORCODE:
 		if inType != TDH_INTYPE_UINT32 {
 			return "", fmt.Errorf("invalid ERRORCODE InType: %v", inType)
 		}
 		v := *(*uint32)(unsafe.Pointer(p.pValue))
-		return Uint32ToHexUPrefix(v), nil
+		return HexUint32UPrefix(v), nil
 
 	case TDH_OUTTYPE_NOPRINT:
 		// Return empty string for NOPRINT as spec indicates field should not be shown

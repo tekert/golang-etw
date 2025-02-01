@@ -2,7 +2,6 @@ package etw
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -23,22 +22,22 @@ type Event struct {
 		EventID     uint16
 		Version     uint8  `json:",omitempty"`
 		EventType   string `json:",omitempty"`
-		EventGuid   string `json:",omitempty"`
+		EventGuid   GUID   `json:",omitempty"`
 		Correlation struct {
 			ActivityID        string
 			RelatedActivityID string
 		}
 		Execution struct {
-			ProcessID   uint32
-			ThreadID    uint32
+			ProcessID     uint32
+			ThreadID      uint32
 			ProcessorTime uint64 `json:",omitempty"`
-			ProcessorID uint16
-			KernelTime  uint32
-			UserTime    uint32
+			ProcessorID   uint16
+			KernelTime    uint32
+			UserTime      uint32
 		}
-		Keywords Keywords // Change this line to use Keywords type
+		Keywords MarshalKeywords
 		// Keywords struct {
-		// 	Mask uint64
+		// 	Mask string
 		// 	Name []string
 		// }
 		Level struct {
@@ -54,7 +53,7 @@ type Event struct {
 			Name  string
 		}
 		Provider struct {
-			Guid string
+			Guid GUID
 			Name string
 		}
 		TimeCreated struct {
@@ -65,18 +64,18 @@ type Event struct {
 }
 
 // So to print the mask in hex mode.
-type Keywords struct {
+type MarshalKeywords struct {
 	Mask uint64
 	Name []string
 }
 
 // Add custom MarshalJSON for Keywords
-func (k Keywords) MarshalJSON() ([]byte, error) {
+func (k MarshalKeywords) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Mask string   `json:"Mask"`
 		Name []string `json:"Name"`
 	}{
-		Mask: fmt.Sprintf("0x%x", k.Mask),
+		Mask: HexUint64UPrefix(k.Mask),
 		Name: k.Name,
 	})
 }
@@ -113,15 +112,6 @@ func (e *Event) reset() {
 func (e *Event) Release() {
 	e.reset()
 	eventPool.Put(e)
-}
-
-// TODO(tekert): delete when we are sure we don't need it
-func NewEvent_old() (e *Event) {
-	e = &Event{}
-	e.EventData = make(map[string]interface{})
-	e.UserData = make(map[string]interface{})
-	e.ExtendedData = make([]string, 0)
-	return e
 }
 
 func (e *Event) GetProperty(name string) (i interface{}, ok bool) {

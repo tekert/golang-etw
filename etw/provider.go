@@ -68,20 +68,6 @@ type Provider struct {
 	Filter []uint16
 }
 
-// "Windows Kernel Trace" is the provider for the trace session "NT Kernel Logger"
-// only one session can be running at any time, but Microsoft-Windows-Kernel- providers can be used
-// in other sessions.
-//
-// This returns true if the provider is a NT Kernel Logger provider,
-// Manifest-based Kernel provider or System Trace provider.
-// TODO: redudant, delete.
-func (p *Provider) IsKernelProvider() bool {
-	return p.GUID.Equals(systemTraceControlGuid) ||
-		strings.Contains(p.Name, "Microsoft-Windows-Kernel-") ||
-		p.Name == "Windows Kernel Trace" ||
-		IsKernelProvider(p.Name)
-}
-
 // IsZero returns true if the provider is empty
 func (p *Provider) IsZero() bool {
 	return p.GUID.IsZero()
@@ -227,7 +213,7 @@ func EnumerateProviders() (m ProviderMap) {
 	it := uintptr(unsafe.Pointer(&buf.TraceProviderInfoArray[0]))
 	for i := uintptr(0); i < uintptr(buf.NumberOfProviders); i++ {
 		ptpi := (*TraceProviderInfo)(unsafe.Pointer(it + i*unsafe.Sizeof(buf.TraceProviderInfoArray[0])))
-		guidString := ptpi.ProviderGuid.String()
+		guidString := ptpi.ProviderGuid.StringU()
 		name := UTF16AtOffsetToString(startProvEnumInfo, uintptr(ptpi.ProviderNameOffset))
 		// We use a default provider here
 		p := DefaultProvider
@@ -248,7 +234,7 @@ func ResolveProvider(s string) (p Provider) {
 	}
 
 	if g, err := ParseGUID(s); err == nil {
-		s = g.String()
+		s = g.StringU()
 	}
 
 	if prov, ok := providers[s]; ok {

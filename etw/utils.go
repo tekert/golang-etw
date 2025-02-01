@@ -107,7 +107,7 @@ func HexEncode(dst, src []byte) int {
 func HexEncodeToStringU(src []byte) string {
 	dst := make([]byte, len(src)*2) // 1 byte = 2 hex chars
 	HexEncodeU(dst, src)
-	return string(dst)
+	return unsafe.String(unsafe.SliceData(dst), len(dst))
 }
 
 // EncodeToString returns the hexadecimal encoding of src. with prefix 0x
@@ -117,7 +117,7 @@ func HexEncodeToStringUPrefix(src []byte) string {
 	dst[0] = '0'
 	dst[1] = 'x'
 	HexEncodeU(dst[2:], src)
-	return string(dst)
+	return unsafe.String(unsafe.SliceData(dst), len(dst))
 }
 
 // Checking len() is costly, so no optional parameters with ... slice
@@ -125,74 +125,74 @@ func HexEncodeToStringUPrefix(src []byte) string {
 
 // Unsigned integer helpers - uppercase
 
-func Uint64ToHexU(n uint64) string {
+func HexUint64U(n uint64) string {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, n)
 	return HexEncodeToStringU(b)
 }
-func Uint64ToHexUPrefix(n uint64) string {
+func HexUint64UPrefix(n uint64) string {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, n)
 	return HexEncodeToStringUPrefix(b)
 }
 
-func Uint32ToHexU(n uint32) string {
+func HexUint32U(n uint32) string {
 	b := make([]byte, 4)
 	binary.BigEndian.PutUint32(b, n)
 	return HexEncodeToStringU(b)
 }
-func Uint32ToHexUPrefix(n uint32) string {
+func HexUint32UPrefix(n uint32) string {
 	b := make([]byte, 4)
 	binary.BigEndian.PutUint32(b, n)
 	return HexEncodeToStringUPrefix(b)
 }
 
-func Uint16ToHexU(n uint16) string {
+func HexUint16U(n uint16) string {
 	b := make([]byte, 2)
 	binary.BigEndian.PutUint16(b, n)
 	return HexEncodeToStringU(b)
 }
-func Uint16ToHexUPrefix(n uint16) string {
+func HexUint16UPrefix(n uint16) string {
 	b := make([]byte, 2)
 	binary.BigEndian.PutUint16(b, n)
 	return HexEncodeToStringUPrefix(b)
 }
 
-func Uint8ToHexU(n uint8) string {
+func HexUint8U(n uint8) string {
 	return HexEncodeToStringU([]byte{n})
 }
-func Uint8ToHexUPrefix(n uint8) string {
+func HexUint8UPrefix(n uint8) string {
 	return HexEncodeToStringUPrefix([]byte{n})
 }
 
 // Signed integer helpers - uppercase
 
-func Int64ToHexU(n int64) string {
-	return Uint64ToHexU(uint64(n))
+func HexInt64U(n int64) string {
+	return HexUint64U(uint64(n))
 }
-func Int64ToHexUPrefix(n int64) string {
-	return Uint64ToHexUPrefix(uint64(n))
-}
-
-func Int32ToHexU(n int32) string {
-	return Uint32ToHexU(uint32(n))
-}
-func Int32ToHexUPrefix(n int32) string {
-	return Uint32ToHexUPrefix(uint32(n))
+func HexInt64UPrefix(n int64) string {
+	return HexUint64UPrefix(uint64(n))
 }
 
-func Int16ToHexU(n int16) string {
-	return Uint16ToHexU(uint16(n))
+func HexInt32U(n int32) string {
+	return HexUint32U(uint32(n))
 }
-func Int16ToHexUPrefix(n int16) string {
-	return Uint16ToHexUPrefix(uint16(n))
+func HexInt32UPrefix(n int32) string {
+	return HexUint32UPrefix(uint32(n))
 }
 
-func Int8ToHexU(n int8) string {
-	return Uint8ToHexU(uint8(n))
+func HexInt16U(n int16) string {
+	return HexUint16U(uint16(n))
 }
-func Int8ToHexUPrefix(n int8) string {
-	return Uint8ToHexUPrefix(uint8(n))
+func HexInt16UPrefix(n int16) string {
+	return HexUint16UPrefix(uint16(n))
+}
+
+func HexInt8U(n int8) string {
+	return HexUint8U(uint8(n))
+}
+func HexInt8UPrefix(n int8) string {
+	return HexUint8UPrefix(uint8(n))
 }
 
 // // UTF16PtrToString transforms a *uint16 to a Go string

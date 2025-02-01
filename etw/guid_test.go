@@ -21,19 +21,19 @@ func TestGUID(t *testing.T) {
 	g, err = ParseGUID(guid)
 	tt.CheckErr(err)
 	tt.Assert(!g.IsZero())
-	tt.Assert(strings.EqualFold(guid, g.String()))
+	tt.Assert(strings.EqualFold(guid, g.StringU()))
 
 	guid = "54849625-5478-4994-a5ba-3e3b0328c30d"
 	g, err = ParseGUID(guid)
 	tt.CheckErr(err)
 	tt.Assert(!g.IsZero())
-	tt.Assert(strings.EqualFold(fmt.Sprintf("{%s}", guid), g.String()))
+	tt.Assert(strings.EqualFold(fmt.Sprintf("{%s}", guid), g.StringU()))
 
 	guid = "00000000-0000-0000-0000-000000000000"
 	g, err = ParseGUID(guid)
 	tt.CheckErr(err)
 	tt.Assert(g.IsZero())
-	tt.Assert(strings.EqualFold(fmt.Sprintf("{%s}", guid), g.String()))
+	tt.Assert(strings.EqualFold(fmt.Sprintf("{%s}", guid), g.StringU()))
 }
 
 func TestGUIDEquality(t *testing.T) {
@@ -103,8 +103,8 @@ func TestGUIDStringConversion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			v1 := tt.guid.String()
-			v2 := tt.guid.StringL()
+			v1 := tt.guid.StringU()
+			v2 := tt.guid.String()
 
 			if !strings.EqualFold(v1, tt.want) {
 				t.Errorf("String() = %v, want %v", v1, tt.want)
