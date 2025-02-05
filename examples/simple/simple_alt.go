@@ -44,7 +44,7 @@ func main2() {
 	go func() {
 		var b []byte
 		var err error
-		for batch := range c.Events {
+		for batch := range c.Events.Channel {
 			for _, e := range batch {
 				if b, err = json.Marshal(e); err != nil {
 					panic(err)

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -198,8 +197,8 @@ func TestEventMapInfo(t *testing.T) {
 
 	c := NewConsumer(context.Background()).FromSessions(prod)
 	// reducing size of channel so that we are obliged to skip events
-	c.Events = make(chan []*Event)
-	c.EventsQueue.BatchSize = 1
+	c.Events.Channel = make(chan []*Event)
+	c.Events.BatchSize = 1
 	c.EventPreparedCallback = func(erh *EventRecordHelper) error {
 
 		erh.TraceInfo.EventMessage()
@@ -767,8 +766,8 @@ func assertRuntimeStatsEqual(t *toast.T, expected, actual *EventTracePropertyDat
 func TestQueryTraceProperties(t *testing.T) {
 	tt := toast.FromT(t)
 	loggerName := "TestingGoEtw"
-	loggerNameW, err := syscall.UTF16PtrFromString(loggerName)
-	tt.CheckErr(err)
+	//loggerNameW, err := syscall.UTF16PtrFromString(loggerName)
+	//tt.CheckErr(err)
 
 	// === Phase 1: Session Setup & Initial Queries ===
 	t.Log("Phase 1: Session Setup & Initial Queries")
@@ -806,19 +805,12 @@ func TestQueryTraceProperties(t *testing.T) {
 		})
 	}()
 
-	// Query consumer properties using unicode string
-	conProp, err := c.QueryTraceW(loggerNameW)
+	// From Consumer, using trace name
+	conProp, err := c.QueryTrace(loggerName)
 	tt.CheckErr(err)
-	tt.Assert(conProp != nil, "Expected conProp to be non-nil")
+	tt.Assert(conProp != nil, "Expected conProp2 to be non-nil")
 	assertTraceName(tt, conProp, loggerName, "Consumer")
 	assertStaticPropsEqual(tt, sesData, conProp, "Session vs Consumer")
-
-	// Using go string.
-	conProp2, err := c.QueryTrace(loggerName)
-	tt.CheckErr(err)
-	tt.Assert(conProp2 != nil, "Expected conProp2 to be non-nil")
-	assertTraceName(tt, conProp2, loggerName, "Consumer")
-	assertStaticPropsEqual(tt, sesData, conProp2, "Session vs Consumer")
 
 	// === Phase 3: Runtime Stats Validation ===
 	t.Log("Phase 3: Runtime Stats Validation")
@@ -828,7 +820,7 @@ func TestQueryTraceProperties(t *testing.T) {
 	// Query final properties
 	sesData2, err := ses.QueryTrace()
 	tt.CheckErr(err)
-	tt.CheckErr(QueryTrace(gloData))
+	tt.CheckErr(QueryTrace(gloData)) // reusing prop struct.
 
 	// Validate runtime stats
 	assertRuntimeStats(tt, sesData2, "Session Final")

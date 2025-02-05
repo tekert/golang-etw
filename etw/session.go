@@ -311,7 +311,7 @@ func QueryTrace(queryProp *EventTracePropertyData2) (err error) {
 		return fmt.Errorf("data must be non nil")
 	}
 	instanceName := queryProp.GetTraceName()
-	
+
 	// If you are reusing a EVENT_TRACE_PROPERTIES structure
 	// (i.e. using a structure that you previously passed to StartTrace or ControlTrace),
 	// be sure to set the LogFileNameOffset member to 0 unless you are changing the log file name.

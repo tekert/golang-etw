@@ -1,6 +1,7 @@
 package etw
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,16 +40,37 @@ type EventBuffer struct {
 	// Default: 200ms
 	Timeout time.Duration
 
+	// The used default callback [DefaultEventCallback] outputs parsed events to this channel.
+	// This channel can be used to consume events in a non-blocking way.
+	//
+	// The events are batched by size = [Consumer.EventsConfig.BatchSize]
+	// use [Consumer.ProcessEvents] for easier consumption (no need to Release events).
+	//
+	// If consuming directly from this channel, remember to Event.Release()
+	// when done with the event, increases performance
+	Channel chan []*Event
+
 	// Queues
 	skippableEvents    []*Event
 	nonskippableEvents []*Event
 
 	// Output channel
 	skipped *atomic.Uint64
-	events  chan []*Event
 
 	timer  *time.Timer // flush timer
+	ctx    context.Context
 	closed bool
+}
+
+func NewEventBuffer(ctx context.Context) *EventBuffer {
+	return &EventBuffer{
+		ctx:                ctx,
+		skippableEvents:    make([]*Event, 0, 512),
+		nonskippableEvents: make([]*Event, 0, 512),
+		Timeout:            200 * time.Millisecond,
+		BatchSize:          20,
+		Channel:            make(chan []*Event, 10),
+	}
 }
 
 // Flushes and then closes the channel
@@ -64,7 +86,7 @@ func (e *EventBuffer) close() {
 	}
 	e.flush() // important to force flush any remaining events
 	e.closed = true
-	close(e.events)
+	close(e.Channel)
 }
 
 func (e *EventBuffer) ForceFlush() {
@@ -84,7 +106,7 @@ func (e *EventBuffer) flush() {
 		// copy slice (it's going to be reseted after sending it)
 		batch := append([]*Event(nil), e.skippableEvents...)
 		select {
-		case e.events <- batch:
+		case e.Channel <- batch:
 		default:
 			// Channel full, increment skip counter
 			e.skipped.Add(uint64(len(batch)))
@@ -98,7 +120,10 @@ func (e *EventBuffer) flush() {
 	// Process non-skippable events - blocks if channel is full
 	if len(e.nonskippableEvents) > 0 {
 		batch := append([]*Event(nil), e.nonskippableEvents...)
-		e.events <- batch
+		select {
+		case e.Channel <- batch:
+		case <-e.ctx.Done():
+		}
 		// make sure to start at 0 for the next appends
 		e.nonskippableEvents = e.nonskippableEvents[:0]
 	}
@@ -109,7 +134,7 @@ func (e *EventBuffer) Send(event *Event) {
 	e.Lock()
 	defer e.Unlock()
 
-	// return if channel is already closed.
+	// return if channel is already closed or context cancelled.
 	if e.closed {
 		return
 	}

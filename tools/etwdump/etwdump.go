@@ -437,7 +437,7 @@ func main() {
 
 	go func() {
 		log.Debug("Consuming events")
-		for batch := range c.Events {
+		for batch := range c.Events.Channel {
 			for _, e := range batch {
 				defer e.Release()
 				if fstats {

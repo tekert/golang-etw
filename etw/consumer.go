@@ -96,16 +96,6 @@ type Consumer struct {
 
 	Filter EventFilter
 
-	// The used default callback [DefaultEventCallback] outputs parsed events to this channel.
-	// This channel can be used to consume events in a non-blocking way.
-	//
-	// The events are batched by size = [Consumer.EventsConfig.BatchSize]
-	// use [Consumer.ProcessEvents] for easier consumption (no need to Release events).
-	//
-	// If consuming directly from this channel, remember to Event.Release()
-	// when done with the event, increases performance
-	Events chan []*Event
-
 	// The total number of event's lost.
 	LostEvents atomic.Uint64
 
@@ -117,7 +107,7 @@ type Consumer struct {
 	closeTimeout time.Duration // stores timeout in nanoseconds
 
 	// EventsBatch channel configutation.
-	EventsQueue EventBuffer
+	Events EventBuffer
 }
 
 type traceContext struct {
@@ -138,20 +128,13 @@ func (e *EventTraceLogfile) getContext() *traceContext {
 func NewConsumer(ctx context.Context) (c *Consumer) {
 	c = &Consumer{
 		Filter: NewProviderFilter(),
-		Events: make(chan []*Event, 10),
-		EventsQueue: EventBuffer{
-			skippableEvents:    make([]*Event, 0, 512),
-			nonskippableEvents: make([]*Event, 0, 512),
-			Timeout:            200 * time.Millisecond,
-			BatchSize:          20,
-		},
 	}
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	c.EventRecordHelperCallback = c.DefaultEventRecordHelperCallback
 	c.EventCallback = c.DefaultEventCallback
 
-	c.EventsQueue.events = c.Events
+	c.Events = *NewEventBuffer(c.ctx)
 
 	return c
 }
@@ -275,7 +258,7 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 			er.getUserContext().trace.ErrorEvents++ // safe here.
 		}
 		c.lastError = err
-		log.Debug().Err(err).Msg("callback error")
+		//log.Debug().Err(err).Msg("callback error")
 	}
 
 	// Skips the event if it is the event trace header. Log files contain this event
@@ -291,6 +274,7 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 
 	if er.EventHeader.ProviderId.Equals(rtLostEventGuid) {
 		c.handleLostEvent(er)
+		return
 	}
 
 	// calling EventHeaderCallback if possible
@@ -402,7 +386,7 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 	}
 	log.Debug().Msg("All ProcessTrace goroutines ended.")
 
-	c.EventsQueue.close()
+	c.Events.close()
 	log.Debug().Msg("Events channel closed.")
 
 	c.closed = true
@@ -457,57 +441,49 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	return nil
 }
 
-// Gets the properties of a trace session with traceName in utf16
-// useful for checking an existing TraceLogFile logName.
-// same as [Trace.QueryTrace] but for traceNameW in utf16
-func (c *Consumer) QueryTraceW(traceNameW *uint16) (prop *EventTracePropertyData2, err error) {
-	if traceNameW == nil {
-		return nil, fmt.Errorf("traceNameW is nil")
-	}
+// // Gets the properties of a trace session with traceName in utf16
+// // useful for checking an existing TraceLogFile logName.
+// // same as [Trace.QueryTrace] but for traceNameW in utf16
+// func (c *Consumer) QueryTraceW(traceNameW *uint16) (prop *EventTracePropertyData2, err error) {
+// 	if traceNameW == nil {
+// 		return nil, fmt.Errorf("traceNameW is nil")
+// 	}
 
-	c.traces.Range(func(key, value interface{}) bool {
-		t := value.(*Trace)
+// 	c.traces.Range(func(key, value interface{}) bool {
+// 		t := value.(*Trace)
 
-		// if pointer points to the same location, same name.
-		if (traceNameW == t.TraceNameW) {
-			prop, err = t.QueryTrace()
-			return false
-		}
+// 		// if pointer points to the same location, same name.
+// 		if (traceNameW == t.TraceNameW) {
+// 			prop, err = t.QueryTrace()
+// 			return false
+// 		}
 
-		// Compare UTF16 strings until null terminator
-		for i := 0; ; i++ {
-			c1 := *(*uint16)(unsafe.Add(unsafe.Pointer(traceNameW), i*2))
-			c2 := *(*uint16)(unsafe.Add(unsafe.Pointer(t.TraceNameW), i*2))
+// 		// Compare UTF16 strings until null terminator
+// 		for i := 0; ; i++ {
+// 			c1 := *(*uint16)(unsafe.Add(unsafe.Pointer(traceNameW), i*2))
+// 			c2 := *(*uint16)(unsafe.Add(unsafe.Pointer(t.TraceNameW), i*2))
 
-			if c1 != c2 {
-				return true // continue Range
-			}
-			if c1 == 0 && c2 == 0 { // null terminator
-				prop, err = t.QueryTrace()
-				return false // stop Range
-			}
-		}
-	})
+// 			if c1 != c2 {
+// 				return true // continue Range
+// 			}
+// 			if c1 == 0 && c2 == 0 { // null terminator
+// 				prop, err = t.QueryTrace()
+// 				return false // stop Range
+// 			}
+// 		}
+// 	})
 
-	return
-}
+// 	return
+// }
 
 // same as [Trace.QueryTrace] but using string traceName
 func (c *Consumer) QueryTrace(traceName string) (prop *EventTracePropertyData2, err error) {
-	if traceName == "" {
-		return nil, fmt.Errorf("traceName is nil")
+	value, ok := c.traces.Load(traceName)
+	if !ok {
+		return nil, fmt.Errorf("trace %s not found", traceName)
 	}
-
-	c.traces.Range(func(key, value interface{}) bool {
-		t := value.(*Trace)
-		if t.TraceName == traceName {
-			prop, err = t.QueryTrace()
-			return false
-		}
-		return true
-	})
-
-	return
+	t := value.(*Trace)
+	return t.QueryTrace()
 }
 
 // FromSessions initializes the consumer from sessions
@@ -596,7 +572,7 @@ func (c *Consumer) ProcessEvents(fn interface{}) error {
 	switch cb := fn.(type) {
 	case func(*Event):
 		// Simple callback without return
-		for batch := range c.Events {
+		for batch := range c.Events.Channel {
 			for _, e := range batch {
 				cb(e)
 				e.Release()
@@ -604,7 +580,7 @@ func (c *Consumer) ProcessEvents(fn interface{}) error {
 		}
 	case func(*Event) error:
 		// Callback with bool return to control flow
-		for batch := range c.Events {
+		for batch := range c.Events.Channel {
 			for _, e := range batch {
 				if err := cb(e); err != nil {
 					e.Release()
@@ -624,8 +600,9 @@ func (c *Consumer) ProcessEvents(fn interface{}) error {
 // Sends event in batches to the Consumer.EventsBatch channel. (better performance)
 // After 200ms have passed or after 20 events have been queued by default.
 func (c *Consumer) DefaultEventCallback(event *Event) error {
-
-	c.EventsQueue.Send(event) // blocks if batch is full.
+	if c.ctx.Err() == nil {
+		c.Events.Send(event) // blocks if channel is full.
+	}
 	return nil
 }
 

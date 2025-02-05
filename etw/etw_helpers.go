@@ -698,8 +698,10 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 			str := (*uint16)(unsafe.Pointer(e.EventRec.UserData))
 			value := UTF16ToStringETW(
 				unsafe.Slice(str, e.EventRec.UserDataLength/2))
-
-			e.SetProperty("String", value)
+			if e.EventRec.UserDataLength != 0 {
+				e.SetProperty("String", value)
+			}
+			return
 		}
 	}
 	// if (e.EventRec.EventHeader.Flags & EVENT_HEADER_FLAG_TRACE_MESSAGE) != 0 {
@@ -1125,16 +1127,17 @@ func (e *EventRecordHelper) GetPropertyFloat(name string) (float64, error) {
 //
 // This is used to set a property value manually. This is useful when
 // you want to add a property that is not present in the event record.
-func (e *EventRecordHelper) SetProperty(name, value string) {
+func (e *EventRecordHelper) SetProperty(name, value string) *Property {
 	if p, ok := e.Properties[name]; ok {
 		p.value = value
-		return
+		return p
 	}
 
 	p := getProperty()
 	p.name = name
 	p.value = value
 	e.Properties[name] = p
+	return p
 }
 
 func (e *EventRecordHelper) ParseProperties(names ...string) (err error) {
