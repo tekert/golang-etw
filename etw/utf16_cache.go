@@ -19,7 +19,7 @@ func newUtf16Cache() *utf16Cache {
 		data: make(map[uint64]string, 1024), // Pre-allocate for common case
 		done: make(chan struct{}),
 		//		cleanupTimer: 10 * time.Second, // clean up the cache every 10 seconds.
-		maxEntries: 10000, // Default max entries
+		maxEntries: 1024, // Default max entries
 	}
 
 	// Start map cleanup goroutine
