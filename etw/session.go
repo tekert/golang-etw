@@ -317,8 +317,8 @@ func QueryTrace(queryProp *EventTracePropertyData2) (err error) {
 	// be sure to set the LogFileNameOffset member to 0 unless you are changing the log file name.
 	queryProp.LogFileNameOffset = 0
 
-	// There is no need to have the loggerName in the queryData.Props.LoggerName
-	// ControlTrace will set it for us on return.
+	// There is no need to have the loggerName in queryProp.LoggerName
+	// ControlTrace will set it for us on return. (instaceName -> quertProp.LoggerNameOffset)
 	if err := ControlTrace(
 		syscall.Handle(0),
 		instanceName,

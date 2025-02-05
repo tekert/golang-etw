@@ -578,6 +578,9 @@ func (p *Property) decodeStringIntype() (string, error) {
 
 	// p.length will be 0 for some string types.
 
+	// p.sizeBytes already has the size for length = 0 string,
+	// but we calculate it again here for testing.
+
 	switch p.evtPropInfo.InType() {
 	case TDH_INTYPE_UNICODESTRING:
 		// Handle nul-terminated, fixed length or param length

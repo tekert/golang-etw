@@ -695,13 +695,15 @@ type EventTraceProperties2 struct {
 
 // The session name (LoggerName) is limited to 1,024 characters.
 // The session name is case-insensitive.
+//
 // The log file name is limited to 1,024 characters.
-// The log file name must follow the session name in memory
+// The log file name must follow the session name in memory.
+//
 // Both names can be set, ETW StartTrace will read it only if the offsets points
 // to these fields.
+//
 // You must copy the log file name to the offset but you do not copy the session name to the offset.
-// The StartTrace function copies the name for you.
-// ControlTrace also copies the name for you.
+// The StartTrace/ControlTrace function copies the name for you.
 type EventTracePropertyData2 struct {
 	EventTraceProperties2
 	LoggerName  [128]uint16

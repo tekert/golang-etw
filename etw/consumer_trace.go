@@ -71,6 +71,9 @@ func (t *Trace) QueryTrace() (prop *EventTracePropertyData2, err error) {
 	// be sure to set the LogFileNameOffset member to 0 unless you are changing the log file name.
 	t.TraceProps.LogFileNameOffset = 0
 	err = QueryTrace(t.TraceProps)
+	if err != nil {
+		return nil, err
+	}
 	return t.TraceProps, err
 }
 

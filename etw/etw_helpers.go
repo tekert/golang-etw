@@ -694,7 +694,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 	if e.EventRec.IsMof() {
 		// If there aren't any event property info structs, use the UserData directly.
 		// NOTE: Does this flag mean that TraceInfo will be null too?
-		if e.TraceInfo.TopLevelPropertyCount == 0 {
+		if (e.EventRec.EventHeader.Flags & EVENT_HEADER_FLAG_STRING_ONLY) != 0 {
 			str := (*uint16)(unsafe.Pointer(e.EventRec.UserData))
 			value := UTF16ToStringETW(
 				unsafe.Slice(str, e.EventRec.UserDataLength/2))

@@ -481,7 +481,6 @@ func TestConsumerCallbacks(t *testing.T) {
 	pid := os.Getpid()
 	// consuming events in Golang
 	go func() {
-		//for e := range c.Events {
 		c.ProcessEvents(func(e *Event) {
 			eventCount++
 
@@ -769,7 +768,6 @@ func TestQueryTraceProperties(t *testing.T) {
 	//loggerNameW, err := syscall.UTF16PtrFromString(loggerName)
 	//tt.CheckErr(err)
 
-	// === Phase 1: Session Setup & Initial Queries ===
 	t.Log("Phase 1: Session Setup & Initial Queries")
 	ses := NewRealTimeSession(loggerName)
 	prov, err := ParseProvider(KernelFileProviderName + ":0xff:12,13,14,15,16")
@@ -783,7 +781,7 @@ func TestQueryTraceProperties(t *testing.T) {
 	tt.CheckErr(err)
 	assertTraceName(tt, sesData, loggerName, "Session")
 
-	// Query global properties
+	// Query using global function
 	gloData := NewQueryTraceProperties(loggerName)
 	tt.CheckErr(QueryTrace(gloData))
 	assertTraceName(tt, gloData, loggerName, "Global")
@@ -791,7 +789,6 @@ func TestQueryTraceProperties(t *testing.T) {
 	// Compare initial properties
 	assertStaticPropsEqual(tt, sesData, gloData, "Initial Session vs Global")
 
-	// === Phase 2: Consumer Setup & Queries ===
 	t.Log("Phase 2: Consumer Setup & Queries")
 	c := NewConsumer(context.Background()).FromSessions(ses)
 	defer c.Stop()
@@ -808,11 +805,10 @@ func TestQueryTraceProperties(t *testing.T) {
 	// From Consumer, using trace name
 	conProp, err := c.QueryTrace(loggerName)
 	tt.CheckErr(err)
-	tt.Assert(conProp != nil, "Expected conProp2 to be non-nil")
+	tt.Assert(conProp != nil, "Expected conProp to be non-nil")
 	assertTraceName(tt, conProp, loggerName, "Consumer")
 	assertStaticPropsEqual(tt, sesData, conProp, "Session vs Consumer")
 
-	// === Phase 3: Runtime Stats Validation ===
 	t.Log("Phase 3: Runtime Stats Validation")
 	time.Sleep(5 * time.Second)
 	tt.CheckErr(c.Stop())
@@ -826,7 +822,6 @@ func TestQueryTraceProperties(t *testing.T) {
 	assertRuntimeStats(tt, sesData2, "Session Final")
 	assertRuntimeStatsEqual(tt, sesData2, gloData, "Session vs Global Final")
 
-	// === Phase 4: Error Cases ===
 	t.Log("Phase 4: Error Cases")
 	badData := NewQueryTraceProperties("NonExistentTrace")
 	err = QueryTrace(badData)
@@ -849,6 +844,7 @@ func TestSessionQueryFail(t *testing.T) {
 	trace.realtime = true
 
 	prop, err := trace.QueryTrace()
+	// must produce error
 	if err == nil || prop != nil {
 		t.Fail()
 	}
