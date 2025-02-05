@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
+
+	"github.com/tekert/golang-etw/etw/pkg/hexf"
 )
 
 const (
@@ -65,15 +67,15 @@ func (g *GUID) StringU() string {
 	d3[0] = byte(g.Data3 >> 8)
 	d3[1] = byte(g.Data3)
 
-	HexEncodeU(b[1:9], d1[:])
+	hexf.EncodeU(b[1:9], d1[:])
 	b[9] = '-'
-	HexEncodeU(b[10:14], d2[:])
+	hexf.EncodeU(b[10:14], d2[:])
 	b[14] = '-'
-	HexEncodeU(b[15:19], d3[:])
+	hexf.EncodeU(b[15:19], d3[:])
 	b[19] = '-'
-	HexEncodeU(b[20:24], g.Data4[:2])
+	hexf.EncodeU(b[20:24], g.Data4[:2])
 	b[24] = '-'
-	HexEncodeU(b[25:37], g.Data4[2:])
+	hexf.EncodeU(b[25:37], g.Data4[2:])
 
 	return unsafe.String(unsafe.SliceData(b[:]), len(b))
 }
@@ -100,15 +102,15 @@ func (g *GUID) String() string {
 	d3[0] = byte(g.Data3 >> 8)
 	d3[1] = byte(g.Data3)
 
-	HexEncode(b[1:9], d1[:])
+	hexf.Encode(b[1:9], d1[:])
 	b[9] = '-'
-	HexEncode(b[10:14], d2[:])
+	hexf.Encode(b[10:14], d2[:])
 	b[14] = '-'
-	HexEncode(b[15:19], d3[:])
+	hexf.Encode(b[15:19], d3[:])
 	b[19] = '-'
-	HexEncode(b[20:24], g.Data4[:2])
+	hexf.Encode(b[20:24], g.Data4[:2])
 	b[24] = '-'
-	HexEncode(b[25:37], g.Data4[2:])
+	hexf.Encode(b[25:37], g.Data4[2:])
 
 	return unsafe.String(unsafe.SliceData(b[:]), len(b))
 }
@@ -182,7 +184,6 @@ func ParseGUID(guid string) (g *GUID, err error) {
 	return
 }
 
-// Add directly to the GUID type
 func (g GUID) MarshalJSON() ([]byte, error) {
 	return json.Marshal(g.StringU())
 }

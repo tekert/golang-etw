@@ -4,12 +4,11 @@ package etw
 
 import (
 	"bytes"
-	"encoding/hex"
+	"encoding/hex" // also slow but not used much here.
 	"fmt"
-	"log/slog" // use GOLANG_LOG=debug to see debug messages
+
 	"math"
 	"os"
-	"strconv"
 	"sync"
 	"unsafe"
 )
@@ -134,7 +133,7 @@ func (e *EventRecordHelper) userContext() (c *traceContext) {
 
 func (e *EventRecordHelper) addPropError() {
 	c := e.userContext()
-	if c != nil && c.consumer != nil {
+	if c != nil && c.trace != nil {
 		c.trace.ErrorPropsParse++
 	}
 }
@@ -232,10 +231,12 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 
 	if erh.TraceInfo, erh.teiBuffer, err = er.GetEventInformation(); err != nil {
 		err = fmt.Errorf("GetEventInformation failed : %s", err)
-		slog.Debug("GetEventInformation failed",
-			"GUID", er.EventHeader.ProviderId.StringU(),
-			"EventType", er.EventHeader.EventDescriptor.Opcode,
-			"Version", er.EventHeader.EventDescriptor.Version)
+		log.Debug().
+			Str("GUID", er.EventHeader.ProviderId.StringU()).
+			Uint8("EventType", er.EventHeader.EventDescriptor.Opcode).
+			Uint8("Version", er.EventHeader.EventDescriptor.Version).
+			Msg("GetEventInformation failed")
+
 		// GUID {90CBDC39-4A3E-11D1-84F4-0000F80464E3} (FileIo)
 		// EventType 84
 		// Version 3
@@ -500,13 +501,14 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 		sizeBytes = uint32(propLength)
 	}
 
-	//* Very usefull link:
+	//* Useful links:
 	// https://learn.microsoft.com/en-us/windows/win32/etw/event-tracing-mof-qualifiers#property-qualifiers
 
 	// Improves performance (vs calling TdhGetPropertySize on every variable prop by ~6%)
 	// We do this the long way to not abuse cgo calls on every prop.
 	// (if go cgo improves in performance this will a 3 liner)
-	// Get byte size for zero length cases (null-terminated or variable)
+	//
+	// Gets byte size for zero length cases (null-terminated or variable)
 	if propLength == 0 {
 		switch epi.InType() {
 
@@ -537,6 +539,8 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 					break
 				}
 			}
+			// size may be null included even if not null terminated, doesnt matter.
+			// this is the last prop, the iterator will be at the end of the data.
 			return 0, sizeBytes, nil
 
 		case TDH_INTYPE_ANSISTRING:
@@ -550,6 +554,8 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 					break
 				}
 			}
+			// size may be null included even if not null terminated, doesnt matter.
+			// this is the last prop, the iterator will be at the end of the data.
 			return 0, sizeBytes, nil
 
 		// All counted string/binary types that have 2-byte length prefix
@@ -637,7 +643,8 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 				break // Use TdhGetPropertySize
 			}
 
-			slog.Warn("unexpected length of 0", "intype", epi.InType(), "outtype", epi.OutType())
+			log.Warn().Uint16("intype", epi.InType().V()).Str("outtype",
+				epi.OutType().String()).Msg("unexpected length of 0")
 		}
 
 		// We already know how to get the size for each intype, but a single mistake could crash the event.
@@ -666,29 +673,6 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 	if err != nil {
 		return
 	}
-
-	// // ! TESTING
-	// sizeBytes, _ := e.getPropertySize(i)
-	// propSize := uint32(0)
-	// length := uint32(0)
-	// // ! TESTING
-	// pdd := PropertyDataDescriptor{}
-	// pdd.PropertyName = uint64(e.TraceInfo.PropertyNamePointer(i))
-	// pdd.ArrayIndex = math.MaxUint32
-	// err2 := TdhGetPropertySize(e.EventRec, 0, nil, 1, &pdd, &propSize)
-	// var err3 error
-	// if err2 != nil {
-	// 	err3 = TdhGetProperty(e.EventRec, 0, nil, 1, &pdd, propSize, (*byte)(unsafe.Pointer(&length)))
-	// 	_ = err3
-	// }
-	// if p.sizeBytes != sizeBytes {
-	// 	_, udc, _ := p.formatToStringTdh()
-	// 	p.sizeBytes = uint32(udc)
-	// 	if p.sizeBytes != uint32(udc) {
-	// 		slog.Warn("sizeBytes mismatch2", "sizeBytes", p.sizeBytes, "sizeBytes2", sizeBytes)
-	// 		panic("sizeBytes mismatch2")
-	// 	}
-	// }
 
 	// p.length has to be 0 on strings and structures for TdhFormatProperty to work.
 	// We use size instead to advance when p.length is 0.
@@ -759,14 +743,13 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 			// If this property is a struct, process the child properties
 			// TODO(tekert): save this in a tree structure?
 			if epi.Flags&PropertyStruct != 0 {
-				slog.Debug("Processing struct property", "index", arrayIndex)
+				//LogTrace("Processing struct property", "index", arrayIndex)
 				propStruct := propertyMapPool.Get().(map[string]*Property)
 
 				startIndex := epi.StructStartIndex()
 				lastMember := startIndex + epi.NumOfStructMembers()
 
 				for j := startIndex; j < lastMember; j++ {
-					LogTrace("parsing struct property", "struct_index", j)
 					if p, err = e.prepareProperty(uint32(j)); err != nil {
 						return
 					}
@@ -785,8 +768,6 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 
 			// If is a simple array of props (not structs)
 			if isArray && (epi.Flags&PropertyStruct == 0) {
-				//LogTrace("Processing array element", "name", arrayName, "index", arrayIndex)
-
 				// if this is a MOF event, we don't need to parse the properties of the array
 				// this will be a array of wchars, Kernel events EVENT_HEADER_FLAG_CLASSIC_HEADER
 				if e.TraceInfo.IsMof() {
@@ -814,7 +795,6 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 
 			// Single value that is not a struct or array.
 			if arrayCount == 1 && !isArray {
-				LogTrace("parsing property", "index", i)
 				if p, err = e.prepareProperty(i); err != nil {
 					return
 				}
@@ -841,26 +821,25 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 			}
 		}
 
+		e.addPropError()
 		// Convert data to hex string and report.
 		hexStr := hex.EncodeToString(remainingData)
-		slog.Warn("UserData not fully parsed",
-			"remaining", remainingBytes,
-			"total", e.EventRec.UserDataLength,
-			"remainingHex", hexStr,
-			"provider", e.TraceInfo.ProviderName(),
-			"providerGUID", e.TraceInfo.ProviderGUID.String(),
-			"eventID", e.TraceInfo.EventID(),
-			"version", e.TraceInfo.EventDescriptor.Version, // MOF class version
-			"opcode", e.TraceInfo.OpcodeName(),
-			"opcodevalue", e.TraceInfo.EventDescriptor.Opcode, // EventType for MOF
-			"level", e.TraceInfo.LevelName(),
-			"flags", e.EventRec.EventHeader.Flags,
-			"task", e.TraceInfo.TaskName(),
-			"channel", e.TraceInfo.ChannelName(),
-			"isMof", e.TraceInfo.IsMof(),
-		)
-
-		e.addPropError()
+		log.Warn().
+			Uint32("remaining", remainingBytes).
+			Int("total", int(e.EventRec.UserDataLength)).
+			Str("remainingHex", hexStr).
+			Str("provider", e.TraceInfo.ProviderName()).
+			Str("providerGUID", e.TraceInfo.ProviderGUID.String()).
+			Int("eventID", int(e.TraceInfo.EventID())).
+			Int("version", int(e.TraceInfo.EventDescriptor.Version)). // MOF class version
+			Str("opcode", e.TraceInfo.OpcodeName()).
+			Int("opcodevalue", int(e.TraceInfo.EventDescriptor.Opcode)). // EventType for MOF
+			Str("level", e.TraceInfo.LevelName()).
+			Int("flags", int(e.EventRec.EventHeader.Flags)).
+			Str("task", e.TraceInfo.TaskName()).
+			Str("channel", e.TraceInfo.ChannelName()).
+			Bool("isMof", e.TraceInfo.IsMof()).
+			Msg("UserData not fully parsed")
 	}
 
 	return
@@ -1121,32 +1100,11 @@ func (e *EventRecordHelper) GetPropertyString(name string) (s string, err error)
 	return "", fmt.Errorf("%w %s", ErrUnknownProperty, name)
 }
 
-// slower version of: [EventRecordHelper.GetPropertyInt]
-func (e *EventRecordHelper) GetPropertyStringInt(name string) (i int64, err error) {
-	var s string
-	if s, err = e.GetPropertyString(name); err != nil {
-		return
-	}
-
-	return strconv.ParseInt(s, 0, 64)
-}
-
 func (e *EventRecordHelper) GetPropertyInt(name string) (i int64, err error) {
 	if p, ok := e.Properties[name]; ok {
 		return p.GetInt()
 	}
 	return 0, fmt.Errorf("%w %s", ErrUnknownProperty, name)
-}
-
-// slower version of: [EventRecordHelper.GetPropertyUint]
-func (e *EventRecordHelper) GetPropertyStringUint(name string) (u uint64, err error) {
-	var s string
-
-	if s, err = e.GetPropertyString(name); err != nil {
-		return
-	}
-
-	return strconv.ParseUint(s, 0, 64)
 }
 
 func (e *EventRecordHelper) GetPropertyUint(name string) (uint64, error) {

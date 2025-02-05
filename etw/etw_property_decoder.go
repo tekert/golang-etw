@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/tekert/golang-etw/etw/pkg/hexf"
 )
 
 // decodeToString attempts to parse the property value based on OutType.
@@ -203,7 +205,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			TDH_INTYPE_HEXDUMP,
 			TDH_INTYPE_MANIFEST_COUNTEDBINARY:
 			bytes := unsafe.Slice((*byte)(unsafe.Pointer(p.pValue)), p.length)
-			return HexEncodeToStringUPrefix(bytes), nil
+			return hexf.EncodeToStringUPrefix(bytes), nil
 		default:
 			return "", fmt.Errorf("invalid HEXBINARY InType: %v", inType)
 		}
@@ -213,14 +215,14 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid HEXINT8 InType: %v", inType)
 		}
 		v := *(*uint8)(unsafe.Pointer(p.pValue))
-		return HexUint8UPrefix(v), nil
+		return hexf.NUm8p(v, true), nil
 
 	case TDH_OUTTYPE_HEXINT16:
 		if inType != TDH_INTYPE_UINT16 {
 			return "", fmt.Errorf("invalid HEXINT16 InType: %v", inType)
 		}
 		v := *(*uint16)(unsafe.Pointer(p.pValue))
-		return HexUint16UPrefix(v), nil
+		return hexf.NUm16p(v, true), nil
 
 	case TDH_OUTTYPE_HEXINT32:
 		if inType != TDH_INTYPE_UINT32 &&
@@ -228,7 +230,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid HEXINT32 InType: %v", inType)
 		}
 		v := *(*uint32)(unsafe.Pointer(p.pValue))
-		return HexUint32UPrefix(v), nil
+		return hexf.NUm32p(v, true), nil
 
 	case TDH_OUTTYPE_HEXINT64:
 		if inType != TDH_INTYPE_UINT64 &&
@@ -237,7 +239,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return "", fmt.Errorf("invalid HEXINT64 InType: %v", inType)
 		}
 		v := *(*uint64)(unsafe.Pointer(p.pValue))
-		return HexUint64UPrefix(v), nil
+		return hexf.NUm64p(v, true), nil
 
 	case TDH_OUTTYPE_GUID:
 		if inType != TDH_INTYPE_GUID {
@@ -315,7 +317,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 		case TDH_INTYPE_BINARY,
 			TDH_INTYPE_MANIFEST_COUNTEDBINARY:
 			bytes := unsafe.Slice((*byte)(unsafe.Pointer(p.pValue)), p.length)
-			return HexEncodeToStringUPrefix(bytes), nil
+			return hexf.EncodeToStringUPrefix(bytes), nil
 		default:
 			return "", fmt.Errorf("invalid PKCS7 InType: %v", inType)
 		}
@@ -331,7 +333,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			return HexUint64UPrefix(v), nil
+			return hexf.NUm64p(v, false), nil
 		default:
 			return "", fmt.Errorf("invalid CODE_POINTER InType: %v", inType)
 		}
@@ -345,7 +347,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return HexUint32UPrefix(uint32(v)), nil
+		return hexf.NUm32p(uint32(v), false), nil
 
 	case TDH_OUTTYPE_HRESULT:
 		if inType != TDH_INTYPE_INT32 {
@@ -355,14 +357,14 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return HexInt32UPrefix(int32(v)), nil
+		return hexf.NUm32p(int32(v), false), nil
 
 	case TDH_OUTTYPE_ERRORCODE:
 		if inType != TDH_INTYPE_UINT32 {
 			return "", fmt.Errorf("invalid ERRORCODE InType: %v", inType)
 		}
 		v := *(*uint32)(unsafe.Pointer(p.pValue))
-		return HexUint32UPrefix(v), nil
+		return hexf.NUm32p(v, false), nil
 
 	case TDH_OUTTYPE_NOPRINT:
 		// Return empty string for NOPRINT as spec indicates field should not be shown
@@ -574,7 +576,7 @@ func (p *Property) decodeStringIntype() (string, error) {
 	// - LengthPropertyIndex field (PropertyParamLength)
 	// - PropertyParamFixedLength
 
-	// p.lenght will be 0 for some string types.
+	// p.length will be 0 for some string types.
 
 	switch p.evtPropInfo.InType() {
 	case TDH_INTYPE_UNICODESTRING:

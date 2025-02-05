@@ -5,7 +5,6 @@ package etw
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"reflect"
 	"runtime"
 	"sync"
@@ -103,8 +102,8 @@ type Consumer struct {
 	// The events are batched by size = [Consumer.EventsConfig.BatchSize]
 	// use [Consumer.ProcessEvents] for easier consumption (no need to Release events).
 	//
-	// (if consuming directly from this channel, remember to Event.Release()
-	// when done with the event, increases performance)
+	// If consuming directly from this channel, remember to Event.Release()
+	// when done with the event, increases performance
 	Events chan []*Event
 
 	// The total number of event's lost.
@@ -118,25 +117,7 @@ type Consumer struct {
 	closeTimeout time.Duration // stores timeout in nanoseconds
 
 	// EventsBatch channel configutation.
-	EventsConfig EventBufferConfig
-}
-
-type EventBufferConfig struct {
-	// The maximum number of events that can be stored in the batch.
-	// This the ammout of events received before flushing the buffer.
-	// Default: 20
-	BatchSize int
-
-	// The maximum time to wait before flushing the buffer.
-	// Default: 200ms
-	Timeout time.Duration
-
-	skippableEvents    []*Event
-	nonskippableEvents []*Event
-
-	eventsMu   sync.Mutex
-	flushTimer *time.Timer
-	closed     bool
+	EventsQueue EventBuffer
 }
 
 type traceContext struct {
@@ -145,6 +126,7 @@ type traceContext struct {
 }
 
 // Helper function to get the traceContext from the UserContext
+// These are used from ETW callbacks to get a reference back to our context.
 func (er *EventRecord) getUserContext() *traceContext {
 	return (*traceContext)(unsafe.Pointer(er.UserContext))
 }
@@ -157,9 +139,9 @@ func NewConsumer(ctx context.Context) (c *Consumer) {
 	c = &Consumer{
 		Filter: NewProviderFilter(),
 		Events: make(chan []*Event, 10),
-		EventsConfig: EventBufferConfig{
-			skippableEvents:    make([]*Event, 0, 4096),
-			nonskippableEvents: make([]*Event, 0, 4096),
+		EventsQueue: EventBuffer{
+			skippableEvents:    make([]*Event, 0, 512),
+			nonskippableEvents: make([]*Event, 0, 512),
 			Timeout:            200 * time.Millisecond,
 			BatchSize:          20,
 		},
@@ -168,6 +150,8 @@ func NewConsumer(ctx context.Context) (c *Consumer) {
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	c.EventRecordHelperCallback = c.DefaultEventRecordHelperCallback
 	c.EventCallback = c.DefaultEventCallback
+
+	c.EventsQueue.events = c.Events
 
 	return c
 }
@@ -200,8 +184,8 @@ func (c *Consumer) GetTraceCopy(tname string) (t Trace, exists bool) {
 }
 
 // gets or creates a new one if it doesn't exist
-func (c *Consumer) getOrAddTrace(name string) *Trace {
-	actual, _ := c.traces.LoadOrStore(name, newTrace(name))
+func (c *Consumer) getOrAddTrace(traceName string) *Trace {
+	actual, _ := c.traces.LoadOrStore(traceName, newTrace(traceName))
 	return actual.(*Trace)
 }
 
@@ -239,8 +223,8 @@ func (c *Consumer) handleLostEvent(e *EventRecord) {
 			// to capture events was lost.
 			u.trace.RTLostFile++
 		default:
-			slog.Debug("Invalid opcode for lost event",
-				"opcode", traceInfo.EventDescriptor.Opcode)
+			log.Debug().Uint8("opcode", traceInfo.EventDescriptor.Opcode).
+				Msg("Invalid opcode for lost event")
 		}
 	}
 	c.LostEvents.Add(1)
@@ -266,7 +250,7 @@ func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 		// if the consumer has been stopped we
 		// don't process event records anymore
 		// return 0 to stop ProcessTrace
-		slog.Debug("bufferCallback: Context canceled, stopping ProcessTrace...")
+		log.Debug().Msg("bufferCallback: Context canceled, stopping ProcessTrace...")
 
 		return 0
 	}
@@ -291,7 +275,7 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 			er.getUserContext().trace.ErrorEvents++ // safe here.
 		}
 		c.lastError = err
-		slog.Debug("callback error", "error", err)
+		log.Debug().Err(err).Msg("callback error")
 	}
 
 	// Skips the event if it is the event trace header. Log files contain this event
@@ -300,7 +284,7 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 	// the trace.
 	if er.EventHeader.ProviderId.Equals(EventTraceGuid) &&
 		er.EventHeader.EventDescriptor.Opcode == EVENT_TRACE_TYPE_INFO {
-		slog.Debug("Skipping EventTraceGuid event", "event", er)
+		log.Debug().Interface("event", er).Msg("Skipping EventTraceGuid event")
 		// Skip this event.
 		return
 	}
@@ -336,8 +320,6 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 		if h.Flags.Skip {
 			return
 		}
-
-		LogTrace("Decoding source", "source", lazyDecodeSource{h.TraceInfo.DecodingSource})
 
 		// initialize record helper
 		h.initialize()
@@ -379,15 +361,15 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 // to return if wait = true
 func (c *Consumer) close(wait bool) (lastErr error) {
 	if c.closed {
-		slog.Debug("Consumer already closed.")
+		log.Debug().Msg("Consumer already closed.")
 		return
 	}
-	slog.Debug("Closing consumer...")
+	log.Debug().Msg("Closing consumer...")
 
 	// closing trace handles
 	c.traces.Range(func(key, value interface{}) bool {
 		t := value.(*Trace)
-		slog.Debug("Closing handle for trace", "trace", t.TraceName)
+		log.Debug().Str("trace", t.TraceName).Msg("Closing handle for trace")
 		// if we don't wait for traces ERROR_CTX_CLOSE_PENDING is a valid error
 		// The ERROR_CTX_CLOSE_PENDING code indicates that the CloseTrace function
 		// call was successful; the ProcessTrace function will stop processing events
@@ -406,22 +388,22 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 			t.handle = 0
 			c.tmu.Unlock()
 
-			slog.Debug("handle closed", "trace", t.TraceName)
+			log.Debug().Str("trace", t.TraceName).Msg("handle closed")
 			if err == ERROR_CTX_CLOSE_PENDING {
-				slog.Debug("ERROR_CTX_CLOSE_PENDING == true", "trace", t.TraceName, "message", err)
+				log.Debug().Str("trace", t.TraceName).Err(err).Msg("ERROR_CTX_CLOSE_PENDING == true")
 			}
 		}
 		return true
 	})
 
-	slog.Debug("Waiting for ProcessTrace goroutines to end...")
+	log.Debug().Msg("Waiting for ProcessTrace goroutines to end...")
 	if wait {
 		c.Wait()
 	}
-	slog.Debug("All ProcessTrace goroutines ended.")
+	log.Debug().Msg("All ProcessTrace goroutines ended.")
 
-	c.closeEventsChannel() // also flushes the last events (important)
-	slog.Debug("Events channel closed.")
+	c.EventsQueue.close()
+	log.Debug().Msg("Events channel closed.")
 
 	c.closed = true
 
@@ -475,6 +457,59 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	return nil
 }
 
+// Gets the properties of a trace session with traceName in utf16
+// useful for checking an existing TraceLogFile logName.
+// same as [Trace.QueryTrace] but for traceNameW in utf16
+func (c *Consumer) QueryTraceW(traceNameW *uint16) (prop *EventTracePropertyData2, err error) {
+	if traceNameW == nil {
+		return nil, fmt.Errorf("traceNameW is nil")
+	}
+
+	c.traces.Range(func(key, value interface{}) bool {
+		t := value.(*Trace)
+
+		// if pointer points to the same location, same name.
+		if (traceNameW == t.TraceNameW) {
+			prop, err = t.QueryTrace()
+			return false
+		}
+
+		// Compare UTF16 strings until null terminator
+		for i := 0; ; i++ {
+			c1 := *(*uint16)(unsafe.Add(unsafe.Pointer(traceNameW), i*2))
+			c2 := *(*uint16)(unsafe.Add(unsafe.Pointer(t.TraceNameW), i*2))
+
+			if c1 != c2 {
+				return true // continue Range
+			}
+			if c1 == 0 && c2 == 0 { // null terminator
+				prop, err = t.QueryTrace()
+				return false // stop Range
+			}
+		}
+	})
+
+	return
+}
+
+// same as [Trace.QueryTrace] but using string traceName
+func (c *Consumer) QueryTrace(traceName string) (prop *EventTracePropertyData2, err error) {
+	if traceName == "" {
+		return nil, fmt.Errorf("traceName is nil")
+	}
+
+	c.traces.Range(func(key, value interface{}) bool {
+		t := value.(*Trace)
+		if t.TraceName == traceName {
+			prop, err = t.QueryTrace()
+			return false
+		}
+		return true
+	})
+
+	return
+}
+
 // FromSessions initializes the consumer from sessions
 func (c *Consumer) FromSessions(sessions ...Session) *Consumer {
 	for _, s := range sessions {
@@ -507,27 +542,14 @@ func (c *Consumer) DefaultEventRecordHelperCallback(h *EventRecordHelper) error 
 	return nil
 }
 
+// inneficient. (i almost rewrote every single function in this fork...)
 // DefaultEventCallback is the default [Consumer.EventCallback] method applied
 // to Consumer created with NewConsumer
 // Receives parsed events and sends them to the Consumer.Events channel.
 //
-// # Note, this will incurr overhead, it's way better to define your own EventCallback
-// or use batched events (4% overhead only).
-//
-// In benchmarks this performs 16% worse overall (a lot) for high concurrent events.
-// just dont use channels to send events, this is just an example of what happens.
-//
-// While using only 1 callback/ProcessTrace thread: (1 trace only):
-// channels overhead comes from runtime.chansed(2.2%), runtime.send(1.2%),
-// runtime.schedule(3,14%), runtime.wakup (6,6%) (cgo stdcall1 and stdcall2),
-// runtime.mallocgc (1,5%) and runtime.lock2(1,54%)
-// for a total of ~16% of the time is spent on this.
-// In the end, don't use go channels for time sensitive operations.
-
 // func (c *Consumer) DefaultEventCallback_old(event *Event) (err error) {
 // 	// we have to check again here as the lock introduced delay
 // 	if c.ctx.Err() == nil {
-
 // 		// if the event can be skipped we send it in a non-blocking way
 // 		if event.Flags.Skippable {
 // 			select {
@@ -536,29 +558,13 @@ func (c *Consumer) DefaultEventRecordHelperCallback(h *EventRecordHelper) error 
 // 				c.Skipped.Add(1)
 // 				event.Release()
 // 			}
-
 // 			return
 // 		}
-
 // 		// if we cannot skip event we send it in a blocking way
 // 		c.Events <- event
-
 // 	}
-
 // 	return
 // }
-
-// Flushes and then closes the channel
-func (c *Consumer) closeEventsChannel() {
-	c.EventsConfig.eventsMu.Lock()
-	if c.EventsConfig.flushTimer != nil {
-		c.EventsConfig.flushTimer.Stop()
-	}
-	c.flushEvents() // important to flush any remaining events
-	c.EventsConfig.closed = true
-	close(c.Events)
-	c.EventsConfig.eventsMu.Unlock()
-}
 
 // Will only work while using the [DefaultEventCallback] method.
 // This is an example of how to read events with channels, 6% overhead
@@ -611,37 +617,6 @@ func (c *Consumer) ProcessEvents(fn interface{}) error {
 	return nil
 }
 
-// flushEvents processes and dispatches both skippable
-// and non-skippable events through the Events channel.
-// call this with a [Consumer.EventsConfig.eventsMu] mutex.
-func (c *Consumer) flushEvents() {
-	// Process skippable events if any
-	if len(c.EventsConfig.skippableEvents) > 0 {
-		// copy slice (it's going to be reseted after sending it)
-		batch := append([]*Event(nil), c.EventsConfig.skippableEvents...)
-		select {
-		case c.Events <- batch:
-		default:
-			// Channel full, increment skip counter and release events
-			c.Skipped.Add(uint64(len(batch)))
-			for _, e := range batch {
-				e.Release()
-			}
-		}
-		c.EventsConfig.skippableEvents = c.EventsConfig.skippableEvents[:0]
-	}
-
-	// Process non-skippable events - must send
-	if len(c.EventsConfig.nonskippableEvents) > 0 {
-		batch := append([]*Event(nil), c.EventsConfig.nonskippableEvents...)
-		select {
-		case c.Events <- batch:
-		}
-		// make sure to start at 0 for the next appends
-		c.EventsConfig.nonskippableEvents = c.EventsConfig.nonskippableEvents[:0]
-	}
-}
-
 // DefaultEventCallback is the default [Consumer.EventCallback] method applied
 // to Consumer created with NewConsumer
 // Receives parsed events and sends them in batches to the Consumer.EventsBatch channel.
@@ -649,46 +624,8 @@ func (c *Consumer) flushEvents() {
 // Sends event in batches to the Consumer.EventsBatch channel. (better performance)
 // After 200ms have passed or after 20 events have been queued by default.
 func (c *Consumer) DefaultEventCallback(event *Event) error {
-	c.EventsConfig.eventsMu.Lock()
-	defer c.EventsConfig.eventsMu.Unlock()
-	ec := &c.EventsConfig
 
-	// return if channel is already closed.
-	if ec.closed {
-		return nil
-	}
-
-	// Add event to queue
-	if event.Flags.Skippable {
-		ec.skippableEvents = append(ec.skippableEvents, event)
-	} else {
-		ec.nonskippableEvents = append(ec.nonskippableEvents, event)
-	}
-
-	// Flush if events queues reached maximum size
-	if (len(ec.skippableEvents) + len(ec.nonskippableEvents)) >= ec.BatchSize {
-		// Stop timer since we are flushing
-		if ec.flushTimer != nil {
-			ec.flushTimer.Stop()
-			ec.flushTimer = nil
-		}
-		c.flushEvents()
-		return nil
-	}
-
-	// Start timer to flush queue if not enough events come in.
-	if ec.flushTimer == nil {
-		ec.flushTimer = time.AfterFunc(ec.Timeout, func() {
-			ec.eventsMu.Lock()
-			// if timer is still active, flush events
-			if ec.flushTimer != nil {
-				c.flushEvents()
-				ec.flushTimer = nil
-			}
-			ec.eventsMu.Unlock()
-		})
-	}
-
+	c.EventsQueue.Send(event) // blocks if batch is full.
 	return nil
 }
 
@@ -740,31 +677,32 @@ func (c *Consumer) processTrace(name string, trace *Trace) {
 	defer runtime.UnlockOSThread()
 
 	goroutineID := getGoroutineID()
-	slog.Info("Starting ProcessTrace",
-		"trace", name,
-		"goroutineID", goroutineID)
+	log.Info().Str("trace", name).Interface("goroutineID", goroutineID).Msg("Starting ProcessTrace")
 
 	trace.processing = true
 	// https://docs.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-processtrace
-	// Won't return even if canceled until the session buffer is empty
-	// (callback returns for every remaning event after CloseTrace or callbackBuffer returns 0)
+	// Won't return even if canceled (CloseTrace or callbackBuffer returning 0),
+	// until the session buffer is empty, meaning the defined callback has to return
+	// for every remaining event in the buffer, then ProcessTrace will unblock.
+	// This must be to make sure all events are processed before  the user closes the handle.
 	if err := ProcessTrace(&trace.handle, 1, nil, nil); err != nil {
 		if err == ERROR_CANCELLED {
 			// The consumer canceled processing by returning FALSE in their
 			// BufferCallback function.
-			slog.Info("ProcessTrace canceled", "trace", name, "err", err)
+			log.Info().Str("trace", name).Err(err).Msg("ProcessTrace canceled")
 		} else {
 			c.lastError = fmt.Errorf(
 				"ProcessTrace failed: %w, handle: %v, LoggerName: %s", err, trace.handle, name)
+			log.Error().Err(c.lastError).Msg("ProcessTrace failed")
 		}
 	}
 	trace.processing = false
 	trace.ctx = nil // context can be safely released now. (bufferCallback will not be called anymore)
-	slog.Debug("ProcessTrace finished", "trace", name)
+	log.Debug().Str("trace", name).Msg("ProcessTrace finished")
 }
 
 // Will return from the goroutine if ProcessTrace doesn't return after close.
-// This will leave the ProcessTrace detached and processing events.
+// This will leave the ProcessTrace detached and flushing events.
 func (c *Consumer) processTraceWithTimeout(name string, trace *Trace) {
 	//traceDone := trace.done // capture the reference just in case
 	pdone := make(chan struct{})
@@ -784,7 +722,7 @@ func (c *Consumer) processTraceWithTimeout(name string, trace *Trace) {
 			case <-pdone:
 				// ProcessTrace completed before timeout
 			case <-time.After(c.closeTimeout):
-				slog.Warn("ProcessTrace did not complete within timeout", "trace", name)
+				log.Warn().Str("trace", name).Msg("ProcessTrace did not complete within timeout")
 				// Let goroutine continue but we return to unblock c.Wait()
 				return
 			}

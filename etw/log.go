@@ -3,50 +3,75 @@
 package etw
 
 import (
-	"context"
-	"log/slog"
 	"os"
+
+	plog "github.com/phuslu/log"
 )
 
-const (
-	// Custom levels
-	LogLevelTrace = slog.Level(-8)
-)
+// Etw package-wide default logger
+var log = plog.Logger{
+	Writer: plog.WriterFunc(func(e *plog.Entry) (int, error) {
+		if e.Level >= plog.ErrorLevel {
+			return os.Stderr.Write(e.Value())
+		} else {
+			return os.Stdout.Write(e.Value())
+		}
+	}),
+	Level: plog.InfoLevel, // Default
+}
 
-// SetLoggerHandler sets a custom logger for ETW library
-func SetLoggerHandler(h slog.Handler) {
-	if h == nil {
-		return // Keep default
+// SetLogger replaces the package-wide default logger
+//
+// http://github.com/phuslu/log is used for logging
+func SetLogger(newLogger *plog.Logger) {
+	if newLogger != nil {
+		log = *newLogger
 	}
-	slog.SetDefault(slog.New(h))
 }
 
-func SetLoggerLevel(level slog.Level) {
-	slog.SetLogLoggerLevel(level)
+// SetLoggerLevel sets the log level (e.g., log.InfoLevel, log.DebugLevel)
+func SetLoggerLevel(lvl plog.Level) {
+	log.SetLevel(lvl)
 }
 
-func SetDebugLevel(addSource bool) {
-	// Create text handler that writes to stderr
-	h := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level:     slog.LevelDebug,
-		AddSource: addSource,
-	})
-
-	// Set as default logger
-	slog.SetDefault(slog.New(h))
+// SetDebugLevel sets the log level to log.DebugLevel
+func SetDebugLevel() {
+	log.SetLevel(plog.DebugLevel)
 }
 
-// Logs trace messages, level = -8
-func LogTrace(msg string, args ...any) {
-	slog.Default().Log(context.Background(), LogLevelTrace, msg, args...)
+// SetTraceLevel sets the log level to log.TraceLevel
+func SetTraceLevel() {
+	log.SetLevel(plog.TraceLevel)
 }
 
-// https://pkg.go.dev/log/slog@go1.23.4#hdr-Performance_considerations
-type lazyDecodeSource struct {
-	ds DecodingSource
+// SetInfoLevel sets the log level to log.InfoLevel
+func SetInfoLevel() {
+	log.SetLevel(plog.InfoLevel)
 }
 
-func (l lazyDecodeSource) LogValue() slog.Value {
-	// Called only if log is enabled
-	return slog.StringValue(aSource[l.ds])
+// SetWarnLevel sets the log level to log.WarnLevel
+func SetWarnLevel() {
+	log.SetLevel(plog.WarnLevel)
 }
+
+// SetErrorLevel sets the log level to log.ErrorLevel
+func SetErrorLevel() {
+	log.SetLevel(plog.ErrorLevel)
+}
+
+// SetFatalLevel sets the log level to log.FatalLevel
+func SetFatalLevel() {
+	log.SetLevel(plog.FatalLevel)
+}
+
+// SetPanicLevel sets the log level to log.PanicLevel
+func SetPanicLevel() {
+	log.SetLevel(plog.PanicLevel)
+}
+
+// DisableLogging disables all logging output
+func DisableLogging() {
+	log.SetLevel(plog.Level(99)) // Above noLevel
+}
+
+// TODO(tekert): file logging, etc

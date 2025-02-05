@@ -4,6 +4,20 @@ import (
 	"encoding/json"
 	"sync"
 	"time"
+
+	"github.com/tekert/golang-etw/etw/pkg/hexf"
+)
+
+var (
+	eventPool = sync.Pool{
+		New: func() interface{} {
+			return &Event{
+				EventData:    make(map[string]interface{}),
+				UserData:     make(map[string]interface{}),
+				ExtendedData: make([]string, 0),
+			}
+		},
+	}
 )
 
 type EventID uint16
@@ -75,22 +89,10 @@ func (k MarshalKeywords) MarshalJSON() ([]byte, error) {
 		Mask string   `json:"Mask"`
 		Name []string `json:"Name"`
 	}{
-		Mask: HexUint64UPrefix(k.Mask),
+		Mask: hexf.NUm64p(k.Mask, false),
 		Name: k.Name,
 	})
 }
-
-var (
-	eventPool = sync.Pool{
-		New: func() interface{} {
-			return &Event{
-				EventData:    make(map[string]interface{}),
-				UserData:     make(map[string]interface{}),
-				ExtendedData: make([]string, 0),
-			}
-		},
-	}
-)
 
 func NewEvent() *Event {
 	return eventPool.Get().(*Event)

@@ -34,8 +34,8 @@ type Trace struct {
 	// The only fields that are updated on each bufferCallback are: Filled and BuffersRead.
 	TraceLogFile *EventTraceLogfile
 
-	// Trace Properties stats
-	Properties *EventTraceProperties2
+	// Trace EventTracePropertyData stats
+	TraceProps *EventTracePropertyData2
 
 	// The RTLostEvent event type indicates that one or more realtime events were lost.
 	// The RTLostEvent and RTLostBuffer event types are delivered before processing
@@ -65,25 +65,26 @@ func (t *Trace) IsTraceOpen() bool {
 	return t.open
 }
 
-func (t *Trace) QueryTrace() *EventTraceProperties2 {
-	if t.realtime {
-		err := QueryTrace(t.TraceNameW, t.Properties)
-		if err == nil {
-			return t.Properties
-		}
-	}
-	return nil
+func (t *Trace) QueryTrace() (prop *EventTracePropertyData2, err error) {
+	// If you are reusing a EVENT_TRACE_PROPERTIES structure
+	// (i.e. using a structure that you previously passed to StartTrace or ControlTrace),
+	// be sure to set the LogFileNameOffset member to 0 unless you are changing the log file name.
+	t.TraceProps.LogFileNameOffset = 0
+	err = QueryTrace(t.TraceProps)
+	return t.TraceProps, err
 }
 
 func newTrace(tname string) *Trace {
 	t := &Trace{}
 
-	t.Properties = NewQueryTraceProperties(tname)
+	t.TraceProps = NewQueryTraceProperties(tname)
 	t.TraceName = tname
 	t.TraceNameW, _ = syscall.UTF16PtrFromString(tname)
 
 	if !isETLFile(tname) {
 		t.realtime = true
+	} else {
+		t.realtime = false
 	}
 
 	return t

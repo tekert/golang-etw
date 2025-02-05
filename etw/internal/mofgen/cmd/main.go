@@ -1,4 +1,7 @@
+// File: etw/internal/mofgen/cmd/main.go
 package main
+
+//go:generate go run generate.go
 
 import (
 	"fmt"
@@ -37,8 +40,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to find project root: %v", err)
 	}
-	mofPath := filepath.Join(projectRoot, "etw", "cmd", "mofgen", "WindowsKernelTrace.mof")
-	outPath := filepath.Join(projectRoot, "etw", "mof_kerneldefs_generated.go")
+	mofPath := filepath.Join(projectRoot, "etw", "internal", "mofgen", "cmd", "WindowsKernelTrace.mof")
+	outPath := filepath.Join(projectRoot, "etw", "gen_mof_kerneldef.go")
 
 	// // Get directory containing main.go
 	// projectRoot, err := os.Getwd()
@@ -66,5 +69,5 @@ func main() {
 		log.Fatalf("Failed to write output file: %v", err)
 	}
 
-	log.Printf("Successfully generated %s", outPath)
+	//log.Printf("Successfully generated %s", outPath)
 }

@@ -36,7 +36,7 @@ type Session interface {
 
 // Real time Trace Session
 type RealTimeSession struct {
-	properties    *EventTraceProperties2
+	traceProps    *EventTracePropertyData2
 	sessionHandle syscall.Handle
 
 	traceName string
@@ -45,14 +45,14 @@ type RealTimeSession struct {
 
 func (p *RealTimeSession) IsKernelSession() bool {
 	return p.traceName == NtKernelLogger ||
-		(p.properties.LogFileMode&EVENT_TRACE_SYSTEM_LOGGER_MODE) != 0
+		(p.traceProps.LogFileMode&EVENT_TRACE_SYSTEM_LOGGER_MODE) != 0
 }
 
 // NewRealTimeSession creates a new ETW trace session to receive events
 // in real time
 func NewRealTimeSession(name string) (s *RealTimeSession) {
 	s = &RealTimeSession{}
-	s.properties = NewRealTimeEventTraceProperties(name)
+	s.traceProps = NewRealTimeEventTraceProperties(name)
 	s.traceName = name
 	s.providers = make([]Provider, 0)
 	return
@@ -69,7 +69,7 @@ func NewRealTimeSession(name string) (s *RealTimeSession) {
 // Kernel-mode providers and system loggers cannot log events to sessions that specify this logging mode.
 func NewPagedRealTimeSession(name string) (s *RealTimeSession) {
 	s = NewRealTimeSession(name)
-	s.properties.LogFileMode |= EVENT_TRACE_USE_PAGED_MEMORY
+	s.traceProps.LogFileMode |= EVENT_TRACE_USE_PAGED_MEMORY
 	return
 }
 
@@ -109,9 +109,9 @@ func NewPagedRealTimeSession(name string) (s *RealTimeSession) {
 func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	p = NewRealTimeSession(NtKernelLogger)
 	// guid must be set for Kernel Session
-	p.properties.Wnode.Guid = *systemTraceControlGuid
+	p.traceProps.Wnode.Guid = *systemTraceControlGuid
 	for _, flag := range flags {
-		p.properties.EnableFlags |= flag
+		p.traceProps.EnableFlags |= flag
 	}
 	return
 }
@@ -139,31 +139,34 @@ func NewSystemTraceProviderSession(name string) (s *RealTimeSession) {
 	}
 
 	s = NewRealTimeSession(name)
-	s.properties.LogFileMode |= EVENT_TRACE_SYSTEM_LOGGER_MODE
+	s.traceProps.LogFileMode |= EVENT_TRACE_SYSTEM_LOGGER_MODE
 	return
 }
 
-func NewRealTimeEventTraceProperties(logSessionName string) *EventTraceProperties2 {
-	sessionProperties, size := NewEventTracePropertiesV2(logSessionName)
+// TODO: remove logSessionName, no longer used.
+func NewRealTimeEventTraceProperties(logSessionName string) *EventTracePropertyData2 {
+	traceProps, size := NewEventTracePropertiesV2()
 
 	// https://learn.microsoft.com/en-us/windows/win32/etw/wnode-header
 	// Necessary fields for SessionProperties struct
-	sessionProperties.Wnode.BufferSize = size // this is optimized by ETWframework
-	sessionProperties.Wnode.Guid = GUID{}     // Will be set by etw
+	traceProps.Wnode.BufferSize = size // this is optimized by ETWframework
+	traceProps.Wnode.Guid = GUID{}     // Will be set by etw
 	// Only used if PROCESS_TRACE_MODE_RAW_TIMESTAMP is set in the Consumer side
-	sessionProperties.Wnode.ClientContext = 1 // QPC
+	traceProps.Wnode.ClientContext = 1 // QPC
 	// *NOTE(tekert) should this be WNODE_FLAG_TRACED_GUID instead of WNODE_FLAG_ALL_DATA?
 	// WNODE_FLAG_VERSIONED_PROPERTIES means use EventTraceProperties2
-	sessionProperties.Wnode.Flags = WNODE_FLAG_TRACED_GUID | WNODE_FLAG_VERSIONED_PROPERTIES
-	sessionProperties.LogFileMode = EVENT_TRACE_REAL_TIME_MODE
-	sessionProperties.LogFileNameOffset = 0
+	traceProps.Wnode.Flags = WNODE_FLAG_TRACED_GUID | WNODE_FLAG_VERSIONED_PROPERTIES
+	traceProps.LogFileMode = EVENT_TRACE_REAL_TIME_MODE
+	traceProps.LogFileNameOffset = 0
 	//* ETW event can be up to 64KB size so if the buffer size is not at least
 	// big enough to contain such an event, the event will be lost
 	// source: https://docs.microsoft.com/en-us/message-analyzer/specifying-advanced-etw-session-configuration-settings
-	sessionProperties.BufferSize = 64
-	sessionProperties.LoggerNameOffset = uint32(unsafe.Sizeof(EventTraceProperties2{}))
+	traceProps.BufferSize = 64
 
-	return sessionProperties
+	// StartTrace will copy the string for us.
+	traceProps.LoggerNameOffset = traceProps.GetTraceNameOffset()
+
+	return traceProps
 }
 
 // IsStarted returns true if the session is already started
@@ -171,34 +174,35 @@ func (s *RealTimeSession) IsStarted() bool {
 	return s.sessionHandle != 0
 }
 
-// Start starts the session
+// Start setups our session buffers so that providers can write to it
 func (s *RealTimeSession) Start() (err error) {
-	var u16TraceName *uint16
+	if s.IsStarted() {
+		return
+	}
 
+	var u16TraceName *uint16
 	if u16TraceName, err = syscall.UTF16PtrFromString(s.traceName); err != nil {
 		return err
 	}
 
-	if !s.IsStarted() {
+	if s.IsKernelSession() {
+		// Remove EVENT_TRACE_USE_PAGED_MEMORY flag from session properties
+		s.traceProps.LogFileMode &= ^uint32(EVENT_TRACE_USE_PAGED_MEMORY)
+	}
 
-		if s.IsKernelSession() {
-			// Remove EVENT_TRACE_USE_PAGED_MEMORY flag from session properties
-			s.properties.LogFileMode &= ^uint32(EVENT_TRACE_USE_PAGED_MEMORY)
+	traceProps := &s.traceProps.EventTraceProperties2
+	if err = StartTrace(&s.sessionHandle, u16TraceName, traceProps); err != nil {
+		// we handle the case where the trace already exists
+		if err == ERROR_ALREADY_EXISTS {
+			// we have to use a copy of properties as ControlTrace modifies
+			// the structure and if we don't do that we cannot StartTrace later
+			// the contigous memory space is not needed for this operation
+			propCopy := *traceProps
+			// we close the trace first
+			ControlTrace(0, u16TraceName, &propCopy, EVENT_TRACE_CONTROL_STOP)
+			return StartTrace(&s.sessionHandle, u16TraceName, traceProps)
 		}
-
-		if err = StartTrace(&s.sessionHandle, u16TraceName, s.properties); err != nil {
-			// we handle the case where the trace already exists
-			if err == ERROR_ALREADY_EXISTS {
-				// we have to use a copy of properties as ControlTrace modifies
-				// the structure and if we don't do that we cannot StartTrace later
-				// the contigous memory space is not needed for this operation
-				prop := *s.properties
-				// we close the trace first
-				ControlTrace(0, u16TraceName, &prop, EVENT_TRACE_CONTROL_STOP)
-				return StartTrace(&s.sessionHandle, u16TraceName, s.properties)
-			}
-			return
-		}
+		return
 	}
 
 	return
@@ -264,48 +268,61 @@ func (s *RealTimeSession) Providers() []Provider {
 // Stop stops the session
 // Blocks until all buffers are flushed and the session is fully stopped
 func (s *RealTimeSession) Stop() error {
-	return ControlTrace(s.sessionHandle, nil, s.properties, EVENT_TRACE_CONTROL_STOP)
+	return ControlTrace(s.sessionHandle, nil, &s.traceProps.EventTraceProperties2,
+		EVENT_TRACE_CONTROL_STOP)
 }
 
 // Gets a copy of the current EventTraceProperties file used for this session
-// includes the trailing session name allocated at the end of the struct.
-func (s *RealTimeSession) GetPropertiesCopy() *EventTraceProperties2 {
-	return s.properties.Clone()
+func (s *RealTimeSession) GetTracePropertyCopy() *EventTracePropertyData2 {
+	return s.traceProps.Clone()
 }
 
-// Queries the current trace session to Get updated trace properties and stats
-// Don't modify the returned properties, this done like this for convenience.
-func (s *RealTimeSession) QueryTrace() (prop *EventTraceProperties2, err error) {
-	if err := ControlTrace(s.sessionHandle, nil, s.properties, EVENT_TRACE_CONTROL_QUERY); err != nil {
+// Queries the current trace session to Get updated trace properties and stats.
+// Don't modify the returned properties.
+func (s *RealTimeSession) QueryTrace() (prop *EventTracePropertyData2, err error) {
+	// If you are reusing a EVENT_TRACE_PROPERTIES structure
+	// (i.e. using a structure that you previously passed to StartTrace or ControlTrace),
+	// be sure to set the LogFileNameOffset member to 0 unless you are changing the log file name.
+	s.traceProps.LogFileNameOffset = 0
+	if err := ControlTrace(s.sessionHandle, nil, &s.traceProps.EventTraceProperties2,
+		EVENT_TRACE_CONTROL_QUERY); err != nil {
 		return nil, err
 	}
-	return s.properties, nil
+	return s.traceProps, nil
 }
 
 // Provide a valid trace name
-func NewQueryTraceProperties(tname string) *EventTraceProperties2 {
-	props, size := NewEventTracePropertiesV2(tname)
+func NewQueryTraceProperties(traceName string) *EventTracePropertyData2 {
+	traceProps, size := NewEventTracePropertiesV2()
 	// Set only required fields for QUERY
-	props.Wnode.BufferSize = size
-	props.Wnode.Guid = GUID{}
-	props.LoggerNameOffset = uint32(unsafe.Sizeof(EventTraceProperties2{}))
-	props.LogFileNameOffset = 0
+	traceProps.Wnode.BufferSize = size
+	traceProps.Wnode.Guid = GUID{}
+	traceProps.SetTraceName(traceName)
+	traceProps.LoggerNameOffset = traceProps.GetTraceNameOffset()
+	traceProps.LogFileNameOffset = 0
 
-	return props
+	return traceProps
 }
 
-// Gets the properties of a trace session with loggerName
+// Gets the properties of a event trace session with instaceName (loggerName or traceName)
 // Use [NewQueryTraceProperties] output as parameter
-func QueryTrace(loggerName *uint16, props *EventTraceProperties2) (err error) {
-	if (loggerName == nil) || (props == nil) {
-		return fmt.Errorf("loggerName and props must be non nil")
+func QueryTrace(queryProp *EventTracePropertyData2) (err error) {
+	if queryProp == nil {
+		return fmt.Errorf("data must be non nil")
 	}
-	// There is no need to have the loggerName in the properties
+	instanceName := queryProp.GetTraceName()
+	
+	// If you are reusing a EVENT_TRACE_PROPERTIES structure
+	// (i.e. using a structure that you previously passed to StartTrace or ControlTrace),
+	// be sure to set the LogFileNameOffset member to 0 unless you are changing the log file name.
+	queryProp.LogFileNameOffset = 0
+
+	// There is no need to have the loggerName in the queryData.Props.LoggerName
 	// ControlTrace will set it for us on return.
 	if err := ControlTrace(
 		syscall.Handle(0),
-		loggerName,
-		props,
+		instanceName,
+		&queryProp.EventTraceProperties2,
 		EVENT_TRACE_CONTROL_QUERY); err != nil {
 		return fmt.Errorf("ControlTrace query failed: %w", err)
 	}
@@ -313,32 +330,33 @@ func QueryTrace(loggerName *uint16, props *EventTraceProperties2) (err error) {
 }
 
 // (used for internal debuggging)
-func newQueryProperties2(tname string) *EventTraceProperties2 {
-	props, size := NewEventTracePropertiesV2(tname)
+func newQueryProperties2(tname string) *EventTracePropertyData2 {
+	traceProps, size := NewEventTracePropertiesV2()
 	// Set only required fields for QUERY
-	props.Wnode.BufferSize = size
-	props.Wnode.Guid = GUID{}
-	props.LoggerNameOffset = uint32(unsafe.Sizeof(EventTraceProperties2{}))
-	props.LogFileNameOffset = 0
-	props.setTraceName(tname) // at the end of the struct (not needed for queries)
+	traceProps.Wnode.BufferSize = size
+	traceProps.Wnode.Guid = GUID{}
 
-	return props
+	traceProps.SetTraceName(tname)
+	traceProps.LoggerNameOffset = traceProps.GetTraceNameOffset()
+	traceProps.LogFileNameOffset = 0
+
+	return traceProps
 }
 
 // Gets the properties of a trace session pointed by props
 // Use a valid properties struct created with [NewQueryTraceProperties]
 // The trace name is taken from props.LoggerNameOffset.
 // (used for internal debuggging)
-func queryTrace2(props *EventTraceProperties2) (err error) {
+func queryTrace2(traceProps *EventTracePropertyData2) (err error) {
 	// get loggerName from the props.LoggerNameOffset
-	loggerName := props.GetTraceName()
+	loggerName := traceProps.GetTraceName()
 
 	// There is no need to have the loggerName in the properties
 	// but we use for save us another parameter
 	if err := ControlTrace(
 		syscall.Handle(0),
 		loggerName,
-		props,
+		&traceProps.EventTraceProperties2,
 		EVENT_TRACE_CONTROL_QUERY); err != nil {
 		return fmt.Errorf("ControlTrace query failed: %w", err)
 	}

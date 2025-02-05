@@ -36,7 +36,7 @@ func TestUtils(t *testing.T) {
 
 // Helper
 // Allocate SID with proper SubAuthority array size
-func AllocSID(t testing.TB, subAuthorityCount uint8) *SID {
+func allocSID(t testing.TB, subAuthorityCount uint8) *SID {
 	// Calculate total size needed
 	sidSize := unsafe.Sizeof(SID{}) - unsafe.Sizeof([1]uint32{}) +
 		uintptr(subAuthorityCount)*unsafe.Sizeof(uint32(0))
@@ -92,7 +92,7 @@ func TestSIDConversion(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create SID with proper memory layout
-			sid := AllocSID(t, uint8(len(tc.subAuths)))
+			sid := allocSID(t, uint8(len(tc.subAuths)))
 			tt.Assert(sid != nil, "AllocSID failed")
 
 			sid.Revision = 1

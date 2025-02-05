@@ -4,7 +4,6 @@ package etw
 
 import (
 	"crypto/rand"
-	"encoding/binary"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -14,6 +13,14 @@ import (
 	"time"
 	"unsafe"
 )
+
+// -- Generate GO Kernel definitions from C++ MOF definitions
+//go:generate go run ./internal/mofgen/cmd/main.go
+
+// -- Generate stringer for TdhOutType and TdhInType (for debug messages)
+//go:generate stringer -type=TdhOutType,TdhInType -output=gen_tdh_strings.go
+
+// --
 
 // noCopy may be added to structs which must not be copied
 // after the first use.
@@ -54,7 +61,7 @@ func UnixTimeStamp(fileTime int64) time.Time {
 
 // UTCTimeStamp converts a Windows FILETIME (100-nanosecond intervals since 1601)
 // to a Unix UTC time.Time
-func UTCTimeStamp2(ft *syscall.Filetime) time.Time {
+func UTCTimeStamp(ft *syscall.Filetime) time.Time {
 	return time.Unix(0, ft.Nanoseconds()).UTC()
 }
 
@@ -63,135 +70,6 @@ func max(a, b int) int {
 		return b
 	}
 	return a
-}
-
-const hextableu = "0123456789ABCDEF"
-const hextable = "0123456789abcdef"
-
-// Ported from the hex package to print uppercase hex efficiently
-//
-// Encode encodes src into [EncodedLen](len(src))
-// bytes of dst. As a convenience, it returns the number
-// of bytes written to dst, but this value is always [EncodedLen](len(src)).
-// Encode implements hexadecimal encoding.
-func HexEncodeU(dst, src []byte) int {
-	j := 0
-	for _, v := range src {
-		dst[j] = hextableu[v>>4]
-		dst[j+1] = hextableu[v&0x0f]
-		j += 2
-	}
-	return len(src) * 2
-}
-
-// Ported from the hex package to print lowercase hex just for convenience.
-//
-// Encode encodes src into [EncodedLen](len(src))
-// bytes of dst. As a convenience, it returns the number
-// of bytes written to dst, but this value is always [EncodedLen](len(src)).
-// Encode implements hexadecimal encoding.
-func HexEncode(dst, src []byte) int {
-	j := 0
-	for _, v := range src {
-		dst[j] = hextable[v>>4]
-		dst[j+1] = hextable[v&0x0f]
-		j += 2
-	}
-	return len(src) * 2
-}
-
-// Ported from the hex package to print UPPERCASE hex just for convenience.
-//
-// EncodeToString returns the hexadecimal encoding of src.
-func HexEncodeToStringU(src []byte) string {
-	dst := make([]byte, len(src)*2) // 1 byte = 2 hex chars
-	HexEncodeU(dst, src)
-	return unsafe.String(unsafe.SliceData(dst), len(dst))
-}
-
-// EncodeToString returns the hexadecimal encoding of src. with prefix 0x
-// Way more efficient than 2 allocations
-func HexEncodeToStringUPrefix(src []byte) string {
-	dst := make([]byte, 2+len(src)*2) // 1 byte = 2 hex chars
-	dst[0] = '0'
-	dst[1] = 'x'
-	HexEncodeU(dst[2:], src)
-	return unsafe.String(unsafe.SliceData(dst), len(dst))
-}
-
-// Checking len() is costly, so no optional parameters with ... slice
-// have to repeat functions.. go...
-
-// Unsigned integer helpers - uppercase
-
-func HexUint64U(n uint64) string {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, n)
-	return HexEncodeToStringU(b)
-}
-func HexUint64UPrefix(n uint64) string {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, n)
-	return HexEncodeToStringUPrefix(b)
-}
-
-func HexUint32U(n uint32) string {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, n)
-	return HexEncodeToStringU(b)
-}
-func HexUint32UPrefix(n uint32) string {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, n)
-	return HexEncodeToStringUPrefix(b)
-}
-
-func HexUint16U(n uint16) string {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, n)
-	return HexEncodeToStringU(b)
-}
-func HexUint16UPrefix(n uint16) string {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, n)
-	return HexEncodeToStringUPrefix(b)
-}
-
-func HexUint8U(n uint8) string {
-	return HexEncodeToStringU([]byte{n})
-}
-func HexUint8UPrefix(n uint8) string {
-	return HexEncodeToStringUPrefix([]byte{n})
-}
-
-// Signed integer helpers - uppercase
-
-func HexInt64U(n int64) string {
-	return HexUint64U(uint64(n))
-}
-func HexInt64UPrefix(n int64) string {
-	return HexUint64UPrefix(uint64(n))
-}
-
-func HexInt32U(n int32) string {
-	return HexUint32U(uint32(n))
-}
-func HexInt32UPrefix(n int32) string {
-	return HexUint32UPrefix(uint32(n))
-}
-
-func HexInt16U(n int16) string {
-	return HexUint16U(uint16(n))
-}
-func HexInt16UPrefix(n int16) string {
-	return HexUint16UPrefix(uint16(n))
-}
-
-func HexInt8U(n int8) string {
-	return HexUint8U(uint8(n))
-}
-func HexInt8UPrefix(n int8) string {
-	return HexUint8UPrefix(uint8(n))
 }
 
 // // UTF16PtrToString transforms a *uint16 to a Go string

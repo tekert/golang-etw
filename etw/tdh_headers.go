@@ -1019,6 +1019,10 @@ func (i *EventPropertyInfo) Length() uint16 {
 */
 type TdhInType uint16
 
+func (t TdhInType) V() uint16 {
+	return uint16(t)
+}
+
 const (
 	TDH_INTYPE_NULL          = TdhInType(iota) /* Invalid InType value. */
 	TDH_INTYPE_UNICODESTRING                   /*
@@ -1203,6 +1207,10 @@ use the default OutType associated with the field's InType (i.e. the decoder
 should behave as if the OutType were NULL).
 */
 type TdhOutType uint16
+
+func (t TdhOutType) V() uint16 {
+	return uint16(t)
+}
 
 const (
 	TDH_OUTTYPE_NULL = TdhOutType(iota) /*

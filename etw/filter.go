@@ -13,6 +13,8 @@ type IEvent interface {
 	EventID() uint16
 }
 
+// EventFilter interface to filter events based on a given
+// definition
 type EventFilter interface {
 	// Match must return true if the event has to be filtered in
 	Match(IEvent) bool
@@ -25,6 +27,8 @@ type baseFilter struct {
 	m map[GUID]*datastructs.Set
 }
 
+// matchKey checks if the event matches the filter based on the key
+// provided
 func (f *baseFilter) matchKey(key GUID, e IEvent) bool {
 	f.RLock()
 	defer f.RUnlock()
@@ -62,12 +66,14 @@ func NewProviderFilter() *ProviderFilter {
 	return &f
 }
 
-// Match implements EventFilter
+
+// Match checks if an event matches the provider filter by comparing the event's provider GUID
+// against the filter's key.
 func (f *ProviderFilter) Match(e IEvent) bool {
 	return f.matchKey(e.ProviderGUID(), e)
 }
 
-// FromProvider implements EventFilter
+// Update adds a filter for/from a given provider
 func (f *ProviderFilter) Update(p *Provider) {
 	f.Lock()
 	defer f.Unlock()

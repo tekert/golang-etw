@@ -199,7 +199,7 @@ func TestEventMapInfo(t *testing.T) {
 	c := NewConsumer(context.Background()).FromSessions(prod)
 	// reducing size of channel so that we are obliged to skip events
 	c.Events = make(chan []*Event)
-	c.EventsConfig.BatchSize = 1
+	c.EventsQueue.BatchSize = 1
 	c.EventPreparedCallback = func(erh *EventRecordHelper) error {
 
 		erh.TraceInfo.EventMessage()
@@ -242,7 +242,7 @@ func TestEventMapInfo(t *testing.T) {
 			if e.System.Correlation.ActivityID != nullGUIDStr && e.System.Correlation.RelatedActivityID != nullGUIDStr {
 				t.Logf("Provider=%s ActivityID=%s RelatedActivityID=%s", e.System.Provider.Name, e.System.Correlation.ActivityID, e.System.Correlation.RelatedActivityID)
 			}
-			//t.Log(string(b))
+			//t.Log(string(b)) // inneficient log... printf... im tired of correcting this
 		})
 	}()
 
@@ -269,7 +269,7 @@ func TestLostEvents(t *testing.T) {
 	// Producer part
 	ses := NewRealTimeSession("GolangTest")
 	// small buffer size on purpose to trigger event loss
-	ses.properties.BufferSize = 1
+	ses.traceProps.BufferSize = 1
 
 	prov, err := ParseProvider("Microsoft-Windows-Kernel-Memory" + ":0xff")
 	tt.CheckErr(err)
@@ -639,7 +639,7 @@ func TestSessionSlice(t *testing.T) {
 // Abort is the same but with no timeout.
 func TestCallbackConcurrency(t *testing.T) {
 	tt := toast.FromT(t)
-	SetDebugLevel(false)
+	SetDebugLevel()
 
 	c := NewConsumer(context.Background())
 
@@ -717,102 +717,135 @@ func TestCallbackConcurrency(t *testing.T) {
 	}
 }
 
+// Helper to compare static properties between two trace properties
+func assertStaticPropsEqual(t *toast.T, expected, actual *EventTracePropertyData2, contextMsg string) {
+	t.Assert(actual.BufferSize == expected.BufferSize,
+		"%s: BufferSize mismatch: expected=%d, got=%d",
+		contextMsg, expected.BufferSize, actual.BufferSize)
+	t.Assert(actual.MinimumBuffers == expected.MinimumBuffers,
+		"%s: MinimumBuffers mismatch: expected=%d, got=%d",
+		contextMsg, expected.MinimumBuffers, actual.MinimumBuffers)
+	t.Assert(actual.MaximumBuffers == expected.MaximumBuffers,
+		"%s: MaximumBuffers mismatch: expected=%d, got=%d",
+		contextMsg, expected.MaximumBuffers, actual.MaximumBuffers)
+	t.Assert(actual.LogFileMode == expected.LogFileMode,
+		"%s: LogFileMode mismatch: expected=%d, got=%d",
+		contextMsg, expected.LogFileMode, actual.LogFileMode)
+}
+
+// Helper to validate trace name
+func assertTraceName(t *toast.T, prop *EventTracePropertyData2, expectedName string, contextMsg string) {
+	name := UTF16PtrToString(prop.GetTraceName())
+	t.Assert(name == expectedName,
+		"%s: Name mismatch: expected=%s, got=%s",
+		contextMsg, expectedName, name)
+}
+
+// Helper to validate runtime stats
+func assertRuntimeStats(t *toast.T, prop *EventTracePropertyData2, contextMsg string) {
+	t.Assert(prop.NumberOfBuffers > 0,
+		"%s: Expected NumberOfBuffers > 0, got %d",
+		contextMsg, prop.NumberOfBuffers)
+	t.Assert(prop.BuffersWritten > 0,
+		"%s: Expected BuffersWritten > 0, got %d",
+		contextMsg, prop.BuffersWritten)
+}
+
+// Helper to compare runtime stats between properties
+func assertRuntimeStatsEqual(t *toast.T, expected, actual *EventTracePropertyData2, contextMsg string) {
+	t.Assert(actual.NumberOfBuffers == expected.NumberOfBuffers,
+		"%s: NumberOfBuffers mismatch: expected=%d, got=%d",
+		contextMsg, expected.NumberOfBuffers, actual.NumberOfBuffers)
+	t.Assert(actual.BuffersWritten == expected.BuffersWritten,
+		"%s: BuffersWritten mismatch: expected=%d, got=%d",
+		contextMsg, expected.BuffersWritten, actual.BuffersWritten)
+	t.Assert(actual.EventsLost == expected.EventsLost,
+		"%s: EventsLost mismatch: expected=%d, got=%d",
+		contextMsg, expected.EventsLost, actual.EventsLost)
+}
+
 func TestQueryTraceProperties(t *testing.T) {
 	tt := toast.FromT(t)
-
-	// PSession part - Create a real-time session
-	ses := NewRealTimeSession("TestingGoEtw")
-
-	// Create a query properties object for the global query func.
-	gp := NewQueryTraceProperties("TestingGoEtw")
-	loggerName, _ := syscall.UTF16PtrFromString("TestingGoEtw")
-
-	// Use file provider which generates reliable events
-	prov, err := ParseProvider(KernelFileProviderName + ":0xff:12,13,14,15,16")
+	loggerName := "TestingGoEtw"
+	loggerNameW, err := syscall.UTF16PtrFromString(loggerName)
 	tt.CheckErr(err)
 
-	// Enable provider and start session
+	// === Phase 1: Session Setup & Initial Queries ===
+	t.Log("Phase 1: Session Setup & Initial Queries")
+	ses := NewRealTimeSession(loggerName)
+	prov, err := ParseProvider(KernelFileProviderName + ":0xff:12,13,14,15,16")
+	tt.CheckErr(err)
 	tt.CheckErr(ses.EnableProvider(prov))
 	tt.CheckErr(ses.Start())
 	defer ses.Stop()
 
-	// Test static properties before starting consumer
-	sp, err := ses.QueryTrace()
+	// Query session properties
+	sesData, err := ses.QueryTrace()
 	tt.CheckErr(err)
+	assertTraceName(tt, sesData, loggerName, "Session")
 
-	err = QueryTrace(loggerName, gp)
-	tt.CheckErr(err)
+	// Query global properties
+	gloData := NewQueryTraceProperties(loggerName)
+	tt.CheckErr(QueryTrace(gloData))
+	assertTraceName(tt, gloData, loggerName, "Global")
 
-	// chek if name is set
-	namew := gp.GetTraceName()
-	name := UTF16PtrToString(namew)
-	_ = name
+	// Compare initial properties
+	assertStaticPropsEqual(tt, sesData, gloData, "Initial Session vs Global")
 
-	// Compare non-volatile fields that shouldn't change during session lifetime
-	tt.Assert(gp.BufferSize == sp.BufferSize,
-		"BufferSize mismatch: %d != %d", gp.BufferSize, sp.BufferSize)
-	tt.Assert(gp.MinimumBuffers == sp.MinimumBuffers,
-		"MinimumBuffers mismatch: %d != %d", gp.MinimumBuffers, sp.MinimumBuffers)
-	tt.Assert(gp.MaximumBuffers == sp.MaximumBuffers,
-		"MaximumBuffers mismatch: %d != %d", gp.MaximumBuffers, sp.MaximumBuffers)
-	tt.Assert(gp.LogFileMode == sp.LogFileMode,
-		"LogFileMode mismatch: %d != %d", gp.LogFileMode, sp.LogFileMode)
-
-	// Consumer part
+	// === Phase 2: Consumer Setup & Queries ===
+	t.Log("Phase 2: Consumer Setup & Queries")
 	c := NewConsumer(context.Background()).FromSessions(ses)
 	defer c.Stop()
-
 	tt.CheckErr(c.Start())
 
+	// Setup event counter
 	eventsReceived := uint32(0)
 	go func() {
-		//for range c.Events {
 		c.ProcessEvents(func(e *Event) {
-			eventsReceived++
+			atomic.AddUint32(&eventsReceived, 1)
 		})
 	}()
 
-	// Wait for some events to be processed
-	time.Sleep(5 * time.Second)
+	// Query consumer properties using unicode string
+	conProp, err := c.QueryTraceW(loggerNameW)
+	tt.CheckErr(err)
+	tt.Assert(conProp != nil, "Expected conProp to be non-nil")
+	assertTraceName(tt, conProp, loggerName, "Consumer")
+	assertStaticPropsEqual(tt, sesData, conProp, "Session vs Consumer")
 
-	// Fully Stop the consumer before comparing the trace stats.
+	// Using go string.
+	conProp2, err := c.QueryTrace(loggerName)
+	tt.CheckErr(err)
+	tt.Assert(conProp2 != nil, "Expected conProp2 to be non-nil")
+	assertTraceName(tt, conProp2, loggerName, "Consumer")
+	assertStaticPropsEqual(tt, sesData, conProp2, "Session vs Consumer")
+
+	// === Phase 3: Runtime Stats Validation ===
+	t.Log("Phase 3: Runtime Stats Validation")
+	time.Sleep(5 * time.Second)
 	tt.CheckErr(c.Stop())
 
-	// Test 1: RealTimeSession.QueryTrace()
-	sp2, err := ses.QueryTrace()
+	// Query final properties
+	sesData2, err := ses.QueryTrace()
 	tt.CheckErr(err)
-	t.Logf("Session Query - NumberOfBuffers: %d, BuffersWritten: %d, EventsLost: %d",
-		sp2.NumberOfBuffers, sp2.BuffersWritten, sp2.EventsLost)
+	tt.CheckErr(QueryTrace(gloData))
 
-	// Validate sesProp2 has been updated with real trace data
-	tt.Assert(sp2.NumberOfBuffers > 0, "Expected NumberOfBuffers > 0, got %d", sp2.NumberOfBuffers)
-	tt.Assert(sp2.BuffersWritten > 0, "Expected BuffersWritten > 0, got %d", sp2.BuffersWritten)
+	// Validate runtime stats
+	assertRuntimeStats(tt, sesData2, "Session Final")
+	assertRuntimeStatsEqual(tt, sesData2, gloData, "Session vs Global Final")
 
-	// Test 2: Global QueryTrace()
-	err = QueryTrace(loggerName, gp)
-	gp2 := gp
-	tt.CheckErr(err)
-	t.Logf("Global Query - NumberOfBuffers: %d, BuffersWritten: %d, EventsLost: %d",
-		gp2.NumberOfBuffers, gp2.BuffersWritten, gp2.EventsLost)
+	// === Phase 4: Error Cases ===
+	t.Log("Phase 4: Error Cases")
+	badData := NewQueryTraceProperties("NonExistentTrace")
+	err = QueryTrace(badData)
+	tt.Assert(err != nil, "Expected error for non-existent trace")
 
-	// Validate sesProp2 matches gProp2 since they query the same trace
-	tt.Assert(gp2.NumberOfBuffers == sp2.NumberOfBuffers,
-		"NumberOfBuffers mismatch: %d != %d", gp2.NumberOfBuffers, sp2.NumberOfBuffers)
-	tt.Assert(gp2.BuffersWritten == sp2.BuffersWritten,
-		"BuffersWritten mismatch: %d != %d", gp2.BuffersWritten, sp2.BuffersWritten)
-	tt.Assert(gp2.EventsLost == sp2.EventsLost,
-		"EventsLost mismatch: %d != %d", gp2.EventsLost, sp2.EventsLost)
-
-	// // Test error case - non-existent trace
-	// _, err = QueryTraceName("NonExistentTrace")
-	// tt.Assert(err != nil, "Expected error for non-existent trace")
-
-	// Verify that we received some events
-	t.Logf("Events received: %d", eventsReceived)
-	tt.Assert(eventsReceived > 0, "Expected to receive some events")
+	// Log final events count
+	t.Logf("Total events received: %d", atomic.LoadUint32(&eventsReceived))
+	tt.Assert(atomic.LoadUint32(&eventsReceived) > 0, "Expected events > 0")
 }
 
-func TestAVER(t *testing.T) {
+func TestSessionQueryFail(t *testing.T) {
 	tt := toast.FromT(t)
 	_ = tt
 
@@ -823,8 +856,8 @@ func TestAVER(t *testing.T) {
 	trace := newTrace("non-existent")
 	trace.realtime = true
 
-	prop := trace.QueryTrace()
-	if prop == nil {
+	prop, err := trace.QueryTrace()
+	if err == nil || prop != nil {
 		t.Fail()
 	}
 

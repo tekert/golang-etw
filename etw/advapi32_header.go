@@ -4,7 +4,6 @@ package etw
 
 import (
 	"fmt"
-	"log/slog"
 	"sync"
 	"syscall"
 	"time"
@@ -584,10 +583,35 @@ type EventTraceProperties struct {
 	LoggerNameOffset    uint32         // Offset to LoggerName
 }
 
-func NewEventTraceSessionProperties(sessionName string) (*EventTraceProperties, uint32) {
-	size := ((len(sessionName) + 1) * 2) + int(unsafe.Sizeof(EventTraceProperties{}))
-	s := make([]byte, size)
-	return (*EventTraceProperties)(unsafe.Pointer(&s[0])), uint32(size)
+// The session name (LoggerName) is limited to 1,024 characters.
+// The session name is case-insensitive.
+// The log file name is limited to 1,024 characters.
+// The log file name must follow the session name in memory
+type EventTracePropertyData struct {
+	EventTraceProperties
+	LoggerName  [256]uint16  // max 1024 per microsoft doc, but 256 is enough
+	LogFileName [1024]uint16 // max 1024 per microsoft doc
+}
+
+func NewEventTraceSessionProperties(sessionName string) (*EventTracePropertyData, uint32) {
+	return &EventTracePropertyData{}, uint32(unsafe.Sizeof(EventTracePropertyData{}))
+}
+
+// Only if it a name is present
+func (e *EventTracePropertyData) GetTraceName() *uint16 {
+	if e.Wnode.BufferSize >= e.LoggerNameOffset {
+		return &e.LoggerName[0]
+	} else {
+		return nil
+	}
+}
+
+func (e *EventTracePropertyData) GetFileName() *uint16 {
+	if e.Wnode.BufferSize >= e.LogFileNameOffset {
+		return &e.LogFileName[0]
+	} else {
+		return nil
+	}
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties_v2
@@ -669,43 +693,91 @@ type EventTraceProperties2 struct {
 	V2Options       uint64                 // (Wow, QpcDeltaTracking, LargeMdlPages, ExcludeKernelStack)
 }
 
+// The session name (LoggerName) is limited to 1,024 characters.
+// The session name is case-insensitive.
+// The log file name is limited to 1,024 characters.
+// The log file name must follow the session name in memory
+// Both names can be set, ETW StartTrace will read it only if the offsets points
+// to these fields.
+// You must copy the log file name to the offset but you do not copy the session name to the offset.
+// The StartTrace function copies the name for you.
+// ControlTrace also copies the name for you.
+type EventTracePropertyData2 struct {
+	EventTraceProperties2
+	LoggerName  [128]uint16
+	LogFileName [1024]uint16
+}
+
 // This structure is supported starting with Windows 10 version 1703.
 // When used with earlier versions of Windows,
 // the additional fields (e.g. FilterDesc and V2Options) will be ignored
-func NewEventTracePropertiesV2(sessionName string) (*EventTraceProperties2, uint32) {
-	size := ((len(sessionName) + 1) * 2) + int(unsafe.Sizeof(EventTraceProperties2{}))
-	s := make([]byte, size)
-	return (*EventTraceProperties2)(unsafe.Pointer(&s[0])), uint32(size)
+func NewEventTracePropertiesV2() (*EventTracePropertyData2, uint32) {
+	return &EventTracePropertyData2{}, uint32(unsafe.Sizeof(EventTracePropertyData2{}))
 }
 
-func (e *EventTraceProperties2) Clone() *EventTraceProperties2 {
-	s := make([]byte, e.Wnode.BufferSize)
-	clone := (*EventTraceProperties2)(unsafe.Pointer(&s[0]))
-	// Copy entire buffer including trailing name section
-	copy(s, unsafe.Slice((*byte)(unsafe.Pointer(e)), e.Wnode.BufferSize))
+func (e *EventTracePropertyData2) Clone() *EventTracePropertyData2 {
+	clone := new(EventTracePropertyData2)
+	*clone = *e
 	return clone
 }
 
-// Only if it a name is present
-// TODO(tekert): do file names too
-func (e *EventTraceProperties2) GetTraceName() *uint16 {
+// null terminated unicode string.
+func (e *EventTracePropertyData2) GetTraceName() *uint16 {
+	return &e.LoggerName[0]
+}
+
+func (e *EventTracePropertyData2) GetTraceNameOffset() uint32 {
+	return uint32(unsafe.Offsetof(EventTracePropertyData2{}.LogFileName))
+}
+
+// Set the logger name
+// NOTE: [StartTrace] will set it for us if we provide the LogNameOffset.
+//
+// This does NOT update the [EventTracePropertyData2.Prop.LogNameOffset] field.
+// You have to set it manually.
+func (e *EventTracePropertyData2) SetTraceName(name string) *uint16 {
+	if len(name) >= ((cap(e.LoggerName) / 2) - 1) { // 1 for null terminator
+		panic("LoggerName too long")
+	}
 	if e.Wnode.BufferSize >= e.LoggerNameOffset {
-		return (*uint16)(unsafe.Add(unsafe.Pointer(e), e.LoggerNameOffset))
+		loggerName, _ := syscall.UTF16PtrFromString(name)
+		dst := unsafe.Slice((*byte)(unsafe.Pointer(&e.LoggerName[0])), len(name)*2)
+		src := unsafe.Slice((*byte)(unsafe.Pointer(loggerName)), len(name)*2)
+		copy(dst, src)
+		return &e.LoggerName[0]
 	} else {
-		return nil
+		panic("Not enough buffer space for LoggerName")
 	}
 }
 
-// copy the loggername to the end to the EventTraceProperties2 struct
-// Convert UTF16 pointer to slice of bytes and copy to the end of props
-// StartTrace already does this for us, this is just for convenience.
-// TODO(tekert): do file names too
-func (e *EventTraceProperties2) setTraceName(tname string) {
-	loggerName, _ := syscall.UTF16PtrFromString(tname)
-	pLName := unsafe.Add(unsafe.Pointer(e), e.LoggerNameOffset)
-	dst := unsafe.Slice((*byte)(pLName), (len(tname)+1)*2)
-	src := unsafe.Slice((*byte)(unsafe.Pointer(loggerName)), (len(tname)+1)*2)
-	copy(dst, src)
+// null terminated unicode string.
+func (e *EventTracePropertyData2) GetLogFileName() *uint16 {
+	return &e.LogFileName[0]
+}
+
+// Set the log file name as a unicode string
+// NOTE: [StartTrace] will set it for us if we provide the LogFileNameOffset.
+// Same for ControlTrace when querying.
+//
+// This does NOT update the [EventTracePropertyData2.Prop.LogFileNameOffset] field.
+// You have to set it manually.
+func (e *EventTracePropertyData2) SetLogFileName(fName string) *uint16 {
+	if len(fName) >= ((cap(e.LogFileName) / 2) - 1) { // 1 for null terminator
+		panic("LogFileName too long")
+	}
+	if e.Wnode.BufferSize >= uint32(unsafe.Sizeof(*e))+uint32(len(fName)*2) {
+		logFileName, _ := syscall.UTF16PtrFromString(fName)
+		dst := unsafe.Slice((*byte)(unsafe.Pointer(&e.LogFileName[0])), len(fName)*2)
+		src := unsafe.Slice((*byte)(unsafe.Pointer(logFileName)), len(fName)*2)
+		copy(dst, src)
+		return &e.LogFileName[0]
+	} else {
+		panic("Not enough bugger space for LogFileName")
+	}
+}
+
+func (e *EventTracePropertyData2) GetLogFileNameOffset() uint32 {
+	return uint32(unsafe.Offsetof(EventTracePropertyData2{}.LogFileName))
 }
 
 // V2Control
@@ -1041,7 +1113,7 @@ func (e *EventRecord) RelatedActivityID() GUID {
 				return *g
 			}
 		} else {
-			slog.Error("failed to get extended data item", "error", err)
+			log.Error().Err(err).Msg("failed to get extended data item")
 		}
 	}
 	return nullGUID

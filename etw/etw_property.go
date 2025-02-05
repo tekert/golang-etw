@@ -5,7 +5,6 @@ package etw
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"math"
 	"sync"
 	"syscall"
@@ -117,7 +116,7 @@ func (p *Property) FormatToString() (string, error) {
 			p.value, err = p.decodeToString(p.evtPropInfo.OutType())
 			if err != nil {
 				//p.evtRecordHelper.addPropError() // we have to try the old parser anyway.
-				slog.Debug("failed to parse property with custom parser", "error", err)
+				log.Debug().Err(err).Msg("failed to parse property with custom parser")
 				// fallback to tdh parser
 				p.value, _, err = p.formatToStringTdh()
 			}
@@ -240,7 +239,7 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 		p.evtRecordHelper.addPropError()
 
 		if !isDebug {
-			slog.Debug("tdh failed to format property", "error", err)
+			log.Debug().Err(err).Msg("tdh failed to format property")
 			return "", udc, fmt.Errorf("tdh failed to format property: %s", err)
 		}
 
@@ -264,7 +263,7 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 			p.evtRecordHelper.TraceInfo.IsMof(),
 			p.evtRecordHelper.TraceInfo.IsXML(),
 			string(eventdata))
-		slog.Debug("failed to format property", "error", err)
+		log.Debug().Err(err).Msg("failed to format property")
 
 		return
 	}
