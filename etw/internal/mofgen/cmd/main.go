@@ -1,4 +1,28 @@
 // File: etw/internal/mofgen/cmd/main.go
+
+/*
+The mofgen tool generates Go code for Windows ETW MOF (Managed Object Format) class definitions.
+
+It reads a Windows Kernel Trace MOF file containing ETW event class definitions and generates
+corresponding Go structures and helper functions for parsing ETW events.
+
+Usage:
+    go run main.go || go generate
+
+The tool will:
+1. Find the project root by looking for go.mod
+2. Read the MOF file from etw/internal/mofgen/cmd/WindowsKernelTrace.mof
+3. Parse the MOF definitions
+4. Generate Go code in etw/gen_mof_kerneldef.go
+
+The generated code includes:
+- MOF class definitions as Go structs
+- Mapping of provider GUIDs to class names
+- Helper functions for working with ETW events
+- Base event ID calculations for each provider
+
+Generated code is used by the etw package to decode Windows ETW events into Go structures.
+*/
 package main
 
 //go:generate go run generate.go
