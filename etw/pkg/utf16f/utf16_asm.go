@@ -1,6 +1,6 @@
 //go:build amd64
 
-package utf16
+package utf16f
 
 import "unsafe"
 

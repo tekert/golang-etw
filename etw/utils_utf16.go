@@ -5,8 +5,7 @@ package etw
 import (
 	"unsafe"
 
-	// "github.com/tekert/golang-etw/etw/pkg/utf16"
-	etwutf16 "github.com/tekert/golang-etw/etw/pkg/utf16"
+	"github.com/tekert/golang-etw/etw/pkg/utf16f"
 )
 
 // Cache only small property strings, those are the most repeated
@@ -77,7 +76,7 @@ func UTF16ToStringETW(utf16 []uint16) string {
 	}
 
 	// Convert and cache result
-	s := etwutf16.DecodeWtf8(utf16)
+	s := utf16f.DecodeWtf8(utf16)
 	//s := syscall.UTF16ToString(utf16) // slower, but barely noticeable on small strings
 	if usecache {
 		globalUtf16Cache.setKey(h, s)
