@@ -1,7 +1,6 @@
 package etw
 
 import (
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -83,15 +82,42 @@ type MarshalKeywords struct {
 	Name []string
 }
 
-// Add custom MarshalJSON for Keywords
+// Better performance.
 func (k MarshalKeywords) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Mask string   `json:"Mask"`
-		Name []string `json:"Name"`
-	}{
-		Mask: hexf.NUm64p(k.Mask, false),
-		Name: k.Name,
-	})
+	maskString := hexf.NUm64p(k.Mask, false)
+	// Calculate buffer size
+	size := 26 // {"Mask":"","Name":[]}
+	size += len(maskString)
+
+	if len(k.Name) > 0 {
+		size += len(k.Name) * 2    // quotes for each name
+		size += len(k.Name) - 1    // commas between names (n-1 commas needed)
+		for _, name := range k.Name {
+			size += len(name)      // actual name length
+		}
+	}
+
+	// Create buffer
+	buf := make([]byte, 0, size)
+
+	// Write JSON structure
+	buf = append(buf, `{"Mask":"`...)
+	buf = append(buf, maskString...)
+	buf = append(buf, `","Name":[`...)
+
+	// Write names array
+	for i, name := range k.Name {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		buf = append(buf, '"')
+		buf = append(buf, name...)
+		buf = append(buf, '"')
+	}
+
+	buf = append(buf, "]}"...)
+
+	return buf, nil
 }
 
 func NewEvent() *Event {

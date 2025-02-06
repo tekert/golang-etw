@@ -3,7 +3,6 @@
 package etw
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -185,5 +184,10 @@ func ParseGUID(guid string) (g *GUID, err error) {
 }
 
 func (g GUID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(g.StringU())
+	s := g.StringU()
+	buf := make([]byte, 0, len(s)+2) // +2 for quotes
+	buf = append(buf, '"')
+	buf = append(buf, s...)
+	buf = append(buf, '"')
+	return buf, nil
 }
