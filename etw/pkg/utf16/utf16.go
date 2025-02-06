@@ -123,8 +123,8 @@ func utf16_convert_nobounds(dst *byte, src *uint16, srcLen int) int {
 
 	// Fast path: process 8 UTF-16 codes at once
 	for i+8 <= srcLen {
-		word64 := *(*uint64)(unsafe.Add(unsafe.Pointer(src), uintptr(i)*2))
-		if isASCII(word64) {
+		chunks := *(*[2]uint64)(unsafe.Add(unsafe.Pointer(src), uintptr(i)*2))
+		if isASCII(chunks[0]) && isASCII(chunks[1]) {
 			// Check for surrogate at block boundary
 			lastWord := *(*uint16)(unsafe.Add(unsafe.Pointer(src), uintptr(i+7)*2))
 			if lastWord >= 0xD800 && lastWord <= 0xDFFF {
@@ -225,8 +225,8 @@ func utf16_convert_slice(dst []byte, src []uint16) int {
 	// Fast path: process 8 UTF-16 codes at once
 	// Checks if 8 consecutive characters are ASCII using 64-bit word
 	for i+8 <= srcLen {
-		word64 := *(*uint64)(unsafe.Pointer(&src[i]))
-		if isASCII(word64) {
+		chunks := *(*[2]uint64)(unsafe.Pointer(&src[i]))
+		if isASCII(chunks[0]) && isASCII(chunks[1]) {
 			// Check if last character in block is a surrogate
 			// If true, exit fast path to handle properly
 			lastWord := src[i+7]
