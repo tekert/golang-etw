@@ -49,14 +49,29 @@ type JsonLogHeader struct {
 	BuffersLost        uint32
 }
 
+type JsonTime time.Time
 type JsonTimeZoneInfo struct {
 	Bias         int32
 	StandardName string
-	StandardDate time.Time
-	StandardBias int32
+	StandardDate JsonTime `json:",omitempty"`
+	StandardBias int32    `json:",omitempty"`
 	DaylightName string
-	DaylightDate time.Time
-	DaylightBias int32
+	DaylightDate JsonTime `json:",omitempty"`
+	DaylightBias int32    `json:",omitempty"`
+}
+
+func (t JsonTime) MarshalJSON() ([]byte, error) {
+	tt := time.Time(t)
+	if tt.IsZero() {
+		return []byte("null"), nil // Return null for zero time
+	}
+
+	// Format time directly to avoid recursive json.Marshal
+	b := make([]byte, 0, 26) // len(`"2006-01-02T15:04:05Z07:00"`)
+	b = append(b, '"')
+	b = tt.AppendFormat(b, time.RFC3339)
+	b = append(b, '"')
+	return b, nil
 }
 
 // MarshalJSON implements json.Marshaler for EventTraceLogfile
@@ -98,32 +113,13 @@ func (h *TraceLogfileHeader) ToJSON() (JsonLogHeader, error) {
 		TimeZone: JsonTimeZoneInfo{
 			Bias:         h.TimeZone.Bias,
 			StandardName: UTF16ToStringETW(h.TimeZone.StandardName[:]),
-			StandardDate: formatSystemTime(h.TimeZone.StandardDate),
+			StandardDate: JsonTime(h.TimeZone.StandardDate.ToTime()),
 			StandardBias: h.TimeZone.StandardBias,
 			DaylightName: UTF16ToStringETW(h.TimeZone.DaylightName[:]),
-			DaylightDate: formatSystemTime(h.TimeZone.DaylightDate),
+			DaylightDate: JsonTime(h.TimeZone.DaylightDate.ToTime()),
 			DaylightBias: h.TimeZone.DaylighBias,
 		},
 	}, nil
-}
-
-// Helper function to format SystemTime into a uint64 timestamp
-func formatSystemTime(st SystemTime) time.Time {
-    // Validate year range (1601-30827)
-    if st.Year < 1601 || st.Year > 30827 {
-        return time.Time{}
-    }
-
-    return time.Date(
-        int(st.Year),
-        time.Month(st.Month),
-        int(st.Day),
-        int(st.Hour),
-        int(st.Minute),
-        int(st.Second),
-        int(st.Milliseconds) * 1e6, // Convert ms to ns
-        time.UTC,
-    )
 }
 
 // toMarsheableLogFile converts EventTraceLogfile to a JSON-safe struct

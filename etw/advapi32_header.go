@@ -1831,7 +1831,7 @@ type TimeZoneInformation struct {
 	DaylighBias  int32
 }
 
-// https://learn.microsoft.com/es-es/windows/win32/api/minwinbase/ns-minwinbase-systemtime
+// https://learn.microsoft.com/en-en/windows/win32/api/minwinbase/ns-minwinbase-systemtime
 /*
 typedef struct _SYSTEMTIME {
   WORD wYear;
@@ -1854,6 +1854,25 @@ type SystemTime struct {
 	Minute       uint16
 	Second       uint16
 	Milliseconds uint16
+}
+
+// Helper to convert it to go time.
+func (st *SystemTime) ToTime() time.Time {
+	// Validate year range (1601-30827)
+	if st.Year < 1601 || st.Year > 30827 {
+		return time.Time{}
+	}
+
+	return time.Date(
+		int(st.Year),
+		time.Month(st.Month),
+		int(st.Day),
+		int(st.Hour),
+		int(st.Minute),
+		int(st.Second),
+		int(st.Milliseconds)*1e6, // Convert ms to ns
+		time.UTC,
+	)
 }
 
 const (
