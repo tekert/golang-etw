@@ -1,7 +1,6 @@
 package etw
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -56,15 +55,12 @@ type EventBuffer struct {
 
 	// Output channel
 	skipped *atomic.Uint64
-
+	closed atomic.Bool
 	timer  *time.Timer // flush timer
-	ctx    context.Context
-	closed bool
 }
 
-func NewEventBuffer(ctx context.Context) *EventBuffer {
+func NewEventBuffer() *EventBuffer {
 	return &EventBuffer{
-		ctx:                ctx,
 		skippableEvents:    make([]*Event, 0, 512),
 		nonskippableEvents: make([]*Event, 0, 512),
 		Timeout:            200 * time.Millisecond,
@@ -73,29 +69,45 @@ func NewEventBuffer(ctx context.Context) *EventBuffer {
 	}
 }
 
-// Flushes and then closes the channel
-func (e *EventBuffer) close() {
-	e.Lock()
-	defer e.Unlock()
-	if e.closed {
-		return
+// Try to acquire lock with timeout
+func (e *EventBuffer) tryLockWithTimeout(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if e.TryLock() {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	if e.timer != nil {
-		e.timer.Stop()
-		e.timer = nil
-	}
-	e.flush() // important to force flush any remaining events
-	e.closed = true
-	close(e.Channel)
+	return false
 }
 
-func (e *EventBuffer) ForceFlush() {
-	e.Lock()
-	defer e.Unlock()
-	if e.closed {
-		return
+// Flushes and then closes the channel
+// if the channel is blocked, try to acquire lock with timeout.
+// if we can't acquire the lock, just close the channel without flush.
+//
+// This is executed from the client goroutine from [Consumer.close]
+func (e *EventBuffer) close() error {
+	// Only one thread gets past this
+	if !e.closed.CompareAndSwap(false, true) {
+		return nil
 	}
-	e.flush()
+
+	// Try graceful shutdown first, timeout after 500ms
+	if e.tryLockWithTimeout(500 * time.Millisecond) {
+		defer e.Unlock()
+
+		if e.timer != nil {
+			e.timer.Stop()
+			e.timer = nil
+		}
+
+		// Safe flush while we have the lock
+		e.flush()
+	}
+
+	// Single thread that passed CAS closes channel
+	close(e.Channel)
+	return nil
 }
 
 // flush processes and dispatches both skippable
@@ -120,22 +132,25 @@ func (e *EventBuffer) flush() {
 	// Process non-skippable events - blocks if channel is full
 	if len(e.nonskippableEvents) > 0 {
 		batch := append([]*Event(nil), e.nonskippableEvents...)
-		select {
-		case e.Channel <- batch:
-		case <-e.ctx.Done():
-		}
-		// make sure to start at 0 for the next appends
+		e.Channel <- batch
 		e.nonskippableEvents = e.nonskippableEvents[:0]
 	}
 }
 
+//go:inline
+func (e *EventBuffer) pending() int {
+	return len(e.skippableEvents) + len(e.nonskippableEvents)
+}
+
 // Blocks if channel buffer is full for non skipable events.
+//
+//	(this is executed from the etw.ProcessTrace or client goroutine)
 func (e *EventBuffer) Send(event *Event) {
 	e.Lock()
 	defer e.Unlock()
 
-	// return if channel is already closed or context cancelled.
-	if e.closed {
+	if e.closed.Load() {
+		event.Release()
 		return
 	}
 
@@ -147,13 +162,13 @@ func (e *EventBuffer) Send(event *Event) {
 	}
 
 	// Flush if events queues reached maximum size
-	if (len(e.skippableEvents) + len(e.nonskippableEvents)) >= e.BatchSize {
-		// Stop timer since we are flushing
+	if e.pending() >= e.BatchSize {
+		// Stop timer since we are force flushing
 		if e.timer != nil {
 			e.timer.Stop()
 			e.timer = nil
 		}
-		e.flush() // may block if channel is full for nonskippableEvents
+		e.flush() // may block if channel is full
 		return
 	}
 
@@ -162,10 +177,10 @@ func (e *EventBuffer) Send(event *Event) {
 		e.timer = time.AfterFunc(e.Timeout, func() {
 			e.Lock()
 			// if timer is still active, flush events
-			if e.timer != nil && !e.closed {
+			if e.timer != nil && !e.closed.Load() {
 				e.flush()
-				e.timer = nil
 			}
+			e.timer = nil
 			e.Unlock()
 		})
 	}

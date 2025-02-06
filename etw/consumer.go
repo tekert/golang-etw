@@ -107,7 +107,7 @@ type Consumer struct {
 	closeTimeout time.Duration // stores timeout in nanoseconds
 
 	// EventsBatch channel configutation.
-	Events EventBuffer
+	Events *EventBuffer
 }
 
 type traceContext struct {
@@ -128,13 +128,12 @@ func (e *EventTraceLogfile) getContext() *traceContext {
 func NewConsumer(ctx context.Context) (c *Consumer) {
 	c = &Consumer{
 		Filter: NewProviderFilter(),
+		Events: NewEventBuffer(),
 	}
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	c.EventRecordHelperCallback = c.DefaultEventRecordHelperCallback
 	c.EventCallback = c.DefaultEventCallback
-
-	c.Events = *NewEventBuffer(c.ctx)
 
 	return c
 }
