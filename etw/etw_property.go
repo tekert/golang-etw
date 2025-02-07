@@ -3,7 +3,6 @@
 package etw
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sync"
@@ -243,9 +242,6 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 			return "", udc, fmt.Errorf("tdh failed to format property: %s", err)
 		}
 
-		var e Event
-		p.evtRecordHelper.setEventMetadata(&e)
-		eventdata, _ := json.Marshal(e)
 		err = fmt.Errorf("failed to format property: Event Details:\n"+
 			"Property Name: %s\n"+
 			// TODO: property flags...
@@ -253,8 +249,7 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 			"Property Length: %d\n"+
 			"Error: %v\n"+
 			"IsMof: %v\n"+
-			"IsXML: %v\n"+
-			"EventData: %s",
+			"IsXML: %v\n",
 			p.name,
 			p.evtPropInfo.InType(),
 			p.evtPropInfo.OutType(),
@@ -262,8 +257,8 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 			err,
 			p.evtRecordHelper.TraceInfo.IsMof(),
 			p.evtRecordHelper.TraceInfo.IsXML(),
-			string(eventdata))
-		log.Debug().Err(err).Msg("failed to format property")
+		)
+		log.Error().Err(err).Msg("failed to format property")
 
 		return
 	}
