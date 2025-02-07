@@ -122,7 +122,7 @@ done
 // srcLen +8(FP)   - 8 bytes  - source length
 // dst    +16(FP)  - 24 bytes - slice (ptr, len, cap)
 // ret    +40(FP)  - 8 bytes  - return value
-TEXT ·utf16ToStringSSE2(SB), NOSPLIT, $0-48
+TEXT ·utf16ToStringSSE2_v3(SB), NOSPLIT, $0-48
     // Load arguments into registers
     MOVQ src+0(FP), SI     // Load source pointer into SI
     MOVQ srcLen+8(FP), R9  // Load source length into R9

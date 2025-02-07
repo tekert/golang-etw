@@ -211,9 +211,19 @@ func TestUTF16_To_WTF8(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := DecodeSIMD(tt.input)
+			got := DecodeSIMD_v3(tt.input)
 			if string(got) != string(tt.want) {
-				t.Errorf("ConvertUTF16_SSE2(%v) = [% X], want [% X]", tt.input,
+				t.Errorf("DecodeSIMD(%v) = [% X], want [% X]", tt.input,
+					[]byte(got), tt.want)
+			}
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DecodeSIMD_v4(tt.input)
+			if string(got) != string(tt.want) {
+				t.Errorf("DecodeSIMDv4(%v) = [% X], want [% X]", tt.input,
 					[]byte(got), tt.want)
 			}
 		})
@@ -252,6 +262,8 @@ func TestUTF16_To_WTF8(t *testing.T) {
 		})
 	}
 }
+
+// go test -run=^$ -bench='BenchmarkDecodeUTF16/(SIMDv[23456]|DecodeWtf8.*|Syscall|utf16Package)/./(16|65536)(-.*)?$' ./etw/pkg/utf16f
 
 func BenchmarkDecodeUTF16(b *testing.B) {
 	cases := []struct {
@@ -326,10 +338,20 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 				tc.name,
 				strings.Repeat("=", 15))
 
+			b.Run(fmt.Sprintf("SIMDv4/%s/%d", tc.name, size), func(b *testing.B) {
+				b.SetBytes(int64(outSize))
+				for i := 0; i < b.N; i++ {
+					s := DecodeSIMD_v4(input)
+					if len(s) != outSize {
+						b.Fatalf("ConvertUTF16_SSE2v4(%v) = %v, want %v", input, s, outSize)
+					}
+				}
+			})
+
 			b.Run(fmt.Sprintf("SIMDv3/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
 				for i := 0; i < b.N; i++ {
-					s := DecodeSIMD(input)
+					s := DecodeSIMD_v3(input)
 					if len(s) != outSize {
 						b.Fatalf("ConvertUTF16_SSE2(%v) = %v, want %v", input, s, outSize)
 					}
@@ -346,8 +368,6 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 				}
 			})
 
-			goto skip
-
 			b.Run(fmt.Sprintf("SIMDv1/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
 				for i := 0; i < b.N; i++ {
@@ -357,7 +377,7 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 					}
 				}
 			})
-		skip:
+
 			// uses unsafe pointer instead of slice to omit bound cheking. (why is go so inneficient)
 			b.Run(fmt.Sprintf("DecodeWtf8/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
@@ -368,8 +388,6 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 					}
 				}
 			})
-
-			goto end
 
 			b.Run(fmt.Sprintf("DecodeWtf8_SliceVer/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
@@ -402,7 +420,7 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 					}
 				}
 			})
-		end:
+
 		}
 
 		fmt.Println()
