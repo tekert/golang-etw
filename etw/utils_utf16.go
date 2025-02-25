@@ -76,6 +76,7 @@ func UTF16ToStringETW(utf16 []uint16) string {
 	}
 
 	// Convert and cache result
+	//s := utf16f.DecodeSIMD_v4(utf16)
 	s := utf16f.DecodeWtf8(utf16)
 	//s := syscall.UTF16ToString(utf16) // slower, but barely noticeable on small strings
 	if usecache {

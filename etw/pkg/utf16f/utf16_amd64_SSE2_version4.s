@@ -1,17 +1,17 @@
 #include "textflag.h"
 
 // Optional constants for SSE2-based checks and markers
-#define maskAscii 0xFF80
-#define maskSurr  0xF800
-#define surr1    0xD800
-#define surr2    0xDC00
-#define surr3    0xE000
-#define surrSelf 0x10000
-#define t2       0xC0
-#define t3       0xE0
-#define t4       0xF0
-#define tx       0x80
-#define maskx    0x3F
+#define maskAscii 0xFF80  // Mask to check if a UTF-16 code unit is ASCII (<= 0x7F). Bitwise AND.
+#define maskSurr  0xF800  // Mask to check if a UTF-16 code unit is a surrogate. Bitwise AND.
+#define surr1    0xD800  // Start of the high-surrogate range (0xD800 - 0xDBFF)
+#define surr2    0xDC00  // Start of the low-surrogate range (0xDC00 - 0xDFFF)
+#define surr3    0xE000  // Marks the end of the surrogate pair check range
+#define surrSelf 0x10000 // Offset added to the combined surrogate pair to get the actual Unicode code point.
+#define t2       0xC0    // First byte of a 2-byte UTF-8 sequence (110xxxxx)
+#define t3       0xE0    // First byte of a 3-byte UTF-8 sequence (1110xxxx)
+#define t4       0xF0    // First byte of a 4-byte UTF-8 sequence (11110xxx)
+#define tx       0x80    // Subsequent bytes of a multi-byte UTF-8 sequence (10xxxxxx)
+#define maskx    0x3F    // Mask to extract the last 6 bits of a code unit for UTF-8 encoding (00111111)
 
 // utf16ToStringSSE2_v4 implements an SSE2-accelerated UTF-16 to WTF-8 conversion.
 TEXT ·utf16ToStringSSE2_v4(SB), NOSPLIT, $0-48

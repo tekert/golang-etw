@@ -211,7 +211,7 @@ func TestUTF16_To_WTF8(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := DecodeSIMD_v3(tt.input)
+			got := DecodeSIMD(tt.input, utf16ToStringSSE2_v3)
 			if string(got) != string(tt.want) {
 				t.Errorf("DecodeSIMD(%v) = [% X], want [% X]", tt.input,
 					[]byte(got), tt.want)
@@ -221,7 +221,7 @@ func TestUTF16_To_WTF8(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := DecodeSIMD_v4(tt.input)
+			got := DecodeSIMD(tt.input, utf16ToStringSSE2_v4)
 			if string(got) != string(tt.want) {
 				t.Errorf("DecodeSIMDv4(%v) = [% X], want [% X]", tt.input,
 					[]byte(got), tt.want)
@@ -341,7 +341,7 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 			b.Run(fmt.Sprintf("SIMDv4/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
 				for i := 0; i < b.N; i++ {
-					s := DecodeSIMD_v4(input)
+					s := DecodeSIMD(input, utf16ToStringSSE2_v4)
 					if len(s) != outSize {
 						b.Fatalf("ConvertUTF16_SSE2v4(%v) = %v, want %v", input, s, outSize)
 					}
@@ -351,32 +351,32 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 			b.Run(fmt.Sprintf("SIMDv3/%s/%d", tc.name, size), func(b *testing.B) {
 				b.SetBytes(int64(outSize))
 				for i := 0; i < b.N; i++ {
-					s := DecodeSIMD_v3(input)
+					s := DecodeSIMD(input, utf16ToStringSSE2_v3)
 					if len(s) != outSize {
 						b.Fatalf("ConvertUTF16_SSE2(%v) = %v, want %v", input, s, outSize)
 					}
 				}
 			})
 
-			b.Run(fmt.Sprintf("SIMDv2/%s/%d", tc.name, size), func(b *testing.B) {
-				b.SetBytes(int64(outSize))
-				for i := 0; i < b.N; i++ {
-					s := DecodeSIMD_v2(input)
-					if len(s) != outSize {
-						b.Fatalf("ConvertUTF16_SSE2_v2(%v) = %v, want %v", input, s, outSize)
-					}
-				}
-			})
+			// b.Run(fmt.Sprintf("SIMDv2/%s/%d", tc.name, size), func(b *testing.B) {
+			// 	b.SetBytes(int64(outSize))
+			// 	for i := 0; i < b.N; i++ {
+			// 		s := DecodeSIMD_v2(input)
+			// 		if len(s) != outSize {
+			// 			b.Fatalf("ConvertUTF16_SSE2_v2(%v) = %v, want %v", input, s, outSize)
+			// 		}
+			// 	}
+			// })
 
-			b.Run(fmt.Sprintf("SIMDv1/%s/%d", tc.name, size), func(b *testing.B) {
-				b.SetBytes(int64(outSize))
-				for i := 0; i < b.N; i++ {
-					s := DecodeSIMD_v1(input)
-					if len(s) != outSize {
-						b.Fatalf("ConvertUTF16_SSE2_v1(%v) = %v, want %v", input, s, outSize)
-					}
-				}
-			})
+			// b.Run(fmt.Sprintf("SIMDv1/%s/%d", tc.name, size), func(b *testing.B) {
+			// 	b.SetBytes(int64(outSize))
+			// 	for i := 0; i < b.N; i++ {
+			// 		s := DecodeSIMD_v1(input)
+			// 		if len(s) != outSize {
+			// 			b.Fatalf("ConvertUTF16_SSE2_v1(%v) = %v, want %v", input, s, outSize)
+			// 		}
+			// 	}
+			// })
 
 			// uses unsafe pointer instead of slice to omit bound cheking. (why is go so inneficient)
 			b.Run(fmt.Sprintf("DecodeWtf8/%s/%d", tc.name, size), func(b *testing.B) {
