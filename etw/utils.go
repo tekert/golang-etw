@@ -14,14 +14,6 @@ import (
 	"unsafe"
 )
 
-// -- Generate GO Kernel definitions from C++ MOF definitions
-//go:generate go run ./internal/mofgen/cmd/main.go
-
-// -- Generate stringer for TdhOutType and TdhInType (for debug messages)
-//go:generate stringer -type=TdhOutType,TdhInType -output=gen_tdh_strings.go
-
-// --
-
 // noCopy may be added to structs which must not be copied
 // after the first use.
 //
