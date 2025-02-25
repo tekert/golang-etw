@@ -1,6 +1,6 @@
 module github.com/tekert/golang-etw
 
-go 1.23
+go 1.24
 
 require (
 	github.com/0xrawsec/golang-utils v1.3.2
