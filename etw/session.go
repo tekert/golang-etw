@@ -304,7 +304,8 @@ func NewQueryTraceProperties(traceName string) *EventTracePropertyData2 {
 	return traceProps
 }
 
-// Gets the properties of a event trace session with instaceName (loggerName or traceName)
+// Gets the properties of a realtime event trace session with instaceName (loggerName or traceName)
+// logFileName not suported (sessions that write to a file)
 // Use [NewQueryTraceProperties] output as parameter
 func QueryTrace(queryProp *EventTracePropertyData2) (err error) {
 	if queryProp == nil {
