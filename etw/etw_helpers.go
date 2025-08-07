@@ -11,6 +11,8 @@ import (
 	"os"
 	"sync"
 	"unsafe"
+
+	plog "github.com/phuslu/log"
 )
 
 const (
@@ -134,8 +136,24 @@ func (e *EventRecordHelper) userContext() (c *traceContext) {
 func (e *EventRecordHelper) addPropError() {
 	c := e.userContext()
 	if c != nil && c.trace != nil {
-		c.trace.ErrorPropsParse++
+		c.trace.ErrorPropsParse.Add(1)
 	}
+}
+
+// Helper func to log event properties for debugging
+func (e *EventRecordHelper) logProp(entry *plog.Entry) *plog.Entry {
+	return entry.
+		Str("provider", e.TraceInfo.ProviderName()).
+		Str("providerGUID", e.TraceInfo.ProviderGUID.String()).
+		Int("eventID", int(e.TraceInfo.EventID())).
+		Int("version", int(e.TraceInfo.EventDescriptor.Version)).
+		Str("opcode", e.TraceInfo.OpcodeName()).
+		Int("opcodevalue", int(e.TraceInfo.EventDescriptor.Opcode)).
+		Str("level", e.TraceInfo.LevelName()).
+		Int("flags", int(e.EventRec.EventHeader.Flags)).
+		Str("task", e.TraceInfo.TaskName()).
+		Str("channel", e.TraceInfo.ChannelName()).
+		Bool("isMof", e.TraceInfo.IsMof())
 }
 
 // Release EventRecordHelper back to memory pool
@@ -275,18 +293,18 @@ func (e *EventRecordHelper) initialize() {
 
 	// Get and resize integer values
 	e.integerValues = *integerValuesPool.Get().(*[]uint16)
-	if cap(e.integerValues) < int(e.TraceInfo.PropertyCount) {
-		e.integerValues = make([]uint16, e.TraceInfo.PropertyCount)
+	if cap(e.integerValues) < int(e.TraceInfo.TopLevelPropertyCount) {
+		e.integerValues = make([]uint16, e.TraceInfo.TopLevelPropertyCount)
 	} else {
-		e.integerValues = e.integerValues[0:e.TraceInfo.PropertyCount]
+		e.integerValues = e.integerValues[0:e.TraceInfo.TopLevelPropertyCount]
 	}
 
 	// Get and resize epi array
 	e.epiArray = *epiArrayPool.Get().(*[]*EventPropertyInfo)
-	if cap(e.epiArray) < int(e.TraceInfo.PropertyCount) {
-		e.epiArray = make([]*EventPropertyInfo, e.TraceInfo.PropertyCount)
+	if cap(e.epiArray) < int(e.TraceInfo.TopLevelPropertyCount) {
+		e.epiArray = make([]*EventPropertyInfo, e.TraceInfo.TopLevelPropertyCount)
 	} else {
-		e.epiArray = e.epiArray[0:e.TraceInfo.PropertyCount]
+		e.epiArray = e.epiArray[0:e.TraceInfo.TopLevelPropertyCount]
 	}
 
 	// userDataIt iterator will be incremented for each queried property by prop size
@@ -415,7 +433,7 @@ func (e *EventRecordHelper) cacheIntergerValues(i uint32) {
 		epi.Count() == 1 {
 		userdr := e.remainingUserDataLength()
 
-		// integerValues is used secuentally, so we can reuse it without reseting
+		// integerValues is used sequentially, so we can reuse it without reseting
 		switch inType := TdhInType(epi.InType()); inType {
 		case TDH_INTYPE_INT8,
 			TDH_INTYPE_UINT8:
@@ -712,6 +730,15 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 
 	for i := uint32(0); i < e.TraceInfo.TopLevelPropertyCount; i++ {
 		epi := e.getEpiAt(i)
+		if epi == nil {
+			e.addPropError()
+			e.logProp(log.Error()).
+				Uint32("index", i).
+				Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
+				Msg("prepareProperties: getEpiAt returned nil, skipping property")
+			// This is not a fatal error, we can continue processing the event.
+			continue
+		}
 
 		// Number of elements in the array of EventPropertyInfo.
 		var arrayCount uint16
@@ -826,21 +853,11 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		e.addPropError()
 		// Convert data to hex string and report.
 		hexStr := hex.EncodeToString(remainingData)
-		log.Warn().
+		// TODO(tekert): finish parsing these events if we can.
+		e.logProp(log.Warn()).
 			Uint32("remaining", remainingBytes).
 			Int("total", int(e.EventRec.UserDataLength)).
 			Str("remainingHex", hexStr).
-			Str("provider", e.TraceInfo.ProviderName()).
-			Str("providerGUID", e.TraceInfo.ProviderGUID.String()).
-			Int("eventID", int(e.TraceInfo.EventID())).
-			Int("version", int(e.TraceInfo.EventDescriptor.Version)). // MOF class version
-			Str("opcode", e.TraceInfo.OpcodeName()).
-			Int("opcodevalue", int(e.TraceInfo.EventDescriptor.Opcode)). // EventType for MOF
-			Str("level", e.TraceInfo.LevelName()).
-			Int("flags", int(e.EventRec.EventHeader.Flags)).
-			Str("task", e.TraceInfo.TaskName()).
-			Str("channel", e.TraceInfo.ChannelName()).
-			Bool("isMof", e.TraceInfo.IsMof()).
 			Msg("UserData not fully parsed")
 	}
 
@@ -852,7 +869,6 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 // data is a new field.
 // TODO(tekert): use the new kernel mof generated classes to decode this.
 func (e *EventRecordHelper) prepareMofProperty(remainingData []byte, remaining uint32) (last error) {
-
 	// Check if all bytes are padding (zeros)
 	if bytes.IndexFunc(remainingData, func(r rune) bool {
 		return r != 0
