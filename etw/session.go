@@ -255,6 +255,31 @@ func (s *RealTimeSession) EnableProvider(prov Provider) (err error) {
 	return
 }
 
+// GetRundownEvents forces rundown events now.
+// a null provider will force rundown for the system trace provider (NT Kernel Logger) (not fully tested)
+// to capture the current state of the trace session
+func (s *RealTimeSession) GetRundownEvents(prov *Provider) (err error) {
+	if !s.IsStarted() {
+		return fmt.Errorf("session not started")
+	}
+	guid := GUID{}
+	if prov == nil {
+		guid = *systemTraceControlGuid // TODO: not working, SystemConfig events are not delivered
+	} else {
+		guid = prov.GUID
+	}
+
+	if err = EnableTraceEx2(
+		s.sessionHandle,
+		&guid,
+		EVENT_CONTROL_CODE_CAPTURE_STATE,
+		0, 0, 0, 0, nil); err != nil {
+		return
+	}
+
+	return nil
+}
+
 // TraceName implements Session interface
 func (s *RealTimeSession) TraceName() string {
 	return s.traceName
@@ -289,6 +314,18 @@ func (s *RealTimeSession) QueryTrace() (prop *EventTracePropertyData2, err error
 		return nil, err
 	}
 	return s.traceProps, nil
+}
+
+// Flushes the session's active buffers.
+// This will block until all buffers are flushed and the session is fully stopped
+// If the session is not started, it returns an error.
+func (s *RealTimeSession) Flush() error {
+	if s.sessionHandle == 0 {
+		return fmt.Errorf("session not started")
+	}
+
+	return ControlTrace(s.sessionHandle, nil, &s.traceProps.EventTraceProperties2,
+		EVENT_TRACE_CONTROL_FLUSH)
 }
 
 // Provide a valid trace name
