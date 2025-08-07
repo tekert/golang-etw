@@ -312,18 +312,18 @@ func TestLostEvents(t *testing.T) {
 	t.Logf("Events received: %d", cnt)
 	t.Logf("Events lost: %d", c.LostEvents.Load())
 
-	traceInfo, ok := c.GetTraceCopy("GolangTest")
+	traceInfo, ok := c.GetTrace("GolangTest")
 	if ok {
-		t.Logf("[LogFileHeader] Events lost: %d", traceInfo.TraceLogFile.LogfileHeader.GetEventsLost())
-		t.Logf("[Trace] RTLostEvents: %d", traceInfo.RTLostEvents)
-		t.Logf("[Trace] RTLostBuffer: %d", traceInfo.RTLostBuffer)
-		t.Logf("[Trace] RTLostFile: %d", traceInfo.RTLostFile)
+		t.Logf("[LogFileHeader] Events lost: %d", traceInfo.traceLogFile.LogfileHeader.GetEventsLost())
+		t.Logf("[Trace] RTLostEvents: %d", traceInfo.RTLostEvents.Load())
+		t.Logf("[Trace] RTLostBuffer: %d", traceInfo.RTLostBuffer.Load())
+		t.Logf("[Trace] RTLostFile: %d", traceInfo.RTLostFile.Load())
 	} else {
 		t.Error("TraceInfo is nil")
 	}
 	tt.Assert(c.LostEvents.Load() > 0, "Expected to lose events due to small buffer")
 
-	tt.Assert(c.LostEvents.Load() == traceInfo.RTLostEvents, "Lost events count mismatch")
+	tt.Assert(c.LostEvents.Load() == traceInfo.RTLostEvents.Load(), "Lost events count mismatch")
 }
 
 func jsonStr(i interface{}) string {

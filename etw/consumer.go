@@ -82,16 +82,21 @@ type Consumer struct {
 	// To filter out some events call Skip method of EventRecordHelper
 	// As Properties are not parsed yet, trying to get/set Properties is
 	// not possible and might cause unexpected behaviours.
+	// errors returned by this callback will be logged
+	// to skip further processing of the event set EventRecordHelper.Flags.Skip = true
 	EventRecordHelperCallback func(*EventRecordHelper) error
 
 	// [3] Callback executed after event properties got prepared (step before parsing).
 	// Properties are not parsed yet and this is the right place to filter
 	// events based only on some properties.
 	// NB: events skipped in EventRecordCallback never reach this function
+	// errors returned by this callback will be logged
+	// to skip further processing of the event set EventRecordHelper.Flags.Skip = true
 	EventPreparedCallback func(*EventRecordHelper) error
 
 	// [4] Callback executed after the event got parsed and defines what to do
 	// with the event (printed, sent to a channel ...)
+	// errors returned by this callback will be logged
 	EventCallback func(*Event) error
 
 	Filter EventFilter
@@ -138,32 +143,18 @@ func NewConsumer(ctx context.Context) (c *Consumer) {
 	return c
 }
 
-// Returns a deep copy of the struct, so it can be safely used after trace is closed.
-// The original it's no longer valid when the Consumer is stopped. (Trace handle closed)
-// When the trace is closed, this struct is cloned so it can be returned to the user.
-func (c *Consumer) cloneTraceLogfile(tname string) (et *EventTraceLogfile) {
-	if v, ok := c.traces.Load(tname); ok {
-		trace := v.(*Trace)
-		c.tmu.RLock()
-		if trace.TraceLogFile != nil {
-			et = trace.TraceLogFile.Clone()
-		}
-		c.tmu.RUnlock()
-	}
-	return
-}
-
-// Returns a copy of the current traces info
-func (c *Consumer) GetTraceCopy(tname string) (t Trace, exists bool) {
-	c.tmu.RLock()
-	defer c.tmu.RUnlock()
-
-	if value, ok := c.traces.Load(tname); ok {
-		trace := value.(*Trace)
-		return *trace.Clone(), true
-	}
-	return t, false
-}
+// // Returns a deep copy of the struct, so it can be safely used after trace is closed.
+// // The original it's no longer valid when the Consumer is stopped. (Trace handle closed)
+// // When the trace is closed, this struct is cloned so it can be returned to the user.
+// func (c *Consumer) cloneTraceLogfile(tname string) (et *EventTraceLogfile) {
+// 	if v, ok := c.traces.Load(tname); ok {
+// 		trace := v.(*Trace)
+// 		c.tmu.RLock()
+// 		et = trace.traceLogFile.Clone()
+// 		c.tmu.RUnlock()
+// 	}
+// 	return
+// }
 
 // gets or creates a new one if it doesn't exist
 func (c *Consumer) getOrAddTrace(traceName string) *Trace {
@@ -171,19 +162,32 @@ func (c *Consumer) getOrAddTrace(traceName string) *Trace {
 	return actual.(*Trace)
 }
 
-// Returns a copy of the current traces info
-func (c *Consumer) GetTracesCopy() map[string]Trace {
-	traces := make(map[string]Trace)
-	// return a copy of the traces
+// Returns the current traces info
+func (c *Consumer) GetTraces() map[string]*Trace {
+	traces := make(map[string]*Trace)
+	// create map from sync.Map
 	c.traces.Range(func(key, value interface{}) bool {
 		t := value.(*Trace)
 		c.tmu.RLock()
-		tc := *t.Clone()
+		tc := t
 		c.tmu.RUnlock()
 		traces[key.(string)] = tc
 		return true
 	})
 	return traces
+}
+
+// GetTrace retrieves a trace by its name from the consumer's trace collection.
+// It returns a pointer to the Trace and a boolean indicating whether the trace was found.
+func (c *Consumer) GetTrace(tname string) (t *Trace, ok bool) {
+	if v, ok := c.traces.Load(tname); ok {
+		trace := v.(*Trace)
+		c.tmu.RLock()
+		t = trace
+		c.tmu.RUnlock()
+		return t, ok
+	}
+	return nil, false
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/etw/rt-lostevent
@@ -196,14 +200,14 @@ func (c *Consumer) handleLostEvent(e *EventRecord) {
 		switch traceInfo.EventDescriptor.Opcode {
 		case 32:
 			// The RTLostEvent event type indicates that one or more events were lost.
-			u.trace.RTLostEvents++
+			u.trace.RTLostEvents.Add(1)
 		case 33:
 			// The RTLostBuffer event type indicates that one or more buffers were lost
-			u.trace.RTLostBuffer++
+			u.trace.RTLostBuffer.Add(1)
 		case 34:
 			// The RTLostFile indicates that the backing file used by the AutoLogger
 			// to capture events was lost.
-			u.trace.RTLostFile++
+			u.trace.RTLostFile.Add(1)
 		default:
 			log.Debug().Uint8("opcode", traceInfo.EventDescriptor.Opcode).
 				Msg("Invalid opcode for lost event")
@@ -217,14 +221,15 @@ func (c *Consumer) handleLostEvent(e *EventRecord) {
 // ETW event consumers implement this function to receive statistics about each buffer
 // of events that ETW delivers during a trace processing Session.
 // ETW calls this function after the events for each Trace Session buffer are delivered.
-// The pointer received is the same on each subsequent call for the same buffer.
+// The pointer received is the same on each subsequent call for each trace.
+// The pointer received here is not the same one used in OpenTrace.
 func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 	// ensure userctx is not garbage collected after CloseTrace or it crashes invalid mem.
 	userctx := e.getContext()
 
 	c.tmu.Lock()
 	if userctx != nil && userctx.trace.open {
-		userctx.trace.TraceLogFile = e
+		userctx.trace.traceLogFileBuffer = e
 	}
 	c.tmu.Unlock()
 
@@ -232,7 +237,7 @@ func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 		// if the consumer has been stopped we
 		// don't process event records anymore
 		// return 0 to stop ProcessTrace
-		log.Debug().Msg("bufferCallback: Context canceled, stopping ProcessTrace...")
+		log.Trace().Msg("bufferCallback: Context canceled, stopping ProcessTrace...")
 
 		return 0
 	}
@@ -254,7 +259,7 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 	setError := func(err error) {
 		if !errorOccurred {
 			errorOccurred = true
-			er.getUserContext().trace.ErrorEvents++ // safe here.
+			er.getUserContext().trace.ErrorEvents.Add(1) // safe here.
 		}
 		c.lastError = err
 		//log.Debug().Err(err).Msg("callback error")
@@ -364,7 +369,6 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 			// Mark as closed to prevent further updates
 			c.tmu.Lock()
 			t.open = false
-			t.TraceLogFile = t.TraceLogFile.Clone() // Will become invalid memory after close.
 			if err = CloseTrace(t.handle); err != nil && err != ERROR_CTX_CLOSE_PENDING {
 				lastErr = err
 			}
@@ -407,7 +411,7 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	}
 
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilea
-	var loggerInfo *EventTraceLogfile = new(EventTraceLogfile)
+	var loggerInfo *EventTraceLogfile = &ti.traceLogFile
 	// PROCESS_TRACE_MODE_EVENT_RECORD to receive EventRecords (new format)
 	// PROCESS_TRACE_MODE_RAW_TIMESTAMP don't convert TimeStamp member of EVENT_HEADER and EVENT_TRACE_HEADER to system time
 	// PROCESS_TRACE_MODE_REAL_TIME to receive events in real time
@@ -435,7 +439,6 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	// Trace open
 	ti.handle = syscall.Handle(traceHandle)
 	ti.open = true
-	ti.TraceLogFile = loggerInfo // Add trace logger info to opentrace return stats
 
 	return nil
 }
@@ -567,7 +570,7 @@ func (c *Consumer) DefaultEventRecordHelperCallback(h *EventRecordHelper) error 
 //	   }
 //	   return nil // continues processing
 //	})
-func (c *Consumer) ProcessEvents(fn interface{}) error {
+func (c *Consumer) ProcessEvents(fn any) error {
 	switch cb := fn.(type) {
 	case func(*Event):
 		// Simple callback without return
@@ -609,7 +612,7 @@ func (c *Consumer) DefaultEventCallback(event *Event) error {
 // Also opens any trace session not already opened for consumption.
 func (c *Consumer) Start() (err error) {
 	// opening all traces that are not opened first,
-	c.traces.Range(func(key, value interface{}) bool {
+	c.traces.Range(func(key, value any) bool {
 		name := key.(string)
 		trace := value.(*Trace)
 		// if trace is already opened skip
@@ -628,7 +631,7 @@ func (c *Consumer) Start() (err error) {
 	}
 
 	// opens a new goroutine for each trace and blocks.
-	c.traces.Range(func(key, value interface{}) bool {
+	c.traces.Range(func(key, value any) bool {
 		name := key.(string)
 		trace := value.(*Trace)
 		if trace.processing {
@@ -653,7 +656,7 @@ func (c *Consumer) processTrace(name string, trace *Trace) {
 	defer runtime.UnlockOSThread()
 
 	goroutineID := getGoroutineID()
-	log.Info().Str("trace", name).Interface("goroutineID", goroutineID).Msg("Starting ProcessTrace")
+	log.Info().Str("trace", name).Interface("goroutineID", goroutineID).Msg("Starting processTrace")
 
 	trace.processing = true
 	// https://docs.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-processtrace
@@ -727,7 +730,7 @@ func (c *Consumer) Stop() (err error) {
 // Call blocks and returns after timeout or if ProcessTrace goroutines finish earlier.
 // Will CloseTrace all traces before returning.
 //
-// Delay to close ProcessTrace can happen if the etw buffer for ProcessTrace is full
+// Delays to close ProcessTrace can happen if the etw buffer for ProcessTrace is full
 // and the callback is not returning fast enough to empty the buffer or is blocked
 // for some reason.
 //
@@ -740,7 +743,7 @@ func (c *Consumer) StopWithTimeout(timeout time.Duration) (err error) {
 	return c.close(true)
 }
 
-// Abort stops the Consumer and wont wait for the ProcessTrace calls
+// Abort stops the Consumer and won't wait for the ProcessTrace calls
 // to return, forcing the consumer to stop immediately, this can
 // cause some remaining events to be lost.
 // Will CloseTrace all traces and then detach ProcessTrace goroutines.
