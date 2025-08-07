@@ -88,7 +88,15 @@ var (
 		//{Name: "DiskPerf", Kernel: true, GUID: "{bdd865d1-d7c1-11d0-a501-00a0c9062910}"},
 		//{Name: "DriverVerifier", Kernel: true, GUID: "{d56ca431-61bf-4904-a621-00e0381e4dde"},
 		//{Name: "EventLog", Kernel: true, GUID: "{b16f9f5e-b3da-4027-9318-adf2b79df73b}"},
-		//{Name: "EventTraceConfig", Kernel: true, GUID: "{01853a65-418f-4f36-aefc-dc0f1d2fd235}"},
+
+		// Unlike other NT Kernel Logger events, the kernel session automatically generates hardware configuration events;
+		//  you do not enable these events when starting the NT Kernel Logger session.
+		// More info on https://learn.microsoft.com/en-us/windows/win32/etw/hwconfig
+		// More info on https://learn.microsoft.com/en-us/windows/win32/etw/systemconfig
+		// Use flag EVENT_TRACE_FLAG_NO_SYSCONFIG to disable Windows Kernel/SystemConfig/* rundown events
+		{Name: "EventTraceConfig",
+			Kernel: true,
+			GUID:   "{01853a65-418f-4f36-aefc-dc0f1d2fd235}"}, // No Flags, auto added by the kernel session
 
 		// log file FileOperationEnd (has status code) when they complete (even ones that do not actually
 		// cause Disk I/O).  (Vista+ only)
@@ -195,6 +203,7 @@ var (
 			Flags:  EVENT_TRACE_FLAG_PROCESS},
 
 		// Logs process performance counters (CPU, IO, etc).
+		// https://docs.microsoft.com/en-us/windows/win32/etw/process
 		{Name: "ProcessCounters",
 			Kernel: true,
 			GUID:   "{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}",
@@ -253,7 +262,5 @@ var (
 			Flags:  EVENT_TRACE_FLAG_NETWORK_TCPIP},
 
 		//{Name: "WmiEventLogger", Kernel: true, GUID: "{44608a51-1851-4456-98b2-b300e931ee41}"}
-
-		// EVENT_TRACE_FLAG_NO_SYSCONFIG (special, no Windows Kernel/SystemConfig/* rundown events)
 	}
 )
