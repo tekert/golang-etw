@@ -9,7 +9,7 @@ import (
 )
 
 // Etw package-wide default logger
-var log = plog.Logger{
+var log = &plog.Logger{
 	Writer: plog.WriterFunc(func(e *plog.Entry) (int, error) {
 		if e.Level >= plog.ErrorLevel {
 			return os.Stderr.Write(e.Value())
@@ -25,7 +25,7 @@ var log = plog.Logger{
 // http://github.com/phuslu/log is used for logging
 func SetLogger(newLogger *plog.Logger) {
 	if newLogger != nil {
-		log = *newLogger
+		log = newLogger
 	}
 }
 
