@@ -279,8 +279,8 @@ type TraceEventInfo struct {
 
 	EventMessageOffset    uint32
 	ProviderMessageOffset uint32
-	BinaryXMLOffset       uint32
-	BinaryXMLSize         uint32
+	BinaryXMLOffset       uint32 // reserved
+	BinaryXMLSize         uint32 // reserved
 
 	/* - EventNameOffset */
 	/* Event name for manifest-based events.
@@ -393,6 +393,9 @@ func (t *TraceEventInfo) EventID() uint16 {
 // TODO(tekert): investigate this
 func (t *TraceEventInfo) EventMessage() string {
 	return t.cleanStringAt(uintptr(t.EventMessageOffset))
+}
+func (t *TraceEventInfo) ProviderMessage() string {
+	return t.cleanStringAt(uintptr(t.ProviderMessageOffset))
 }
 
 func (t *TraceEventInfo) ProviderName() string {
@@ -579,7 +582,7 @@ func (t *TraceEventInfo) IsWPP() bool {
 
 // Access the EventPropertyInfo block at index i (they are contiguous in memory)
 func (t *TraceEventInfo) GetEventPropertyInfoAt(i uint32) *EventPropertyInfo {
-	if i < t.PropertyCount {
+	if i < t.TopLevelPropertyCount {
 		pEpi := uintptr(unsafe.Pointer(&t.EventPropertyInfoArray[0]))
 		pEpi += uintptr(i) * unsafe.Sizeof(EventPropertyInfo{})
 		// this line triggers checkptr
