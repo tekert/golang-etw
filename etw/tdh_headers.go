@@ -231,7 +231,6 @@ typedef struct _TRACE_EVENT_INFO {
   EVENT_PROPERTY_INFO EventPropertyInfoArray[ANYSIZE_ARRAY];
 } TRACE_EVENT_INFO;
 */
-
 // Defines the information about the event.
 type TraceEventInfo struct {
 
@@ -563,14 +562,17 @@ func (t *TraceEventInfo) EventAttributes() string {
 	return ""
 }
 
+// Is Classic ETW event
 func (t *TraceEventInfo) IsMof() bool {
 	return t.DecodingSource == DecodingSourceWbem
 }
 
+// Is Modern ETW event
 func (t *TraceEventInfo) IsXML() bool {
 	return t.DecodingSource == DecodingSourceXMLFile
 }
 
+// Is Classic ETW event
 func (t *TraceEventInfo) IsWPP() bool {
 	return t.DecodingSource == DecodingSourceWPP
 }

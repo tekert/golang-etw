@@ -48,7 +48,7 @@ type Provider struct {
 	// 64-bit bitmask of keywords that restricts the events that you want the provider to write.
 	// The provider typically writes an event if the event's keyword bits match all of the bits
 	// set in this value or if the event has no keyword bits set, in addition to meeting the Level
-	//and MatchAnyKeyword criteria.
+	// and MatchAnyKeyword criteria.
 	//
 	// This value is frequently set to 0.
 	//

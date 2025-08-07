@@ -1,6 +1,7 @@
 package etw
 
 import (
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -55,8 +56,8 @@ type EventBuffer struct {
 
 	// Output channel
 	skipped *atomic.Uint64
-	closed atomic.Bool
-	timer  *time.Timer // flush timer
+	closed  atomic.Bool
+	timer   *time.Timer // flush timer
 }
 
 func NewEventBuffer() *EventBuffer {
@@ -105,7 +106,7 @@ func (e *EventBuffer) close() error {
 		e.flush()
 	}
 
-	// Single thread that passed CAS closes channel
+	// Single thread that passed CompareAndSwap closes channel
 	close(e.Channel)
 	return nil
 }
@@ -116,7 +117,8 @@ func (e *EventBuffer) flush() {
 	// Process skippable events if any
 	if len(e.skippableEvents) > 0 {
 		// copy slice (it's going to be reseted after sending it)
-		batch := append([]*Event(nil), e.skippableEvents...)
+		//batch := append([]*Event(nil), e.skippableEvents...) // TODO: delete
+		batch := slices.Clone(e.skippableEvents)
 		select {
 		case e.Channel <- batch:
 		default:
@@ -131,7 +133,8 @@ func (e *EventBuffer) flush() {
 
 	// Process non-skippable events - blocks if channel is full
 	if len(e.nonskippableEvents) > 0 {
-		batch := append([]*Event(nil), e.nonskippableEvents...)
+		//batch := append([]*Event(nil), e.nonskippableEvents...) // TODO: delete
+		batch := slices.Clone(e.nonskippableEvents)
 		e.Channel <- batch
 		e.nonskippableEvents = e.nonskippableEvents[:0]
 	}

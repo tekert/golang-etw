@@ -435,7 +435,7 @@ const (
 
 // evntcons.h
 // used in Flags for EVENT_HEADER
-// https://learn.microsoft.com/es-es/windows/win32/api/evntcons/ns-evntcons-event_header
+// https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header
 const (
 	EVENT_HEADER_FLAG_EXTENDED_INFO   = 0x0001
 	EVENT_HEADER_FLAG_PRIVATE_SESSION = 0x0002
@@ -720,6 +720,7 @@ func NewEventTracePropertiesV2() (*EventTracePropertyData2, uint32) {
 func (e *EventTracePropertyData2) Clone() *EventTracePropertyData2 {
 	clone := new(EventTracePropertyData2)
 	*clone = *e
+	clone.FilterDesc = nil // ignore on copy.
 	return clone
 }
 
@@ -1044,6 +1045,11 @@ func (e *EventTraceLogfile) Clone() *EventTraceLogfile {
 	// Deep copy string pointers
 	dst.LoggerName = CopyUTF16Ptr(e.LoggerName)
 	dst.LogFileName = CopyUTF16Ptr(e.LogFileName)
+
+	// No need to copy LogfileHeader.LoggerName and LogfileHeader.LogFileName
+	// since they are not used according to Microsoft docs
+	dst.LogfileHeader.LoggerName = nil
+	dst.LogfileHeader.LogFileName = nil
 
 	return dst
 }
