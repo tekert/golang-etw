@@ -582,7 +582,7 @@ func (t *TraceEventInfo) IsWPP() bool {
 
 // Access the EventPropertyInfo block at index i (they are contiguous in memory)
 func (t *TraceEventInfo) GetEventPropertyInfoAt(i uint32) *EventPropertyInfo {
-	if i < t.TopLevelPropertyCount {
+	if i < t.PropertyCount {
 		pEpi := uintptr(unsafe.Pointer(&t.EventPropertyInfoArray[0]))
 		pEpi += uintptr(i) * unsafe.Sizeof(EventPropertyInfo{})
 		// this line triggers checkptr

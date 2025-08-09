@@ -118,6 +118,7 @@ type Consumer struct {
 type traceContext struct {
 	trace    *Trace
 	consumer *Consumer
+	pools    *localPools // thread local storage pools to reduce possible lock contention.
 }
 
 // Helper function to get the traceContext from the UserContext
@@ -260,9 +261,9 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 		if !errorOccurred {
 			errorOccurred = true
 			er.getUserContext().trace.ErrorEvents.Add(1) // safe here.
+			log.Error().Err(err).Msg("callback error")   // one time only for now, TODO: sampling.
 		}
 		c.lastError = err
-		//log.Debug().Err(err).Msg("callback error")
 	}
 
 	// Skips the event if it is the event trace header. Log files contain this event
@@ -408,6 +409,7 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	ti.ctx = &traceContext{
 		trace:    ti,
 		consumer: c,
+		pools:    newLocalPools(),
 	}
 
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilea

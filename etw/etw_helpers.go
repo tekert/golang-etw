@@ -27,78 +27,53 @@ var (
 	ErrUnknownProperty = fmt.Errorf("unknown property")
 )
 
-// Memory Pools
+// Global Memory Pools
 var (
-	// Reuse memory for TraceEventInfo when calling GetEventInformation()
-	// Can be reused for every new event record.
-	eventRecordHelperPool = sync.Pool{
-		New: func() interface{} {
-			return &EventRecordHelper{}
-		},
-	}
-
-	propertyMapPool = sync.Pool{
-		New: func() interface{} {
-			return make(map[string]*Property, 8)
-		},
-	}
-	arrayPropertyMapPool = sync.Pool{
-		New: func() interface{} {
-			return make(map[string][]*Property)
-		},
-	}
-
-	// for array of structs
-	structArraysMapPool = sync.Pool{
-		New: func() interface{} {
-			return make(map[string][]map[string]*Property)
-		},
-	}
-
-	// for single structs
-	structSingleMapPool = sync.Pool{
-		New: func() interface{} {
-			s := make([]map[string]*Property, 0, 4)
-			return &s
-		},
-	}
-
-	selectedPropertiesPool = sync.Pool{
-		New: func() interface{} {
-			return make(map[string]bool)
-		},
-	}
-
-	integerValuesPool = sync.Pool{
-		New: func() interface{} {
-			s := make([]uint16, 0)
-			return &s
-		},
-	}
-
-	epiArrayPool = sync.Pool{
-		New: func() interface{} {
-			s := make([]*EventPropertyInfo, 0)
-			return &s
-		},
-	}
-
-	tdhBufferPool = sync.Pool{
-		New: func() interface{} {
-			s := make([]uint16, 128)
-			return &s
-		},
-	}
+	// We use global pool only for EventRecordHelper and local per goroutine pools for other object.
+	helperPool    = sync.Pool{New: func() any { return &EventRecordHelper{} }}
+	tdhBufferPool = sync.Pool{New: func() any { s := make([]uint16, 128); return &s }}
 )
+
+// localPools holds all the necessary pools for a single goroutine.
+type localPools struct {
+	//helperPool           sync.Pool
+	propertyMapPool      sync.Pool
+	arrayPropertyMapPool sync.Pool
+	structArraysMapPool  sync.Pool
+	structSingleMapPool  sync.Pool
+	selectedPropsPool    sync.Pool
+	integerValuesPool    sync.Pool
+	epiArrayPool         sync.Pool
+	tdhInfoPool          sync.Pool
+}
+
+// newLocalPools creates a new set of pools for a goroutine.
+// This is to avoid some potential lock contention, we can get as high as 200k events/s
+func newLocalPools() *localPools {
+	return &localPools{
+		//helperPool:           sync.Pool{New: func() any { return &EventRecordHelper{} }},
+		propertyMapPool:      sync.Pool{New: func() any { return make(map[string]*Property, 8) }},
+		arrayPropertyMapPool: sync.Pool{New: func() any { return make(map[string][]*Property) }},
+		structArraysMapPool:  sync.Pool{New: func() any { return make(map[string][]map[string]*Property) }},
+		structSingleMapPool:  sync.Pool{New: func() any { s := make([]map[string]*Property, 0, 4); return &s }},
+		selectedPropsPool:    sync.Pool{New: func() any { return make(map[string]bool) }},
+		integerValuesPool:    sync.Pool{New: func() any { s := make([]uint16, 0, 16); return &s }},
+		epiArrayPool:         sync.Pool{New: func() any { s := make([]*EventPropertyInfo, 0, 16); return &s }},
+		tdhInfoPool:          sync.Pool{New: func() any { b := make([]byte, 4096); return &b }}, // GetEventInformation() in advapi32_header.go
+	}
+}
 
 type EventRecordHelper struct {
 	EventRec  *EventRecord
 	TraceInfo *TraceEventInfo
 
+	// Important: use pointers to slices if using pools to avoid corruption
+	// when storing EventRecordHelpers in a global pool.
+
 	Properties      map[string]*Property
 	ArrayProperties map[string][]*Property
 	StructArrays    map[string][]map[string]*Property // For arrays of structs
-	StructSingle    []map[string]*Property            // For non-array structs
+	StructSingle    *[]map[string]*Property           // For non-array structs
 
 	Flags struct {
 		Skip      bool
@@ -107,8 +82,8 @@ type EventRecordHelper struct {
 
 	// Stored property values for resolving array lengths
 	// both are filled when an index is queried
-	integerValues []uint16
-	epiArray      []*EventPropertyInfo
+	integerValues *[]uint16
+	epiArray      *[]*EventPropertyInfo
 
 	// Buffer that contains the memory for TraceEventInfo.
 	// used internally to reuse the memory allocation.
@@ -123,6 +98,9 @@ type EventRecordHelper struct {
 	userDataEnd uintptr
 
 	selectedProperties map[string]bool
+
+	// Keep a reference to the pools used to create this helper.
+	pools *localPools
 }
 
 func (e *EventRecordHelper) remainingUserDataLength() uint16 {
@@ -140,20 +118,38 @@ func (e *EventRecordHelper) addPropError() {
 	}
 }
 
-// Helper func to log event properties for debugging
-func (e *EventRecordHelper) logProp(entry *plog.Entry) *plog.Entry {
+// Helper func to log trace event info for debugging
+func (e *EventRecordHelper) logTraceInfo(entry *plog.Entry) *plog.Entry {
 	return entry.
 		Str("provider", e.TraceInfo.ProviderName()).
 		Str("providerGUID", e.TraceInfo.ProviderGUID.String()).
-		Int("eventID", int(e.TraceInfo.EventID())).
-		Int("version", int(e.TraceInfo.EventDescriptor.Version)).
-		Str("opcode", e.TraceInfo.OpcodeName()).
-		Int("opcodevalue", int(e.TraceInfo.EventDescriptor.Opcode)).
+		Str("event", e.TraceInfo.EventName()).
+		Str("eventGUID", e.TraceInfo.EventGUID.String()).
+		Str("activityID", e.TraceInfo.ActivityIDName()).
+		Str("relatedActivityID", e.TraceInfo.RelatedActivityIDName()).
+		Str("keywords", fmt.Sprint(e.TraceInfo.KeywordsName())).
 		Str("level", e.TraceInfo.LevelName()).
-		Int("flags", int(e.EventRec.EventHeader.Flags)).
 		Str("task", e.TraceInfo.TaskName()).
 		Str("channel", e.TraceInfo.ChannelName()).
-		Bool("isMof", e.TraceInfo.IsMof())
+		Str("opcode", e.TraceInfo.OpcodeName()).
+		Str("event_message", e.TraceInfo.EventMessage()).
+		Str("provider_message", e.TraceInfo.ProviderMessage()).
+		Uint32("propertyCount", e.TraceInfo.PropertyCount).
+		Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
+		Bool("isMof", e.TraceInfo.IsMof()).
+		// EventHeader
+		Int("flags", int(e.EventRec.EventHeader.Flags)).
+		Int("header_eventID", int(e.EventRec.EventHeader.EventDescriptor.Id)).
+		Int("header_version", int(e.EventRec.EventHeader.EventDescriptor.Version)).
+		Int("header_opcode", int(e.EventRec.EventHeader.EventDescriptor.Opcode)).
+		// EventDescriptor (TraceInfo)
+		Int("edescriptor_eventID", int(e.TraceInfo.EventID())).
+		Int("edescriptor_version", int(e.TraceInfo.EventDescriptor.Version)).
+		Int("edescriptor_channel", int(e.TraceInfo.EventDescriptor.Channel)).
+		Int("edescriptor_level", int(e.TraceInfo.EventDescriptor.Level)).
+		Int("edescriptor_task", int(e.TraceInfo.EventDescriptor.Task)).
+		Str("edescriptor_keyword", fmt.Sprintf("0x%X", e.TraceInfo.EventDescriptor.Keyword)).
+		Int("edescriptor_opcode", int(e.TraceInfo.EventDescriptor.Opcode))
 }
 
 // Release EventRecordHelper back to memory pool
@@ -162,6 +158,10 @@ func (e *EventRecordHelper) logProp(entry *plog.Entry) *plog.Entry {
 func (e *EventRecordHelper) release() {
 	// Since we have to release the property struct memory by iterating we may as well
 	// reset the memory of the maps and slices while doing it
+	pools := e.pools // Use the pools associated with this helper instance.
+
+	// Important: Don't store references to slices! that are part of EventRecordHelper
+	// This will create subtle data race if we share &internal locations to other pooled structs.
 
 	// 1. Reset/Clear and return to the pool Properties map
 	if (e.Properties) != nil {
@@ -170,7 +170,7 @@ func (e *EventRecordHelper) release() {
 			p.release()
 		}
 		clear(e.Properties) // Single operation to clear map
-		propertyMapPool.Put(e.Properties)
+		pools.propertyMapPool.Put(e.Properties)
 	}
 
 	// 2. Reset/Clear and return ArrayProperties to the pool
@@ -181,7 +181,7 @@ func (e *EventRecordHelper) release() {
 			}
 		}
 		clear(e.ArrayProperties)
-		arrayPropertyMapPool.Put(e.ArrayProperties)
+		pools.arrayPropertyMapPool.Put(e.ArrayProperties)
 	}
 
 	// 3a. StructArrays map
@@ -192,61 +192,69 @@ func (e *EventRecordHelper) release() {
 					p.release()
 				}
 				clear(propStruct)
-				propertyMapPool.Put(propStruct)
+				pools.propertyMapPool.Put(propStruct)
+				//propertyMapPool.Put(propStruct)
 			}
 		}
 		clear(e.StructArrays)
-		structArraysMapPool.Put(e.StructArrays)
+		pools.structArraysMapPool.Put(e.StructArrays)
 	}
 
 	// 3b. SingleStructs slice
-	if (e.StructSingle) != nil {
-		for _, propStruct := range e.StructSingle {
+	if e.StructSingle != nil {
+		for _, propStruct := range *e.StructSingle {
 			for _, p := range propStruct {
 				p.release()
 			}
 			clear(propStruct)
-			propertyMapPool.Put(propStruct)
+			pools.propertyMapPool.Put(propStruct)
+			//propertyMapPool.Put(propStruct)
 		}
-		e.StructSingle = e.StructSingle[:0]
-		structSingleMapPool.Put(&e.StructSingle)
+		*e.StructSingle = (*e.StructSingle)[:0]
+		pools.structSingleMapPool.Put(e.StructSingle)
 	}
 
 	// 4. Clear and return selectedProperties
-	if (e.selectedProperties) != nil {
+	if e.selectedProperties != nil {
 		clear(e.selectedProperties)
-		selectedPropertiesPool.Put(e.selectedProperties)
+		pools.selectedPropsPool.Put(e.selectedProperties)
 	}
 
 	// 5. Reset integerValues slice (keep capacity) and return to pool
-	if (e.integerValues) != nil {
-		e.integerValues = e.integerValues[:0]
-		integerValuesPool.Put(&e.integerValues)
+	if e.integerValues != nil {
+		*e.integerValues = (*e.integerValues)[:0]
+		pools.integerValuesPool.Put(e.integerValues)
 	}
 
 	// 6. Reset epiArray slice (keep capacity) and return to pool
-	if (e.epiArray) != nil {
-		clear(e.epiArray) // important
-		e.epiArray = e.epiArray[:0]
-		epiArrayPool.Put(&e.epiArray)
+	if e.epiArray != nil {
+		// Important: Zero out the pointers in the backing array so that when this
+		// slice is reused, it doesn't contain stale pointers from a previous event.
+		// This is critical for the `if (*e.epiArray)[i] == nil` check in getEpiAt.
+		clear(*e.epiArray)
+		*e.epiArray = (*e.epiArray)[:0]
+		pools.epiArrayPool.Put(e.epiArray)
 	}
 
 	// 7. Release back into the pool the mem allocation for TraceEventInfo
 	if e.teiBuffer != nil {
-		tdhInfoPool.Put(e.teiBuffer)
+		tdhInfoPool.Put(e.teiBuffer) // use global pool for this one
 	}
 
 	// Last. Finally, Reset fields and Release this object memory
 	*e = EventRecordHelper{}
-	eventRecordHelperPool.Put(e)
+	//pools.helperPool.Put(e) // Put back into the goroutine specific pool
+	helperPool.Put(e)
 }
 
 // Creates a new EventRecordHelper that has the EVENT_RECORD and gets a TRACE_EVENT_INFO for that event.
 func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
-	erh = eventRecordHelperPool.Get().(*EventRecordHelper)
+	erh = helperPool.Get().(*EventRecordHelper) // Use global pool for this one.
+	pools := er.getUserContext().pools
+	//erh = pools.helperPool.Get().(*EventRecordHelper)
+	erh.pools = pools // Associate the pools with this helper instance.
 
 	erh.EventRec = er
-
 	if erh.TraceInfo, erh.teiBuffer, err = er.GetEventInformation(); err != nil {
 		err = fmt.Errorf("GetEventInformation failed : %s", err)
 		log.Debug().
@@ -254,27 +262,6 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 			Uint8("EventType", er.EventHeader.EventDescriptor.Opcode).
 			Uint8("Version", er.EventHeader.EventDescriptor.Version).
 			Msg("GetEventInformation failed")
-
-		// GUID {90CBDC39-4A3E-11D1-84F4-0000F80464E3} (FileIo)
-		// EventType 84
-		// Version 3
-		// Dump UserData: f810d5710ad2ffff d043b76f0ad2ffff 00c7b1bf8cbeffff 0000000000000000 dc70000000000000
-		// Little endian: Suggest 4 fields uint64 (pointers) + 2 uin32
-		// Fails to parse, there is no documentation for this event.
-
-		//  //! TESTING find what is opcode 84 of FileIo Kernel events.
-		// if er.EventHeader.EventDescriptor.Opcode != 84 {
-		// 	// Only log if it's not a FileIo event
-		// 	slice := unsafe.Slice((*byte)(unsafe.Pointer(er.UserData)), er.UserDataLength)
-		// 	fmt.Println(hex.EncodeToString(slice))
-		// 	fmt.Println("GetEventInformation failed",
-		// 	"GUID", er.EventHeader.ProviderId.String(),
-		// 	"EventType", er.EventHeader.EventDescriptor.Opcode,
-		// 	"Version", er.EventHeader.EventDescriptor.Version)
-		// }
-		// // hex dump //! TESTING
-		// // slice := unsafe.Slice((*byte)(unsafe.Pointer(er.UserData)), er.UserDataLength)
-		// // fmt.Println(hex.EncodeToString(slice))
 	}
 
 	return
@@ -282,29 +269,31 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 
 // This memory was already reseted when it was released.
 func (e *EventRecordHelper) initialize() {
-	e.Properties = propertyMapPool.Get().(map[string]*Property)
-	e.ArrayProperties = arrayPropertyMapPool.Get().(map[string][]*Property)
+	pools := e.pools
+	e.Properties = pools.propertyMapPool.Get().(map[string]*Property)
+	e.ArrayProperties = pools.arrayPropertyMapPool.Get().(map[string][]*Property)
 
 	// Structure handling
-	e.StructArrays = structArraysMapPool.Get().(map[string][]map[string]*Property)
-	e.StructSingle = *(structSingleMapPool.Get().(*[]map[string]*Property))
+	e.StructArrays = pools.structArraysMapPool.Get().(map[string][]map[string]*Property)
+	e.StructSingle = pools.structSingleMapPool.Get().(*[]map[string]*Property)
 
-	e.selectedProperties = selectedPropertiesPool.Get().(map[string]bool)
+	e.selectedProperties = pools.selectedPropsPool.Get().(map[string]bool)
 
+	maxPropCount := int(e.TraceInfo.PropertyCount)
 	// Get and resize integer values
-	e.integerValues = *integerValuesPool.Get().(*[]uint16)
-	if cap(e.integerValues) < int(e.TraceInfo.TopLevelPropertyCount) {
-		e.integerValues = make([]uint16, e.TraceInfo.TopLevelPropertyCount)
+	e.integerValues = pools.integerValuesPool.Get().(*[]uint16)
+	if cap(*e.integerValues) < maxPropCount {
+		*e.integerValues = make([]uint16, maxPropCount)
 	} else {
-		e.integerValues = e.integerValues[0:e.TraceInfo.TopLevelPropertyCount]
+		*e.integerValues = (*e.integerValues)[:maxPropCount]
 	}
 
 	// Get and resize epi array
-	e.epiArray = *epiArrayPool.Get().(*[]*EventPropertyInfo)
-	if cap(e.epiArray) < int(e.TraceInfo.TopLevelPropertyCount) {
-		e.epiArray = make([]*EventPropertyInfo, e.TraceInfo.TopLevelPropertyCount)
+	e.epiArray = pools.epiArrayPool.Get().(*[]*EventPropertyInfo)
+	if cap(*e.epiArray) < maxPropCount {
+		*e.epiArray = make([]*EventPropertyInfo, maxPropCount)
 	} else {
-		e.epiArray = e.epiArray[0:e.TraceInfo.TopLevelPropertyCount]
+		*e.epiArray = (*e.epiArray)[:maxPropCount]
 	}
 
 	// userDataIt iterator will be incremented for each queried property by prop size
@@ -424,7 +413,7 @@ func (e *EventRecordHelper) getPropertySize(i uint32) (size uint32, err error) {
 // Helps when a property length needs to be calculated using a previous property value
 // This has to be called on every property to cache the integer values as it goes.
 func (e *EventRecordHelper) cacheIntergerValues(i uint32) {
-	epi := e.epiArray[i]
+	epi := (*e.epiArray)[i]
 	// If this property is a scalar integer, remember the value in case it
 	// is needed for a subsequent property's that has the PropertyParamLength flag set.
 	// This is a Single Value property, not a struct and it doesn't have a param count
@@ -438,12 +427,12 @@ func (e *EventRecordHelper) cacheIntergerValues(i uint32) {
 		case TDH_INTYPE_INT8,
 			TDH_INTYPE_UINT8:
 			if (userdr) >= 1 {
-				e.integerValues[i] = uint16(*(*uint8)(unsafe.Pointer(e.userDataIt)))
+				(*e.integerValues)[i] = uint16(*(*uint8)(unsafe.Pointer(e.userDataIt)))
 			}
 		case TDH_INTYPE_INT16,
 			TDH_INTYPE_UINT16:
 			if (userdr) >= 2 {
-				e.integerValues[i] = *(*uint16)(unsafe.Pointer(e.userDataIt))
+				(*e.integerValues)[i] = *(*uint16)(unsafe.Pointer(e.userDataIt))
 			}
 		case TDH_INTYPE_INT32,
 			TDH_INTYPE_UINT32,
@@ -451,9 +440,9 @@ func (e *EventRecordHelper) cacheIntergerValues(i uint32) {
 			if (userdr) >= 4 {
 				val := *(*uint32)(unsafe.Pointer(e.userDataIt))
 				if val > 0xffff {
-					e.integerValues[i] = 0xffff
+					(*e.integerValues)[i] = 0xffff
 				} else {
-					e.integerValues[i] = uint16(val)
+					(*e.integerValues)[i] = uint16(val)
 				}
 			}
 		}
@@ -464,11 +453,11 @@ func (e *EventRecordHelper) cacheIntergerValues(i uint32) {
 // also caches the data if it's an integer property if any other property needs it for length.
 func (e *EventRecordHelper) getEpiAt(i uint32) *EventPropertyInfo {
 	// (epiArray mem is reused, make sure the elements are set to nil before use)
-	if e.epiArray[i] == nil {
-		e.epiArray[i] = e.TraceInfo.GetEventPropertyInfoAt(i)
+	if (*e.epiArray)[i] == nil {
+		(*e.epiArray)[i] = e.TraceInfo.GetEventPropertyInfoAt(i)
 		e.cacheIntergerValues(i)
 	}
-	return e.epiArray[i]
+	return (*e.epiArray)[i]
 }
 
 // TODO: test performance of this (no bounds checking)
@@ -477,7 +466,7 @@ func (e *EventRecordHelper) getEpiAt(i uint32) *EventPropertyInfo {
 //go:nocheckptr
 func (e *EventRecordHelper) getEpiAt_2(i uint32) *EventPropertyInfo {
 	// Direct pointer access to epiArray element without bounds checking
-	pEpi := unsafe.Add(unsafe.Pointer(&e.epiArray[0]),
+	pEpi := unsafe.Add(unsafe.Pointer(&(*e.epiArray)[0]),
 		uintptr(i)*unsafe.Sizeof((*EventPropertyInfo)(nil)))
 	if *(**EventPropertyInfo)(pEpi) == nil {
 		// Cache miss - get and store EventPropertyInfo
@@ -497,7 +486,7 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 	switch {
 	case (epi.Flags & PropertyParamLength) != 0:
 		// Length from another property
-		propLength = e.integerValues[epi.LengthPropertyIndex()]
+		propLength = (*e.integerValues)[epi.LengthPropertyIndex()]
 
 	case (epi.Flags & PropertyParamFixedLength) != 0:
 		// Fixed length specified in manifest
@@ -692,6 +681,11 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 		return
 	}
 
+	// ! TESTING
+	// rawPtr := e.TraceInfo.pointer() + uintptr(p.evtPropInfo.NameOffset)
+	// fmt.Printf("Reading property name at 0x%X (offset %d)\n", rawPtr, p.evtPropInfo.NameOffset)
+	// fmt.Printf("First 32 bytes: % X\n", unsafe.Slice((*byte)(unsafe.Pointer(rawPtr)), 32))
+
 	// p.length has to be 0 on strings and structures for TdhFormatProperty to work.
 	// We use size instead to advance when p.length is 0.
 	e.userDataIt += uintptr(p.sizeBytes)
@@ -732,7 +726,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		epi := e.getEpiAt(i)
 		if epi == nil {
 			e.addPropError()
-			e.logProp(log.Error()).
+			e.logTraceInfo(log.Error()).
 				Uint32("index", i).
 				Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
 				Msg("prepareProperties: getEpiAt returned nil, skipping property")
@@ -744,7 +738,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		var arrayCount uint16
 		if (epi.Flags & PropertyParamCount) != 0 {
 			// Look up the value of a previous property
-			arrayCount = e.integerValues[epi.CountPropertyIndex()]
+			arrayCount = (*e.integerValues)[epi.CountPropertyIndex()]
 		} else {
 			arrayCount = epi.Count()
 		}
@@ -773,13 +767,14 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 			// TODO(tekert): save this in a tree structure?
 			if epi.Flags&PropertyStruct != 0 {
 				//LogTrace("Processing struct property", "index", arrayIndex)
-				propStruct := propertyMapPool.Get().(map[string]*Property)
+				propStruct := e.pools.propertyMapPool.Get().(map[string]*Property)
 
 				startIndex := epi.StructStartIndex()
 				lastMember := startIndex + epi.NumOfStructMembers()
 
 				for j := startIndex; j < lastMember; j++ {
 					if p, err = e.prepareProperty(uint32(j)); err != nil {
+						e.addPropError()
 						return
 					}
 					propStruct[p.name] = p
@@ -790,7 +785,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 					e.StructArrays[arrayName] = append(e.StructArrays[arrayName], propStruct)
 				} else {
 					// Single struct - add to SingleStructs
-					e.StructSingle = append(e.StructSingle, propStruct)
+					*e.StructSingle = append(*e.StructSingle, propStruct)
 				}
 				continue
 			}
@@ -815,6 +810,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 				} else {
 					// If this is not an array of structs, we can parse the properties of the array
 					if p, err = e.prepareProperty(i); err != nil {
+						e.addPropError()
 						return
 					}
 					array = append(array, p)
@@ -825,6 +821,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 			// Single value that is not a struct or array.
 			if arrayCount == 1 && !isArray {
 				if p, err = e.prepareProperty(i); err != nil {
+					e.addPropError()
 					return
 				}
 				e.Properties[p.name] = p
@@ -845,19 +842,16 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		// instead of a Thread_V3_TypeGroup1 MOF class to decode it.
 		// Try to parse the remaining data as a MOF property.
 		if e.TraceInfo.IsMof() {
-			if e := e.prepareMofProperty(remainingData, remainingBytes); e == nil {
+			if err2 := e.prepareMofProperty(remainingData, remainingBytes); err2 == nil {
 				return nil // data parsed, return.
 			}
 		}
 
 		e.addPropError()
-		// Convert data to hex string and report.
-		hexStr := hex.EncodeToString(remainingData)
-		// TODO(tekert): finish parsing these events if we can.
-		e.logProp(log.Warn()).
+		e.logTraceInfo(log.Warn()).
 			Uint32("remaining", remainingBytes).
 			Int("total", int(e.EventRec.UserDataLength)).
-			Str("remainingHex", hexStr).
+			Str("remainingHex", hex.EncodeToString(remainingData)). // Convert data to hex string and report.
 			Msg("UserData not fully parsed")
 	}
 
@@ -979,8 +973,8 @@ func (e *EventRecordHelper) parseAndSetProperty(name string, out *Event) (err er
 	}
 
 	// Single structs - only check if requesting StructurePropertyName
-	if name == StructurePropertyName && len(e.StructSingle) > 0 {
-		if structs, err := e.formatStructs(e.StructSingle, StructurePropertyName); err != nil {
+	if name == StructurePropertyName && len(*e.StructSingle) > 0 {
+		if structs, err := e.formatStructs(*e.StructSingle, StructurePropertyName); err != nil {
 			return err
 		} else {
 			eventData[StructurePropertyName] = structs
@@ -1055,8 +1049,8 @@ func (e *EventRecordHelper) parseAndSetAllProperties(out *Event) (last error) {
 	}
 
 	// Handle single structs
-	if len(e.StructSingle) > 0 && e.shouldParse(StructurePropertyName) {
-		if structs, err := e.formatStructs(e.StructSingle, StructurePropertyName); err != nil {
+	if len(*e.StructSingle) > 0 && e.shouldParse(StructurePropertyName) {
+		if structs, err := e.formatStructs(*e.StructSingle, StructurePropertyName); err != nil {
 			last = err
 		} else {
 			eventData[StructurePropertyName] = structs
@@ -1195,8 +1189,8 @@ func (e *EventRecordHelper) ParseProperty(name string) (err error) {
 	}
 
 	// Single structs - only check if requesting StructurePropertyName
-	if name == StructurePropertyName && len(e.StructSingle) > 0 {
-		for _, propStruct := range e.StructSingle {
+	if name == StructurePropertyName && len(*e.StructSingle) > 0 {
+		for _, propStruct := range *e.StructSingle {
 			for field, prop := range propStruct {
 				if _, err = prop.FormatToString(); err != nil {
 					return fmt.Errorf("%w struct %s.%s: %s", ErrPropertyParsing, StructurePropertyName, field, err)

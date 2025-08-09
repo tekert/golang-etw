@@ -1137,25 +1137,29 @@ func (e *EventRecord) IsMof() bool {
 	return e.EventHeader.Flags&EVENT_HEADER_FLAG_CLASSIC_HEADER != 0
 }
 
-// Helps reduce memory allocations by reusing a buffer for the event information
-var tdhInfoPool = sync.Pool{
-	New: func() interface{} {
-		b := make([]byte, 1024) // starting capacity
-		return &b
-	},
+// TraceEventInfo pool for GetEventInformation() calls.
+// 1024 bytes should be enough for most cases as starting capacity.
+var tdhInfoPool = sync.Pool{New: func() any {b := make([]byte, 1024); return &b}}
+
+// Used for performance-critical slice length modification.
+type sliceHeader struct {
+	Data uintptr
+	Len  int
+	Cap  int
 }
 
 func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, teiBuffer *[]byte, err error) {
-
 	buffp := tdhInfoPool.Get().(*[]byte)
-	*buffp = (*buffp)[:cap(*buffp)] // Ensure full capacity
-	bufferSize := uint32(len(*buffp))
 
+	// Use the buffer's capacity to inform the C API of the total available memory.
+	bufferSize := uint32(cap(*buffp))
 	tei = (*TraceEventInfo)(unsafe.Pointer(unsafe.SliceData(*buffp)))
 	err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
 
 	if err == ERROR_INSUFFICIENT_BUFFER {
-		*buffp = make([]byte, bufferSize)
+		tdhInfoPool.Put(buffp)
+		newBuf := make([]byte, bufferSize)
+		buffp = &newBuf
 		tei = (*TraceEventInfo)(unsafe.Pointer(unsafe.SliceData(*buffp)))
 		err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
 	}
@@ -1168,6 +1172,10 @@ func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, teiBuffer *[]b
 		}
 		return nil, nil, fmt.Errorf("TdhGetEventInformation failed: %w", err)
 	}
+
+	// On success, update the slice's length to match the actual data written by the API.
+	// Is not ncessesary, is not used, but just for correctness (if debugging this slice)
+	(*sliceHeader)(unsafe.Pointer(buffp)).Len = int(bufferSize)
 
 	// Use tei, then optionally put tei into pool when done
 	return tei, buffp, nil
