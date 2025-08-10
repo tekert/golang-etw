@@ -255,26 +255,33 @@ func (s *RealTimeSession) EnableProvider(prov Provider) (err error) {
 	return
 }
 
-// GetRundownEvents forces rundown events now.
-// a null provider will force rundown for the system trace provider (NT Kernel Logger) (not fully tested)
-// to capture the current state of the trace session
-func (s *RealTimeSession) GetRundownEvents(prov *Provider) (err error) {
+// GetRundownEvents forces rundown events now on this session.
+// a null provider will force rundown for all providers in the session
+func (s *RealTimeSession) GetRundownEvents(guid *GUID) (err error) {
 	if !s.IsStarted() {
 		return fmt.Errorf("session not started")
 	}
-	guid := GUID{}
-	if prov == nil {
-		guid = *systemTraceControlGuid // TODO: not working, SystemConfig events are not delivered
+	if guid != nil {
+		return EnableTraceEx2(
+			s.sessionHandle,
+			guid,
+			EVENT_CONTROL_CODE_CAPTURE_STATE,
+			0, 0, 0, 0, nil)
 	} else {
-		guid = prov.GUID
-	}
+		for _, p := range s.providers {
+			// If the provider is not enabled, we cannot get rundown events
+			if p.EnableLevel == 0 {
+				continue
+			}
 
-	if err = EnableTraceEx2(
-		s.sessionHandle,
-		&guid,
-		EVENT_CONTROL_CODE_CAPTURE_STATE,
-		0, 0, 0, 0, nil); err != nil {
-		return
+			if err = EnableTraceEx2(
+				s.sessionHandle,
+				&p.GUID,
+				EVENT_CONTROL_CODE_CAPTURE_STATE,
+				0, 0, 0, 0, nil); err != nil {
+				return
+			}
+		}
 	}
 
 	return nil
