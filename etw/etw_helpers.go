@@ -37,8 +37,9 @@ var (
 // localPools holds all the necessary pools for a single goroutine.
 type localPools struct {
 	//helperPool           sync.Pool
-	propertyMapPool      sync.Pool
-	arrayPropertyMapPool sync.Pool
+	propertyMapPool      sync.Pool // map[string]*Property // map of properties by name
+	arrayPropertyMapPool sync.Pool // map[string]*[]*Property) // map of properties by name to a slice of pointers to Property
+	propSlicePool        sync.Pool // *[]*Property
 	structArraysMapPool  sync.Pool
 	structSingleMapPool  sync.Pool
 	selectedPropsPool    sync.Pool
@@ -53,7 +54,8 @@ func newLocalPools() *localPools {
 	return &localPools{
 		//helperPool:           sync.Pool{New: func() any { return &EventRecordHelper{} }},
 		propertyMapPool:      sync.Pool{New: func() any { return make(map[string]*Property, 8) }},
-		arrayPropertyMapPool: sync.Pool{New: func() any { return make(map[string][]*Property) }},
+		arrayPropertyMapPool: sync.Pool{New: func() any { return make(map[string]*[]*Property) }}, // ? Changed to store pointers
+		propSlicePool:        sync.Pool{New: func() any { s := make([]*Property, 0, 8); return &s }},
 		structArraysMapPool:  sync.Pool{New: func() any { return make(map[string][]map[string]*Property) }},
 		structSingleMapPool:  sync.Pool{New: func() any { s := make([]map[string]*Property, 0, 4); return &s }},
 		selectedPropsPool:    sync.Pool{New: func() any { return make(map[string]bool) }},
@@ -71,7 +73,7 @@ type EventRecordHelper struct {
 	// when storing EventRecordHelpers in a global pool.
 
 	Properties      map[string]*Property
-	ArrayProperties map[string][]*Property
+	ArrayProperties map[string]*[]*Property           // Changed to store pointers
 	StructArrays    map[string][]map[string]*Property // For arrays of structs
 	StructSingle    *[]map[string]*Property           // For non-array structs
 
@@ -120,36 +122,44 @@ func (e *EventRecordHelper) addPropError() {
 
 // Helper func to log trace event info for debugging
 func (e *EventRecordHelper) logTraceInfo(entry *plog.Entry) *plog.Entry {
-	return entry.
-		Str("provider", e.TraceInfo.ProviderName()).
-		Str("providerGUID", e.TraceInfo.ProviderGUID.String()).
-		Str("event", e.TraceInfo.EventName()).
-		Str("eventGUID", e.TraceInfo.EventGUID.String()).
-		Str("activityID", e.TraceInfo.ActivityIDName()).
-		Str("relatedActivityID", e.TraceInfo.RelatedActivityIDName()).
-		Str("keywords", fmt.Sprint(e.TraceInfo.KeywordsName())).
-		Str("level", e.TraceInfo.LevelName()).
-		Str("task", e.TraceInfo.TaskName()).
-		Str("channel", e.TraceInfo.ChannelName()).
-		Str("opcode", e.TraceInfo.OpcodeName()).
-		Str("event_message", e.TraceInfo.EventMessage()).
-		Str("provider_message", e.TraceInfo.ProviderMessage()).
-		Uint32("propertyCount", e.TraceInfo.PropertyCount).
-		Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
-		Bool("isMof", e.TraceInfo.IsMof()).
-		// EventHeader
-		Int("flags", int(e.EventRec.EventHeader.Flags)).
-		Int("header_eventID", int(e.EventRec.EventHeader.EventDescriptor.Id)).
-		Int("header_version", int(e.EventRec.EventHeader.EventDescriptor.Version)).
-		Int("header_opcode", int(e.EventRec.EventHeader.EventDescriptor.Opcode)).
-		// EventDescriptor (TraceInfo)
-		Int("edescriptor_eventID", int(e.TraceInfo.EventID())).
-		Int("edescriptor_version", int(e.TraceInfo.EventDescriptor.Version)).
-		Int("edescriptor_channel", int(e.TraceInfo.EventDescriptor.Channel)).
-		Int("edescriptor_level", int(e.TraceInfo.EventDescriptor.Level)).
-		Int("edescriptor_task", int(e.TraceInfo.EventDescriptor.Task)).
-		Str("edescriptor_keyword", fmt.Sprintf("0x%X", e.TraceInfo.EventDescriptor.Keyword)).
-		Int("edescriptor_opcode", int(e.TraceInfo.EventDescriptor.Opcode))
+	if e.TraceInfo != nil {
+		entry = entry.
+			Str("provider", e.TraceInfo.ProviderName()).
+			Str("providerGUID", e.TraceInfo.ProviderGUID.String()).
+			Str("event", e.TraceInfo.EventName()).
+			Str("eventGUID", e.TraceInfo.EventGUID.String()).
+			Str("activityID", e.TraceInfo.ActivityIDName()).
+			Str("relatedActivityID", e.TraceInfo.RelatedActivityIDName()).
+			Str("keywords", fmt.Sprint(e.TraceInfo.KeywordsName())).
+			Str("level", e.TraceInfo.LevelName()).
+			Str("task", e.TraceInfo.TaskName()).
+			Str("channel", e.TraceInfo.ChannelName()).
+			Str("opcode", e.TraceInfo.OpcodeName()).
+			Str("event_message", e.TraceInfo.EventMessage()).
+			Str("provider_message", e.TraceInfo.ProviderMessage()).
+			Uint32("propertyCount", e.TraceInfo.PropertyCount).
+			Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
+			Bool("isMof", e.TraceInfo.IsMof())
+	}
+	if e.EventRec != nil { // EventHeader
+		entry = entry.
+			Int("flags", int(e.EventRec.EventHeader.Flags)).
+			Str("GUID", e.EventRec.EventHeader.ProviderId.StringU()).
+			Int("header_eventID", int(e.EventRec.EventHeader.EventDescriptor.Id)).
+			Int("header_version", int(e.EventRec.EventHeader.EventDescriptor.Version)).
+			Int("header_opcode", int(e.EventRec.EventHeader.EventDescriptor.Opcode))
+	}
+	if e.TraceInfo != nil { // EventDescriptor (TraceInfo)
+		entry = entry.
+			Int("edescriptor_eventID", int(e.TraceInfo.EventID())).
+			Int("edescriptor_version", int(e.TraceInfo.EventDescriptor.Version)).
+			Int("edescriptor_channel", int(e.TraceInfo.EventDescriptor.Channel)).
+			Int("edescriptor_level", int(e.TraceInfo.EventDescriptor.Level)).
+			Int("edescriptor_task", int(e.TraceInfo.EventDescriptor.Task)).
+			Str("edescriptor_keyword", fmt.Sprintf("0x%X", e.TraceInfo.EventDescriptor.Keyword)).
+			Int("edescriptor_opcode", int(e.TraceInfo.EventDescriptor.Opcode))
+	}
+	return entry
 }
 
 // Release EventRecordHelper back to memory pool
@@ -173,13 +183,19 @@ func (e *EventRecordHelper) release() {
 		pools.propertyMapPool.Put(e.Properties)
 	}
 
-	// 2. Reset/Clear and return ArrayProperties to the pool
+	// 2. Reset/Clear and return ArrayProperties to the pool map[string]*[]*Property
 	if (e.ArrayProperties) != nil {
-		for _, props := range e.ArrayProperties {
-			for _, p := range props {
+		for _, propSlicePtr := range e.ArrayProperties {
+			for _, p := range *propSlicePtr {
+				// Release the contents first (*Property)
 				p.release()
 			}
+			// Release the slice *[]
+			clear(*propSlicePtr)
+			*propSlicePtr = (*propSlicePtr)[:0]
+			pools.propSlicePool.Put(propSlicePtr)
 		}
+		// Release the top-level container map[string]
 		clear(e.ArrayProperties)
 		pools.arrayPropertyMapPool.Put(e.ArrayProperties)
 	}
@@ -193,7 +209,6 @@ func (e *EventRecordHelper) release() {
 				}
 				clear(propStruct)
 				pools.propertyMapPool.Put(propStruct)
-				//propertyMapPool.Put(propStruct)
 			}
 		}
 		clear(e.StructArrays)
@@ -208,7 +223,6 @@ func (e *EventRecordHelper) release() {
 			}
 			clear(propStruct)
 			pools.propertyMapPool.Put(propStruct)
-			//propertyMapPool.Put(propStruct)
 		}
 		*e.StructSingle = (*e.StructSingle)[:0]
 		pools.structSingleMapPool.Put(e.StructSingle)
@@ -257,11 +271,7 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 	erh.EventRec = er
 	if erh.TraceInfo, erh.teiBuffer, err = er.GetEventInformation(); err != nil {
 		err = fmt.Errorf("GetEventInformation failed : %s", err)
-		log.Debug().
-			Str("GUID", er.EventHeader.ProviderId.StringU()).
-			Uint8("EventType", er.EventHeader.EventDescriptor.Opcode).
-			Uint8("Version", er.EventHeader.EventDescriptor.Version).
-			Msg("GetEventInformation failed")
+		erh.logTraceInfo(plog.Error()).Msg("GetEventInformation failed")
 	}
 
 	return
@@ -271,7 +281,7 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 func (e *EventRecordHelper) initialize() {
 	pools := e.pools
 	e.Properties = pools.propertyMapPool.Get().(map[string]*Property)
-	e.ArrayProperties = pools.arrayPropertyMapPool.Get().(map[string][]*Property)
+	e.ArrayProperties = pools.arrayPropertyMapPool.Get().(map[string]*[]*Property)
 
 	// Structure handling
 	e.StructArrays = pools.structArraysMapPool.Get().(map[string][]map[string]*Property)
@@ -508,7 +518,7 @@ func (e *EventRecordHelper) getPropertyLength(i uint32) (propLength uint16, size
 		sizeBytes = uint32(propLength)
 	}
 
-	//* Useful links:
+	//* links:
 	// https://learn.microsoft.com/en-us/windows/win32/etw/event-tracing-mof-qualifiers#property-qualifiers
 
 	// Improves performance (vs calling TdhGetPropertySize on every variable prop by ~6%)
@@ -752,12 +762,16 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		isArray := arrayCount != 1 ||
 			(epi.Flags&(PropertyParamCount|PropertyParamFixedCount)) != 0
 
-		var array []*Property = make([]*Property, 0, arrayCount)
+		var array *[]*Property
 		var arrayName string
 		var mofString []uint16
 
 		if isArray {
 			arrayName = UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(epi.NameOffset))
+			array = e.pools.propSlicePool.Get().(*[]*Property)
+			if cap(*array) < int(arrayCount) {
+				*array = make([]*Property, 0, arrayCount)
+			}
 		}
 
 		// Treat non-array properties as arrays with one element.
@@ -811,9 +825,12 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 					// If this is not an array of structs, we can parse the properties of the array
 					if p, err = e.prepareProperty(i); err != nil {
 						e.addPropError()
+						if isArray {
+							e.pools.propSlicePool.Put(array)
+						}
 						return
 					}
-					array = append(array, p)
+					*array = append(*array, p)
 					continue
 				}
 			}
@@ -828,8 +845,13 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 			}
 		}
 
-		if len(array) > 0 {
-			e.ArrayProperties[arrayName] = array
+		if isArray {
+			if len(*array) > 0 {
+				e.ArrayProperties[arrayName] = array
+			} else {
+				// Return the unused slice to the pool.
+				e.pools.propSlicePool.Put(array)
+			}
 		}
 	}
 
@@ -841,6 +863,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		// Probably this is because TraceEventInfo used an older Thread_V2_TypeGroup1
 		// instead of a Thread_V3_TypeGroup1 MOF class to decode it.
 		// Try to parse the remaining data as a MOF property.
+		// TODO: remvoe this?
 		if e.TraceInfo.IsMof() {
 			if err2 := e.prepareMofProperty(remainingData, remainingBytes); err2 == nil {
 				return nil // data parsed, return.
@@ -947,11 +970,11 @@ func (e *EventRecordHelper) parseAndSetProperty(name string, out *Event) (err er
 	}
 
 	// parsing array
-	if props, ok := e.ArrayProperties[name]; ok {
-		values := make([]string, 0, len(props))
+	if propSlicePtr, ok := e.ArrayProperties[name]; ok {
+		values := make([]string, 0, len(*propSlicePtr))
 
 		// iterate over the properties
-		for _, p := range props {
+		for _, p := range *propSlicePtr {
 			var v string
 			if v, err = p.FormatToString(); err != nil {
 				return fmt.Errorf("%w array %s: %s", ErrPropertyParsing, name, err)
@@ -1016,11 +1039,12 @@ func (e *EventRecordHelper) parseAndSetAllProperties(out *Event) (last error) {
 	}
 
 	// Arrays
-	for pname, props := range e.ArrayProperties {
+	for pname, propsPtr := range e.ArrayProperties {
 		if !e.shouldParse(pname) {
 			continue
 		}
 
+		props := *propsPtr
 		values := make([]string, 0, len(props))
 
 		// iterate over the properties
@@ -1168,9 +1192,9 @@ func (e *EventRecordHelper) ParseProperty(name string) (err error) {
 	}
 
 	// parsing array
-	if props, ok := e.ArrayProperties[name]; ok {
+	if propSlicePtr, ok := e.ArrayProperties[name]; ok {
 		// iterate over the properties
-		for _, p := range props {
+		for _, p := range *propSlicePtr {
 			if _, err = p.FormatToString(); err != nil {
 				return fmt.Errorf("%w array %s: %s", ErrPropertyParsing, name, err)
 			}
