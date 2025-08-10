@@ -37,15 +37,17 @@ var (
 // localPools holds all the necessary pools for a single goroutine.
 type localPools struct {
 	//helperPool           sync.Pool
-	propertyMapPool      sync.Pool // map[string]*Property // map of properties by name
-	arrayPropertyMapPool sync.Pool // map[string]*[]*Property) // map of properties by name to a slice of pointers to Property
-	propSlicePool        sync.Pool // *[]*Property
+	propertyMapPool      sync.Pool
+	arrayPropertyMapPool sync.Pool // map[string]*[]*Property)
+	propSlicePool        sync.Pool // arrayPropertyMapPool -> *[]*Property
 	structArraysMapPool  sync.Pool
 	structSingleMapPool  sync.Pool
 	selectedPropsPool    sync.Pool
 	integerValuesPool    sync.Pool
 	epiArrayPool         sync.Pool
 	tdhInfoPool          sync.Pool
+
+	
 }
 
 // newLocalPools creates a new set of pools for a goroutine.
@@ -54,7 +56,7 @@ func newLocalPools() *localPools {
 	return &localPools{
 		//helperPool:           sync.Pool{New: func() any { return &EventRecordHelper{} }},
 		propertyMapPool:      sync.Pool{New: func() any { return make(map[string]*Property, 8) }},
-		arrayPropertyMapPool: sync.Pool{New: func() any { return make(map[string]*[]*Property) }}, // ? Changed to store pointers
+		arrayPropertyMapPool: sync.Pool{New: func() any { return make(map[string]*[]*Property) }},
 		propSlicePool:        sync.Pool{New: func() any { s := make([]*Property, 0, 8); return &s }},
 		structArraysMapPool:  sync.Pool{New: func() any { return make(map[string][]map[string]*Property) }},
 		structSingleMapPool:  sync.Pool{New: func() any { s := make([]map[string]*Property, 0, 4); return &s }},
@@ -270,8 +272,9 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 
 	erh.EventRec = er
 	if erh.TraceInfo, erh.teiBuffer, err = er.GetEventInformation(); err != nil {
+		// TODO: many of these when using some NT Kernel Logger MOF events, investigate wich kernel provider is it.
 		err = fmt.Errorf("GetEventInformation failed : %s", err)
-		erh.logTraceInfo(plog.Error()).Msg("GetEventInformation failed")
+		erh.logTraceInfo(plog.Trace()).Msg("GetEventInformation failed")
 	}
 
 	return
@@ -703,19 +706,128 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 	return
 }
 
+// getArrayInfo determines if a property is an array and returns its count.
+func (e *EventRecordHelper) getArrayInfo(epi *EventPropertyInfo) (count uint16, isArray bool) {
+	if (epi.Flags & PropertyParamCount) != 0 {
+		// Look up the value of a previous property
+		count = (*e.integerValues)[epi.CountPropertyIndex()]
+	} else {
+		count = epi.Count()
+	}
+
+	// Note that PropertyParamFixedCount is a new flag and is ignored
+	// by many decoders. Without the PropertyParamFixedCount flag,
+	// decoders will assume that a property is an array if it has
+	// either a count parameter or a fixed count other than 1. The
+	// PropertyParamFixedCount flag allows for fixed-count arrays with
+	// one element to be propertly decoded as arrays.
+	isArray = count != 1 || (epi.Flags&(PropertyParamCount|PropertyParamFixedCount)) != 0
+	return
+}
+
+// prepareStruct handles properties that are structs or arrays of structs.
+func (e *EventRecordHelper) prepareStruct(epi *EventPropertyInfo, arrayCount uint16, isArray bool) error {
+	var p *Property
+	var err error
+	arrayName := UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(epi.NameOffset))
+
+	// Treat non-array properties as arrays with one element.
+	for range arrayCount {
+		propStruct := e.pools.propertyMapPool.Get().(map[string]*Property)
+
+		startIndex := epi.StructStartIndex()
+		lastMember := startIndex + epi.NumOfStructMembers()
+
+		for j := startIndex; j < lastMember; j++ {
+			if p, err = e.prepareProperty(uint32(j)); err != nil {
+				e.addPropError()
+				// On error, release properties already added to the map and return the map to the pool.
+				for _, propInMap := range propStruct {
+					propInMap.release()
+				}
+				clear(propStruct)
+				e.pools.propertyMapPool.Put(propStruct)
+				return err
+			}
+			propStruct[p.name] = p
+		}
+
+		// Add to appropriate collection
+		if isArray {
+			// Part of an array - add to StructArrays
+			e.StructArrays[arrayName] = append(e.StructArrays[arrayName], propStruct)
+		} else {
+			// Single struct - add to SingleStructs
+			*e.StructSingle = append(*e.StructSingle, propStruct)
+		}
+	}
+	return nil
+}
+
+// prepareSimpleArray handles properties that are arrays of simple types (not structs).
+func (e *EventRecordHelper) prepareSimpleArray(i uint32, epi *EventPropertyInfo, arrayCount uint16) error {
+	arrayName := UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(epi.NameOffset))
+
+	// Special case for MOF string arrays, which are common in classic kernel events.
+	// if this is a MOF event, we don't need to parse the properties of the array
+	// this will be a array of wchars, Kernel events EVENT_HEADER_FLAG_CLASSIC_HEADER
+	if e.TraceInfo.IsMof() &&
+		e.EventRec.EventHeader.Flags&EVENT_HEADER_FLAG_CLASSIC_HEADER != 0 &&
+		epi.InType() == TDH_INTYPE_UNICODECHAR {
+		// C++ Definition example: wchar_t ThreadName[1]; (Variadic arrays)
+		// arrayCount is usualy a cap in this case. Fixed 256 byte array usually.
+		mofString := unsafe.Slice((*uint16)(unsafe.Pointer(e.userDataIt)), arrayCount)
+		value := UTF16ToStringETW(mofString)
+		e.SetProperty(arrayName, value)
+		e.userDataIt += (uintptr(arrayCount) * 2) // advance pointer
+		return nil                                // Array parsed, we're done with this property.
+	}
+
+	// For regular simple arrays, get a slice from the pool.
+	array := e.pools.propSlicePool.Get().(*[]*Property)
+	if cap(*array) < int(arrayCount) {
+		*array = make([]*Property, 0, arrayCount)
+	}
+
+	var p *Property
+	var err error
+	for range arrayCount {
+		if p, err = e.prepareProperty(i); err != nil {
+			e.addPropError()
+			// On error, release properties already added to the array and return the slice to the pool.
+			for _, propInArray := range *array {
+				propInArray.release()
+			}
+			clear(*array)
+			*array = (*array)[:0]
+			e.pools.propSlicePool.Put(array)
+			return err
+		}
+		*array = append(*array, p)
+	}
+
+	if len(*array) > 0 {
+		e.ArrayProperties[arrayName] = array
+	} else {
+		// Return the unused slice to the pool if the array ended up empty.
+		e.pools.propSlicePool.Put(array)
+	}
+
+	return nil
+}
+
 // Prepare will partially decode the event, extracting event info for later
 // This is a performance optimization to avoid decoding the event values now.
 //
 // There is a lot of information available in the event even without decoding,
 // including timestamp, PID, TID, provider ID, activity ID, and the raw data.
 func (e *EventRecordHelper) prepareProperties() (err error) {
-	var p *Property
 
 	// TODO: move this to a separate function before TraceInfo is used
+	// Handle special case for MOF events that are just a single string.
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header
 	if e.EventRec.IsMof() {
 		// If there aren't any event property info structs, use the UserData directly.
-		// NOTE: Does this flag mean that TraceInfo will be null too?
 		if (e.EventRec.EventHeader.Flags & EVENT_HEADER_FLAG_STRING_ONLY) != 0 {
 			str := (*uint16)(unsafe.Pointer(e.EventRec.UserData))
 			value := UTF16ToStringETW(
@@ -726,12 +838,14 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 			return
 		}
 	}
+
 	// if (e.EventRec.EventHeader.Flags & EVENT_HEADER_FLAG_TRACE_MESSAGE) != 0 {
 	// }
 	// if (e.EventRec.EventHeader.Flags & EVENT_HEADER_FLAG_CLASSIC_HEADER) != 0 {
 	//	// Kernel events
 	// }
 
+	// Process all top-level properties defined in the event schema.
 	for i := uint32(0); i < e.TraceInfo.TopLevelPropertyCount; i++ {
 		epi := e.getEpiAt(i)
 		if epi == nil {
@@ -740,122 +854,34 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 				Uint32("index", i).
 				Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
 				Msg("prepareProperties: getEpiAt returned nil, skipping property")
-			// This is not a fatal error, we can continue processing the event.
-			continue
+			continue // This is not a fatal error, we can continue processing.
 		}
 
-		// Number of elements in the array of EventPropertyInfo.
-		var arrayCount uint16
-		if (epi.Flags & PropertyParamCount) != 0 {
-			// Look up the value of a previous property
-			arrayCount = (*e.integerValues)[epi.CountPropertyIndex()]
+		arrayCount, isArray := e.getArrayInfo(epi)
+
+		if (epi.Flags & PropertyStruct) != 0 {
+			// Property is a struct or an array of structs.
+			if err = e.prepareStruct(epi, arrayCount, isArray); err != nil {
+				return err
+			}
+		} else if isArray {
+			// Property is an array of simple types.
+			if err = e.prepareSimpleArray(i, epi, arrayCount); err != nil {
+				return err
+			}
 		} else {
-			arrayCount = epi.Count()
-		}
-
-		// Note that PropertyParamFixedCount is a new flag and is ignored
-		// by many decoders. Without the PropertyParamFixedCount flag,
-		// decoders will assume that a property is an array if it has
-		// either a count parameter or a fixed count other than 1. The
-		// PropertyParamFixedCount flag allows for fixed-count arrays with
-		// one element to be propertly decoded as arrays.
-		isArray := arrayCount != 1 ||
-			(epi.Flags&(PropertyParamCount|PropertyParamFixedCount)) != 0
-
-		var array *[]*Property
-		var arrayName string
-		var mofString []uint16
-
-		if isArray {
-			arrayName = UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(epi.NameOffset))
-			array = e.pools.propSlicePool.Get().(*[]*Property)
-			if cap(*array) < int(arrayCount) {
-				*array = make([]*Property, 0, arrayCount)
+			// Property is a single, non-array, non-struct value.
+			var p *Property
+			if p, err = e.prepareProperty(i); err != nil {
+				e.addPropError()
+				return err
 			}
-		}
-
-		// Treat non-array properties as arrays with one element.
-		for arrayIndex := uint16(0); arrayIndex < arrayCount; arrayIndex++ {
-
-			// If this property is a struct, process the child properties
-			// TODO(tekert): save this in a tree structure?
-			if epi.Flags&PropertyStruct != 0 {
-				//LogTrace("Processing struct property", "index", arrayIndex)
-				propStruct := e.pools.propertyMapPool.Get().(map[string]*Property)
-
-				startIndex := epi.StructStartIndex()
-				lastMember := startIndex + epi.NumOfStructMembers()
-
-				for j := startIndex; j < lastMember; j++ {
-					if p, err = e.prepareProperty(uint32(j)); err != nil {
-						e.addPropError()
-						return
-					}
-					propStruct[p.name] = p
-				}
-				// Add to appropriate collection
-				if isArray {
-					// Part of an array - add to StructArrays
-					e.StructArrays[arrayName] = append(e.StructArrays[arrayName], propStruct)
-				} else {
-					// Single struct - add to SingleStructs
-					*e.StructSingle = append(*e.StructSingle, propStruct)
-				}
-				continue
-			}
-
-			// If is a simple array of props (not structs)
-			if isArray && (epi.Flags&PropertyStruct == 0) {
-				// if this is a MOF event, we don't need to parse the properties of the array
-				// this will be a array of wchars, Kernel events EVENT_HEADER_FLAG_CLASSIC_HEADER
-				if e.TraceInfo.IsMof() {
-					if e.EventRec.EventHeader.Flags&EVENT_HEADER_FLAG_CLASSIC_HEADER != 0 {
-						if epi.InType() == TDH_INTYPE_UNICODECHAR {
-							// C++ Definition example: wchar_t ThreadName[1]; (Variadic arrays)
-							// arrayCount is usualy a cap in this case. Fixed 256 byte array usually.
-							mofString = unsafe.Slice((*uint16)(unsafe.Pointer(e.userDataIt)), arrayCount)
-							value := UTF16ToStringETW(mofString)
-							e.SetProperty(arrayName, value)
-
-							e.userDataIt += (uintptr(arrayCount) * 2) // advance pointer
-							break                                     // Array parsed.. next property
-						}
-					}
-				} else {
-					// If this is not an array of structs, we can parse the properties of the array
-					if p, err = e.prepareProperty(i); err != nil {
-						e.addPropError()
-						if isArray {
-							e.pools.propSlicePool.Put(array)
-						}
-						return
-					}
-					*array = append(*array, p)
-					continue
-				}
-			}
-
-			// Single value that is not a struct or array.
-			if arrayCount == 1 && !isArray {
-				if p, err = e.prepareProperty(i); err != nil {
-					e.addPropError()
-					return
-				}
-				e.Properties[p.name] = p
-			}
-		}
-
-		if isArray {
-			if len(*array) > 0 {
-				e.ArrayProperties[arrayName] = array
-			} else {
-				// Return the unused slice to the pool.
-				e.pools.propSlicePool.Put(array)
-			}
+			e.Properties[p.name] = p
 		}
 	}
 
-	// if the last property did not reach the end of UserData, warning.
+	// After parsing all defined properties, check if there's any data left.
+	// This can happen if the event schema is an older version.
 	if e.userDataIt < e.userDataEnd {
 		remainingBytes := uint32(e.userDataEnd - e.userDataIt)
 		remainingData := unsafe.Slice((*byte)(unsafe.Pointer(e.userDataIt)), remainingBytes)
@@ -866,7 +892,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		// TODO: remvoe this?
 		if e.TraceInfo.IsMof() {
 			if err2 := e.prepareMofProperty(remainingData, remainingBytes); err2 == nil {
-				return nil // data parsed, return.
+				return nil // Data was successfully parsed, return.
 			}
 		}
 
@@ -874,17 +900,18 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		e.logTraceInfo(log.Warn()).
 			Uint32("remaining", remainingBytes).
 			Int("total", int(e.EventRec.UserDataLength)).
-			Str("remainingHex", hex.EncodeToString(remainingData)). // Convert data to hex string and report.
+			Str("remainingHex", hex.EncodeToString(remainingData)).
 			Msg("UserData not fully parsed")
 	}
 
-	return
+	return nil
 }
 
 // This is a common pattern with kernel ETW events where newer fields are added
 // but backward compatibility needs to be maintained, so we must check if the
 // data is a new field.
 // TODO(tekert): use the new kernel mof generated classes to decode this.
+// TODO: the problem is, for example FileIO V3 is not defined elsewere, and we get those events from ETW
 func (e *EventRecordHelper) prepareMofProperty(remainingData []byte, remaining uint32) (last error) {
 	// Check if all bytes are padding (zeros)
 	if bytes.IndexFunc(remainingData, func(r rune) bool {
