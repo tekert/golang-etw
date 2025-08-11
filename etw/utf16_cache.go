@@ -4,45 +4,14 @@ import (
 	"sync"
 )
 
-const (
-	// Using a power of 2 for shardCount allows for faster modulo using bitwise AND.
-	utf16CacheShardCount = 256
-)
+// globalUtf16Cache is a cache for UTF-16 string conversions.
+// It uses sync.Map, which is optimized for concurrent read-mostly scenarios,
+// making it ideal for caching repeated strings like event property names.
+var globalUtf16Cache = utf16Cache{}
 
-// globalUtf16Cache is a sharded cache to reduce lock contention.
-var globalUtf16Cache = newUtf16Cache()
-
-// utf16CacheShard holds a single, lockable shard of the cache.
-type utf16CacheShard struct {
-	mu   sync.RWMutex
-	data map[uint64]string
-}
-
-// utf16Cache is the main sharded cache structure. It contains multiple shards
-// to allow for concurrent access with minimal contention.
+// utf16Cache wraps a sync.Map for type safety and to provide the cache API.
 type utf16Cache struct {
-	shards [utf16CacheShardCount]*utf16CacheShard
-	// maxEntriesPerShard can be tuned based on the expected number of unique strings.
-	maxEntriesPerShard int
-}
-
-// newUtf16Cache creates and initializes a new sharded cache.
-func newUtf16Cache() *utf16Cache {
-	c := &utf16Cache{}
-	c.maxEntriesPerShard = 64 // default max entries per shard
-	for i := range utf16CacheShardCount {
-		c.shards[i] = &utf16CacheShard{
-			data: make(map[uint64]string, c.maxEntriesPerShard), // Pre-allocate for common case
-		}
-	}
-	return c
-}
-
-// getShard returns the appropriate shard for a given hash using a fast bitwise AND.
-//
-//go:inline
-func (c *utf16Cache) getShard(hash uint64) *utf16CacheShard {
-	return c.shards[hash&(utf16CacheShardCount-1)]
+	data sync.Map
 }
 
 // hash calculates the FNV-1a hash for a UTF-16 slice.
@@ -57,24 +26,20 @@ func (c *utf16Cache) hash(data []uint16) uint64 {
 	return h
 }
 
-// getKey retrieves a value from the cache for a given hash. It locks only one shard.
+// getKey retrieves a value from the cache. This uses sync.Map's highly
+// optimized, often lock-free, read path.
 func (c *utf16Cache) getKey(hash uint64) (string, bool) {
-	shard := c.getShard(hash)
-	shard.mu.RLock()
-	s, ok := shard.data[hash]
-	shard.mu.RUnlock()
-	return s, ok
+	// The Load method is the fast-path read for sync.Map.
+	value, ok := c.data.Load(hash)
+	if !ok {
+		return "", false
+	}
+	// The value must be type-asserted back to a string.
+	return value.(string), true
 }
 
-// setKey adds a value to the cache. It locks only one shard.
+// setKey adds a value to the cache.
 func (c *utf16Cache) setKey(hash uint64, value string) {
-	shard := c.getShard(hash)
-	shard.mu.Lock()
-	// Simple eviction: if a shard is full, clear just that shard.
-	if len(shard.data) >= c.maxEntriesPerShard {
-		// This prevents unbounded memory growth in one shard.
-		clear(shard.data)
-	}
-	shard.data[hash] = value
-	shard.mu.Unlock()
+	// The Store method handles the concurrent-safe write.
+	c.data.Store(hash, value)
 }

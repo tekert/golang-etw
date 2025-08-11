@@ -4,6 +4,7 @@ package etw
 
 import (
 	"hash/fnv"
+	"runtime" // <-- Import runtime
 	"strconv"
 	"syscall"
 	"testing"
@@ -150,19 +151,6 @@ func BenchmarkUTF16Conversion(b *testing.B) {
 				_ = UTF16PtrToString(p)
 			}
 		})
-
-	}
-
-	// Benchmark UTF16PtrToString
-	for i, p := range testData {
-		b.Run("UTF16PtrToString/len_"+strconv.Itoa(len(testStrings[i])), func(b *testing.B) {
-			b.ReportAllocs()
-			b.ResetTimer()
-			for b.Loop() {
-				_ = UTF16PtrToString(p)
-			}
-		})
-
 	}
 
 	// Benchmark UTF16AtOffsetToString
@@ -184,6 +172,9 @@ func BenchmarkUTF16Conversion(b *testing.B) {
 			for b.Loop() {
 				_ = UTF16AtOffsetToString(structPtr, offset)
 			}
+			// This is critical: it ensures the buf and its underlying memory
+			// are not garbage collected before the benchmark loop finishes.
+			runtime.KeepAlive(buf)
 		})
 
 	}
