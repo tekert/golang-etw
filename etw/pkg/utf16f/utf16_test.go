@@ -207,6 +207,31 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			input: []uint16{0x00E1, 0x00E9, 0x00ED, 0x00F3, 0x00FA, 0x00F1, 0x00C1, 0x00C9, 0x00CD, 0x00D3, 0x00DA, 0x00D1},
 			want:  []byte{0xC3, 0xA1, 0xC3, 0xA9, 0xC3, 0xAD, 0xC3, 0xB3, 0xC3, 0xBA, 0xC3, 0xB1, 0xC3, 0x81, 0xC3, 0x89, 0xC3, 0x8D, 0xC3, 0x93, 0xC3, 0x9A, 0xC3, 0x91},
 		},
+		{
+			"ReversedSurrogatePair",
+			[]uint16{0xDC00, 0xD800},
+			[]byte{0xED, 0xB0, 0x80, 0xED, 0xA0, 0x80}, // Should be two separate unpaired surrogates
+		},
+		{
+			"CodePointBeforeSurrogates",
+			[]uint16{0xD7FF},
+			[]byte{0xED, 0x9F, 0xBF},
+		},
+		{
+			"CodePointAfterSurrogates",
+			[]uint16{0xE000},
+			[]byte{0xEE, 0x80, 0x80},
+		},
+		{
+			"TwoHighSurrogates",
+			[]uint16{0xD800, 0xD801},
+			[]byte{0xED, 0xA0, 0x80, 0xED, 0xA0, 0x81},
+		},
+		{
+			"TwoLowSurrogates",
+			[]uint16{0xDC00, 0xDC01},
+			[]byte{0xED, 0xB0, 0x80, 0xED, 0xB0, 0x81},
+		},
 	}
 
 	for _, tt := range tests {
@@ -228,6 +253,37 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			}
 		})
 	}
+
+	// // ! TESTING
+	// for _, tt := range tests {
+	// 	t.Run(tt.name, func(t *testing.T) {
+	// 		got := DecodeSIMD(tt.input, utf16ToWTF8_simdutf_scalar)
+	// 		if string(got) != string(tt.want) {
+	// 			t.Errorf("DecodeSIMD_SIMDUTF_TEST(%v) = [% X], want [% X]", tt.input,
+	// 				[]byte(got), tt.want)
+	// 		}
+	// 	})
+	// }
+	// // ! TESTING
+	// for _, tt := range tests {
+	// 	t.Run(tt.name, func(t *testing.T) {
+	// 		got := DecodeSIMD(tt.input, utf16ToWTF8_webkit)
+	// 		if string(got) != string(tt.want) {
+	// 			t.Errorf("DecodeSIMD_WEBKIT_TEST(%v) = [% X], want [% X]", tt.input,
+	// 				[]byte(got), tt.want)
+	// 		}
+	// 	})
+	// }
+	// // ! TESTING
+	// for _, tt := range tests {
+	// 	t.Run(tt.name, func(t *testing.T) {
+	// 		got := DecodeSIMD(tt.input, utf16ToWTF8_v8)
+	// 		if string(got) != string(tt.want) {
+	// 			t.Errorf("DecodeSIMD_V8_TEST(%v) = [% X], want [% X]", tt.input,
+	// 				[]byte(got), tt.want)
+	// 		}
+	// 	})
+	// }
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -263,7 +319,7 @@ func TestUTF16_To_WTF8(t *testing.T) {
 	}
 }
 
-// go test -run=^$ -bench='BenchmarkDecodeUTF16/(SIMDv[23456]|DecodeWtf8.*|Syscall|utf16Package)/./(16|65536)(-.*)?$' ./etw/pkg/utf16f
+// go test -run=^$ -bench='BenchmarkDecodeUTF16/(SIMDv[23456]|SIMD_|DecodeWtf8.*|Syscall|utf16Package)/./(16|65536)(-.*)?$' ./etw/pkg/utf16f
 
 func BenchmarkDecodeUTF16(b *testing.B) {
 	cases := []struct {
@@ -343,7 +399,7 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					s := DecodeSIMD(input, utf16ToStringSSE2_v4)
 					if len(s) != outSize {
-						b.Fatalf("ConvertUTF16_SSE2v4(%v) = %v, want %v", input, s, outSize)
+						b.Fatalf("ConvertUTF16_SIMDv4(%v) = %v, want %v", input, s, outSize)
 					}
 				}
 			})
@@ -353,10 +409,41 @@ func BenchmarkDecodeUTF16(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					s := DecodeSIMD(input, utf16ToStringSSE2_v3)
 					if len(s) != outSize {
-						b.Fatalf("ConvertUTF16_SSE2(%v) = %v, want %v", input, s, outSize)
+						b.Fatalf("ConvertUTF16_SIMDv3(%v) = %v, want %v", input, s, outSize)
 					}
 				}
 			})
+
+			// // ! TESTING
+			// b.Run(fmt.Sprintf("SIMD_SIMDUTF/%s/%d", tc.name, size), func(b *testing.B) {
+			// 	b.SetBytes(int64(outSize))
+			// 	for i := 0; i < b.N; i++ {
+			// 		s := DecodeSIMD(input, utf16ToWTF8_simdutf_scalar)
+			// 		if len(s) != outSize {
+			// 			b.Fatalf("utf16ToWTF8_simdutf_scalar(%v) = %v, want %v", input, s, outSize)
+			// 		}
+			// 	}
+			// })
+			// // ! TESTING
+			// b.Run(fmt.Sprintf("SIMD_webkit/%s/%d", tc.name, size), func(b *testing.B) {
+			// 	b.SetBytes(int64(outSize))
+			// 	for i := 0; i < b.N; i++ {
+			// 		s := DecodeSIMD(input, utf16ToWTF8_webkit)
+			// 		if len(s) != outSize {
+			// 			b.Fatalf("utf16ToWTF8_webkit(%v) = %v, want %v", input, s, outSize)
+			// 		}
+			// 	}
+			// })
+			// // ! TESTING
+			// b.Run(fmt.Sprintf("SIMD_JavascriptV8/%s/%d", tc.name, size), func(b *testing.B) {
+			// 	b.SetBytes(int64(outSize))
+			// 	for i := 0; i < b.N; i++ {
+			// 		s := DecodeSIMD(input, utf16ToWTF8_v8)
+			// 		if len(s) != outSize {
+			// 			b.Fatalf("utf16ToWTF8_v8(%v) = %v, want %v", input, s, outSize)
+			// 		}
+			// 	}
+			// })
 
 			// b.Run(fmt.Sprintf("SIMDv2/%s/%d", tc.name, size), func(b *testing.B) {
 			// 	b.SetBytes(int64(outSize))
