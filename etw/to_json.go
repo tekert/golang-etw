@@ -112,10 +112,10 @@ func (h *TraceLogfileHeader) ToJSON() (JsonLogHeader, error) {
 		BuffersLost:        h.BuffersLost,
 		TimeZone: JsonTimeZoneInfo{
 			Bias:         h.TimeZone.Bias,
-			StandardName: UTF16ToStringETW(h.TimeZone.StandardName[:]),
+			StandardName: UTF16SliceToString(h.TimeZone.StandardName[:]),
 			StandardDate: JsonTime(h.TimeZone.StandardDate.ToTime()),
 			StandardBias: h.TimeZone.StandardBias,
-			DaylightName: UTF16ToStringETW(h.TimeZone.DaylightName[:]),
+			DaylightName: UTF16SliceToString(h.TimeZone.DaylightName[:]),
 			DaylightDate: JsonTime(h.TimeZone.DaylightDate.ToTime()),
 			DaylightBias: h.TimeZone.DaylighBias,
 		},

@@ -588,11 +588,11 @@ func (p *Property) decodeStringIntype() (string, error) {
 			// Length from another property (in WCHARs)
 			wcharCount := p.length
 			wchars := unsafe.Slice((*uint16)(unsafe.Pointer(p.pValue)), wcharCount)
-			return UTF16ToStringETW(wchars), nil
+			return UTF16SliceToString(wchars), nil
 		} else if (p.evtPropInfo.Flags&(PropertyParamFixedLength)) != 0 || p.length > 0 {
 			// Fixed length (in WCHARs)
 			wchars := unsafe.Slice((*uint16)(unsafe.Pointer(p.pValue)), p.length)
-			return UTF16ToStringETW(wchars), nil
+			return UTF16SliceToString(wchars), nil
 		} else {
 			if (p.evtPropInfo.Flags & (PropertyParamFixedLength)) != 0 {
 				return "", nil
@@ -605,11 +605,11 @@ func (p *Property) decodeStringIntype() (string, error) {
 			// Try to find null terminator first
 			for i, w := range wchars {
 				if w == 0 {
-					return UTF16ToStringETW(wchars[:i]), nil
+					return UTF16SliceToString(wchars[:i]), nil
 				}
 			}
 			// No null terminator found, use entire remaining buffer
-			return UTF16ToStringETW(wchars), nil
+			return UTF16SliceToString(wchars), nil
 		}
 
 	case TDH_INTYPE_ANSISTRING:
@@ -646,7 +646,7 @@ func (p *Property) decodeStringIntype() (string, error) {
 		byteLen := *(*uint16)(unsafe.Pointer(p.pValue))
 		wcharCount := byteLen / 2
 		wchars := unsafe.Slice((*uint16)(unsafe.Add(unsafe.Pointer(p.pValue), 2)), wcharCount)
-		return UTF16ToStringETW(wchars), nil
+		return UTF16SliceToString(wchars), nil
 
 	case TDH_INTYPE_MANIFEST_COUNTEDANSISTRING:
 		// Same as COUNTEDANSISTRING but for manifests
@@ -662,7 +662,7 @@ func (p *Property) decodeStringIntype() (string, error) {
 		byteLen := *(*uint16)(unsafe.Pointer(p.pValue))
 		wcharCount := byteLen / 2
 		wchars := unsafe.Slice((*uint16)(unsafe.Add(unsafe.Pointer(p.pValue), 2)), wcharCount)
-		return UTF16ToStringETW(wchars), nil
+		return UTF16SliceToString(wchars), nil
 
 	case TDH_INTYPE_COUNTEDANSISTRING:
 		// First 2 bytes contain length in bytes of following string
@@ -675,7 +675,7 @@ func (p *Property) decodeStringIntype() (string, error) {
 		byteLen := Swap16(*(*uint16)(unsafe.Pointer(p.pValue)))
 		wcharCount := byteLen / 2
 		wchars := unsafe.Slice((*uint16)(unsafe.Add(unsafe.Pointer(p.pValue), 2)), wcharCount)
-		return UTF16ToStringETW(wchars), nil
+		return UTF16SliceToString(wchars), nil
 
 	case TDH_INTYPE_REVERSEDCOUNTEDANSISTRING:
 		// Like COUNTEDANSISTRING but length is big-endian
@@ -687,7 +687,7 @@ func (p *Property) decodeStringIntype() (string, error) {
 		// String takes up remaining event bytes
 		wcharCount := p.userDataRemaining / 2
 		wchars := unsafe.Slice((*uint16)(unsafe.Pointer(p.pValue)), wcharCount)
-		return UTF16ToStringETW(wchars), nil
+		return UTF16SliceToString(wchars), nil
 
 	case TDH_INTYPE_NONNULLTERMINATEDANSISTRING:
 		// String takes up remaining event bytes
