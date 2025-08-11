@@ -21,7 +21,7 @@ func TestUtils(t *testing.T) {
 	tt.CheckErr(err)
 
 	tt.Assert(UTF16PtrToString(sutf16) == s)
-	tt.Assert(Wcslen(sutf16) == uint64(len(s)))
+	tt.Assert(Wcslen(sutf16) == len(s))
 
 	// we have to double the length because we are in utf16
 	butf16 := CopyData(unsafe.Pointer(sutf16), len(s)*2)
@@ -121,6 +121,74 @@ func TestSIDConversion(t *testing.T) {
 	}
 }
 
+func BenchmarkUTF16Conversion(b *testing.B) {
+	// Test strings of various lengths, including some realistic examples
+	testStrings := []string{
+		"short",
+		"a medium length string for testing",
+		"a much longer string to test performance characteristics with more data and see how the functions handle larger inputs",
+		"Kernel/Trace/Provider",
+		`C:\Windows\System32\ntdll.dll`,
+	}
+
+	// Prepare test data outside the benchmark loops
+	var testData []*uint16
+	for _, s := range testStrings {
+		p, err := syscall.UTF16PtrFromString(s)
+		if err != nil {
+			b.Fatalf("Failed to create test string: %v", err)
+		}
+		testData = append(testData, p)
+	}
+
+	// Benchmark UTF16PtrToString
+	for i, p := range testData {
+		b.Run("UTF16PtrToString/len_"+strconv.Itoa(len(testStrings[i])), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_ = UTF16PtrToString(p)
+			}
+		})
+
+	}
+
+	// Benchmark UTF16PtrToString
+	for i, p := range testData {
+		b.Run("UTF16PtrToString/len_"+strconv.Itoa(len(testStrings[i])), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_ = UTF16PtrToString(p)
+			}
+		})
+
+	}
+
+	// Benchmark UTF16AtOffsetToString
+	// We'll create a buffer and place the string at an offset to simulate reading from a struct
+	const offset = 128 // An arbitrary offset
+	for i, p := range testData {
+		strLenChars := len(testStrings[i])
+		// Create a buffer large enough for the offset and the null-terminated string
+		buf := make([]uint16, (offset/2)+strLenChars+1)
+		structPtr := uintptr(unsafe.Pointer(&buf[0]))
+		targetPtr := (*uint16)(unsafe.Pointer(structPtr + offset))
+
+		// Copy the test string into the buffer at the specified offset
+		copy(unsafe.Slice(targetPtr, strLenChars+1), unsafe.Slice(p, strLenChars+1))
+
+		b.Run("UTF16AtOffsetToString/len_"+strconv.Itoa(strLenChars), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_ = UTF16AtOffsetToString(structPtr, offset)
+			}
+		})
+
+	}
+}
+
 func BenchmarkHash(b *testing.B) {
 	// Test data sizes
 	sizes := []int{8, 16, 32, 64, 128, 256}
@@ -133,7 +201,7 @@ func BenchmarkHash(b *testing.B) {
 		}
 
 		b.Run("current/"+strconv.Itoa(size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				var h uint64
 				for _, v := range data {
 					h = h*31 + uint64(v)
@@ -143,7 +211,7 @@ func BenchmarkHash(b *testing.B) {
 
 		// FNV hash
 		b.Run("fnv/"+strconv.Itoa(size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				h := fnv.New64()
 				for _, v := range data {
 					h.Write([]byte{byte(v), byte(v >> 8)})
@@ -153,7 +221,7 @@ func BenchmarkHash(b *testing.B) {
 
 		// FNV-1a inline
 		b.Run("fnv1a/"+strconv.Itoa(size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				h := uint64(14695981039346656037)
 				for _, v := range data {
 					h ^= uint64(v)
@@ -164,7 +232,7 @@ func BenchmarkHash(b *testing.B) {
 
 		// djb2
 		b.Run("djb2/"+strconv.Itoa(size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				var h uint64 = 5381
 				for _, v := range data {
 					h = ((h << 5) + h) + uint64(v)
