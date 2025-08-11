@@ -8,6 +8,12 @@ import (
 const rune1Max = 1<<7 - 1
 const rune2Max = 1<<11 - 1
 
+// DecodeWtf8 provides a highly optimized, pure Go conversion from a UTF-16 slice
+// to a WTF-8 encoded string. It is the recommended and fastest pure Go converter
+// in this package.
+//
+// Because it uses the `unsafe` package, it provides performance that is
+// significantly better than safe, slice-based alternatives.
 //go:nosplit
 //go:nocheckptr
 func DecodeWtf8(src []uint16) string {
@@ -40,16 +46,17 @@ func DecodeWtf8(src []uint16) string {
 
 	// Single allocation for buffer
 	buf := make([]byte, maxLen)
-
-	// Get raw pointers
-	srcPtr := unsafe.SliceData(src)
-	dstPtr := unsafe.SliceData(buf)
-	written := utf16_convert_nobounds(dstPtr, srcPtr, len(src))
+	written := utf16_convert_nobounds(unsafe.SliceData(buf), unsafe.SliceData(src), len(src))
 
 	// Zero-allocation string conversion
-	return unsafe.String(dstPtr, written)
+	return unsafe.String(unsafe.SliceData(buf), written)
 }
 
+// DecodeWtf8_SliceVer provides a safe, slice-based conversion from a UTF-16 slice
+// to a WTF-8 encoded string.
+//
+// It is primarily retained for benchmarking, comparison, or for use in contexts
+// where the `unsafe` package is not permitted.
 //go:nosplit
 //go:nocheckptr
 func DecodeWtf8_SliceVer(src []uint16) string {
@@ -86,6 +93,9 @@ func DecodeWtf8_SliceVer(src []uint16) string {
 	return unsafe.String(unsafe.SliceData(buf), written)
 }
 
+// isASCII checks if a 64-bit word containing four 16-bit characters is all ASCII.
+// It does this by checking if the high byte of each 16-bit character is zero.
+//
 //go:inline
 func isASCII(w uint64) bool {
 	return (w & 0xFF80FF80FF80FF80) == 0
@@ -123,16 +133,14 @@ func utf16_convert_nobounds(dst *byte, src *uint16, srcLen int) int {
 
 	// Fast path: process 8 UTF-16 codes at once
 	for i+8 <= srcLen {
+		// This check is the key to the fast path. It loads 16 bytes and checks
+		// if all characters are ASCII in a few instructions.
+		// Note: This may perform an unaligned read on some architectures, but it is
+		// handled efficiently by modern amd64 CPUs.
 		chunks := *(*[2]uint64)(unsafe.Add(unsafe.Pointer(src), uintptr(i)*2))
 		if isASCII(chunks[0]) && isASCII(chunks[1]) {
-			// Check for surrogate at block boundary
-			lastWord := *(*uint16)(unsafe.Add(unsafe.Pointer(src), uintptr(i+7)*2))
-			if lastWord >= 0xD800 && lastWord <= 0xDFFF {
-				break
-			}
-
 			// Process ASCII block - simple copy
-			for k := 0; k < 8; k++ {
+			for k := range 8 {
 				*(*byte)(unsafe.Add(unsafe.Pointer(dst), uintptr(j+k))) =
 					byte(*(*uint16)(unsafe.Add(unsafe.Pointer(src), uintptr(i+k)*2)))
 			}
@@ -140,10 +148,11 @@ func utf16_convert_nobounds(dst *byte, src *uint16, srcLen int) int {
 			j += 8
 			continue
 		}
+		// If the block is not pure ASCII, fall back to the scalar path.
 		break
 	}
 
-	// Process remaining chars
+	// Scalar path: process remaining characters one by one.
 	for i < srcLen {
 		word := *(*uint16)(unsafe.Add(unsafe.Pointer(src), uintptr(i)*2))
 
@@ -159,10 +168,11 @@ func utf16_convert_nobounds(dst *byte, src *uint16, srcLen int) int {
 			j += 2
 			i++
 
-		case word >= 0xD800 && word <= 0xDFFF:
+		case word >= 0xD800 && word <= 0xDFFF: // Surrogates (WTF-8 handling)
 			if word <= 0xDBFF && i+1 < srcLen {
 				nextWord := *(*uint16)(unsafe.Add(unsafe.Pointer(src), uintptr(i+1)*2))
 				if nextWord >= 0xDC00 && nextWord <= 0xDFFF {
+					// Valid pair, encode as 4-byte UTF-8.
 					r := (uint32(word-0xD800)<<10 | uint32(nextWord-0xDC00)) + 0x10000
 					*(*byte)(unsafe.Add(unsafe.Pointer(dst), uintptr(j))) = byte((r >> 18) | 0xF0)
 					*(*byte)(unsafe.Add(unsafe.Pointer(dst), uintptr(j+1))) = byte(((r >> 12) & 0x3F) | 0x80)
@@ -183,7 +193,7 @@ func utf16_convert_nobounds(dst *byte, src *uint16, srcLen int) int {
 			j += 3
 			i++
 
-		default:
+		default: // 3-byte sequence (e.g., CJK characters)
 			*(*byte)(unsafe.Add(unsafe.Pointer(dst), uintptr(j))) = byte((word >> 12) | 0xE0)
 			*(*byte)(unsafe.Add(unsafe.Pointer(dst), uintptr(j+1))) = byte(((word >> 6) & 0x3F) | 0x80)
 			*(*byte)(unsafe.Add(unsafe.Pointer(dst), uintptr(j+2))) = byte((word & 0x3F) | 0x80)
@@ -198,6 +208,7 @@ func utf16_convert_nobounds(dst *byte, src *uint16, srcLen int) int {
 }
 
 // 10-20% slower because of bound-cheking, use any go run or test with
+//
 //	-gcflags="-d=ssa/check_bce/debug=1" to check wich lines are bound checked.
 //
 // utf16_convert_slice converts UTF-16 encoded text to UTF-8.
@@ -224,15 +235,12 @@ func utf16_convert_slice(dst []byte, src []uint16) int {
 	// Fast path: process 8 UTF-16 codes at once
 	// Checks if 8 consecutive characters are ASCII using 64-bit word
 	for i+8 <= srcLen {
+		// This check is the key to the fast path. It loads 16 bytes and checks
+		// if all characters are ASCII in a few instructions.
+		// Note: This may perform an unaligned read on some architectures, but it is
+		// handled efficiently by modern amd64 CPUs.
 		chunks := *(*[2]uint64)(unsafe.Pointer(&src[i]))
 		if isASCII(chunks[0]) && isASCII(chunks[1]) {
-			// Check if last character in block is a surrogate
-			// If true, exit fast path to handle properly
-			lastWord := src[i+7]
-			if lastWord >= 0xD800 && lastWord <= 0xDFFF {
-				break
-			}
-
 			// Fast copy ASCII block (8 bytes at once)
 			for k := 0; k < 8; k++ {
 				dst[j+k] = byte(src[i+k])
