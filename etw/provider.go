@@ -96,6 +96,12 @@ func (p *Provider) BuildFilterDesc() (fd []EventFilterDescriptor) {
 
 // MustParseProvider parses a provider string or panics.
 // It wraps [ParseProvider] in a panic-on-error call.
+//
+// Format (Name|GUID)<string>:EnableLevel<uint8>:(EventIDs,)<uint8>:MatchAnyKeyword<uint16>:MatchAllKeyword<uint16>
+//
+// Example: Microsoft-Windows-Kernel-File:0xff:13,14:0x80
+//
+// (0xff here means any Level, 13 and 14 are the event IDs and 0x80 is the MatchAnyKeyword)
 func MustParseProvider(s string) (p Provider) {
 	var err error
 	if p, err = ParseProvider(s); err != nil {
@@ -112,7 +118,7 @@ func IsKnownProvider(p string) bool {
 
 // ParseProvider parses a string and returns a provider.
 // The returned provider is initialized from DefaultProvider.
-// Format (Name|GUID) string:EnableLevel uint8:Event IDs comma sep string:MatchAnyKeyword uint16:MatchAllKeyword uint16
+// Format (Name|GUID)<string>:EnableLevel<uint8>:(EventIDs,)<uint8>:MatchAnyKeyword<uint16>:MatchAllKeyword<uint16>
 //
 // Example: Microsoft-Windows-Kernel-File:0xff:13,14:0x80
 //
@@ -131,31 +137,29 @@ func ParseProvider(s string) (p Provider, err error) {
 	var u uint64
 
 	split := strings.Split(s, ":")
-	for i := 0; i < len(split); i++ {
+	for i := range split {
 		chunk := split[i]
 		switch i {
-		case 0:
+		case 0: // parsing Name or GUID
 			p = ResolveProvider(chunk)
 			if p.IsZero() {
 				err = fmt.Errorf("%w %s", ErrUnkownProvider, chunk)
 				return
 			}
-		case 1:
+		case 1: // parsing EnableLevel
 			if chunk == "" {
 				break
 			}
-			// parsing EnableLevel
 			if u, err = strconv.ParseUint(chunk, 0, 8); err != nil {
 				err = fmt.Errorf("failed to parse EnableLevel: %w", err)
 				return
 			} else {
 				p.EnableLevel = uint8(u)
 			}
-		case 2:
+		case 2: // parsing EventIDs
 			if chunk == "" {
 				break
 			}
-			// parsing event ids
 			for _, eid := range strings.Split(chunk, ",") {
 				if u, err = strconv.ParseUint(eid, 0, 16); err != nil {
 					err = fmt.Errorf("failed to parse EventID: %w", err)
@@ -164,24 +168,20 @@ func ParseProvider(s string) (p Provider, err error) {
 					p.Filter = append(p.Filter, uint16(u))
 				}
 			}
-		case 3:
+		case 3: // parsing MatchAnyKeyword
 			if chunk == "" {
 				break
 			}
-
-			// parsing MatchAnyKeyword
 			if u, err = strconv.ParseUint(chunk, 0, 64); err != nil {
 				err = fmt.Errorf("failed to parse MatchAnyKeyword: %w", err)
 				return
 			} else {
 				p.MatchAnyKeyword = u
 			}
-		case 4:
+		case 4: // parsing MatchAllKeyword
 			if chunk == "" {
 				break
 			}
-
-			// parsing MatchAllKeyword
 			if u, err = strconv.ParseUint(chunk, 0, 64); err != nil {
 				err = fmt.Errorf("failed to parse MatchAllKeyword: %w", err)
 				return

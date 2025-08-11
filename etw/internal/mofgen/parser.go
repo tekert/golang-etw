@@ -169,7 +169,7 @@ func (p *Parser) generateCode() (string, error) {
 
 	// Execute template with parsed data
 	var buf strings.Builder
-	err := tmpl.Execute(&buf, map[string]interface{}{
+	err := tmpl.Execute(&buf, map[string]any{
 		"Classes":      p.outputClasses, // Use ordered slice instead of map
 		"Version":      p.version,
 //		"ClassMapping": p.generateClassMapping(),
