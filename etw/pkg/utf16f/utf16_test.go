@@ -15,25 +15,33 @@ func TestUTF16_To_WTF8(t *testing.T) {
 		input []uint16
 		want  []byte
 	}{
-		// Basic ASCII cases
-		{"EmptyInput", []uint16{}, []byte{}},
-		{"SingleASCII", []uint16{0x41}, []byte("A")},
-		{"ASCII", []uint16{
-			0x41, 0x42, 0x43},
-			[]byte("ABC")},
+		// --- Basic ASCII ---
 
-		// SIMD block alignment cases
+		// "EmptyInput": Tests handling of an empty slice.
+		{"EmptyInput", []uint16{}, []byte{}},
+		// "SingleASCII": Tests a single ASCII character 'A'.
+		{"SingleASCII", []uint16{0x41}, []byte("A")},
+		// "ASCII": Tests a simple string of ASCII characters "ABC".
+		{"ASCII", []uint16{0x41, 0x42, 0x43}, []byte("ABC")},
+
+		// --- SIMD Block Alignment ---
+		// These tests ensure the SIMD fast path for ASCII works correctly with various block sizes.
+
+		// "8CharsASCII": "ABCDEFGH". Tests a full 8-char block.
 		{"8CharsASCII", []uint16{
 			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48},
 			[]byte("ABCDEFGH")},
+		// "15CharsASCII": "ABCDEFGHIJKLMNO". Tests a nearly full 16-char (2x8) block.
 		{"15CharsASCII", []uint16{
 			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
 			0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
 		}, []byte("ABCDEFGHIJKLMNO")},
+		// "16CharsASCII": "ABCDEFGHIJKLMNOP". Tests exactly two 8-char blocks.
 		{"16CharsASCII", []uint16{
 			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
 			0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0x50,
 		}, []byte("ABCDEFGHIJKLMNOP")},
+		// "32CharsASCII": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef". Tests multiple full blocks.
 		{"32CharsASCII", []uint16{
 			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
 			0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0x50,
@@ -41,9 +49,14 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			0x59, 0x5A, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66,
 		}, []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef")},
 
-		// BMP characters (2-byte UTF-8)
-		{"SingleBMP", []uint16{0x00A3}, []byte{0xC2, 0xA3}},                           // £
-		{"BMP", []uint16{0x4F60, 0x597D}, []byte{0xE4, 0xBD, 0xA0, 0xE5, 0xA5, 0xBD}}, // 你好
+		// --- Basic Multilingual Plane (BMP) ---
+		// These tests cover characters that encode to 2 or 3 bytes in UTF-8.
+
+		// "SingleBMP": "£" (U+00A3). A single 2-byte UTF-8 character.
+		{"SingleBMP", []uint16{0x00A3}, []byte{0xC2, 0xA3}},
+		// "BMP": "你好" (U+4F60, U+597D). A common CJK string using 3-byte UTF-8 characters.
+		{"BMP", []uint16{0x4F60, 0x597D}, []byte{0xE4, 0xBD, 0xA0, 0xE5, 0xA5, 0xBD}},
+		// "BMPAtBlockBoundary": "ABCDEFGH你好". Tests transitioning from ASCII fast path to BMP characters.
 		{"BMPAtBlockBoundary", []uint16{
 			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, // ABCDEFGH
 			0x4F60, 0x597D, // 你好
@@ -52,66 +65,73 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			0xE4, 0xBD, 0xA0, 0xE5, 0xA5, 0xBD, // 你好
 		}},
 
-		// Surrogate pair cases
-		{"SingleSurrogatePair", []uint16{
-			0xD834, 0xDD1E},
-			[]byte{0xF0, 0x9D, 0x84, 0x9E}},
+		// --- Valid Surrogate Pairs (4-byte UTF-8) ---
+
+		// "SingleSurrogatePair": "𝄞" (U+1D11E). A single valid surrogate pair.
+		{"SingleSurrogatePair", []uint16{0xD834, 0xDD1E}, []byte{0xF0, 0x9D, 0x84, 0x9E}},
+		// "SurrogateAtBlockBoundary": "ABCDEFGH😀AB". A surrogate pair starting exactly at a SIMD block boundary.
 		{"SurrogateAtBlockBoundary", []uint16{
 			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
 			0xD83D, 0xDE00, // 😀 at boundary
 			0x41, 0x42,
 		}, []byte{65, 66, 67, 68, 69, 70, 71, 72, 240, 159, 152, 128, 65, 66}},
+		// "MultipleSurrogates": "😀👍". Multiple consecutive surrogate pairs.
 		{"MultipleSurrogates", []uint16{
 			0xD83D, 0xDE00, 0xD83D, 0xDC4D},
-			[]byte{240, 159, 152, 128, 240, 159, 145, 141}}, // 😀👍
+			[]byte{240, 159, 152, 128, 240, 159, 145, 141}},
+		// "AlternatingSurrogates": "𐀀𐄁". Two valid surrogate pairs, U+10000 and U+10101.
+		{"AlternatingSurrogates", []uint16{
+			0xD800, 0xDC00, 0xD801, 0xDC01},
+			[]byte{0xF0, 0x90, 0x80, 0x80, 0xF0, 0x90, 0x90, 0x81}},
+		// "ValidSurrogatePairExtremes": "𐀀𴿿". The first (U+10000) and last (U+10FFFF) possible Unicode code points represented by surrogate pairs.
+		// Note: This test was previously misnamed "MixedUnpairedSurrogates".
+		{"ValidSurrogatePairExtremes", []uint16{
+			0xD800, 0xDC00, 0xDBFF, 0xDFFF},
+			[]byte{
+				0xF0, 0x90, 0x80, 0x80, // Valid pair D800,DC00 -> U+10000
+				0xF4, 0x8F, 0xBF, 0xBF, // Valid pair DBFF,DFFF -> U+10FFFF
+			}},
 
-		// WTF-8 invalid surrogate cases
-		{"HighSurrogateOnly", []uint16{
-			0xD800},
-			[]byte{0xED, 0xA0, 0x80}},
-		{"LowSurrogateOnly", []uint16{
-			0xDC00},
-			[]byte{0xED, 0xB0, 0x80}},
-		{"UnpairedHighFollowedByASCII", []uint16{
-			0xD800, 0x0041},
-			[]byte{237, 160, 128, 65}},
-		{"UnpairedHighFollowedByBMP", []uint16{
-			0xD800, 0x4F60},
-			[]byte{237, 160, 128, 228, 189, 160}},
+		// --- Unpaired Surrogates (WTF-8) ---
+		// These tests ensure that lone high or low surrogates are encoded correctly according to the WTF-8 spec.
+
+		// "HighSurrogateOnly": A lone high surrogate U+D800.
+		{"HighSurrogateOnly", []uint16{0xD800}, []byte{0xED, 0xA0, 0x80}},
+		// "LowSurrogateOnly": A lone low surrogate U+DC00.
+		{"LowSurrogateOnly", []uint16{0xDC00}, []byte{0xED, 0xB0, 0x80}},
+		// "UnpairedHighFollowedByASCII": A lone high surrogate followed by 'A'.
+		{"UnpairedHighFollowedByASCII", []uint16{0xD800, 0x0041}, []byte{237, 160, 128, 65}},
+		// "UnpairedHighFollowedByBMP": A lone high surrogate followed by "你".
+		{"UnpairedHighFollowedByBMP", []uint16{0xD800, 0x4F60}, []byte{237, 160, 128, 228, 189, 160}},
+		// "UnpairedLowFollowedBySurrogate": A lone low surrogate followed by a valid surrogate pair "😀".
 		{"UnpairedLowFollowedBySurrogate", []uint16{
 			0xDC00, 0xD83D, 0xDE00},
 			[]byte{237, 176, 128, 240, 159, 152, 128}},
+		// "UnpairedSurrogateAtBlockEnd": "ABCDEFG" followed by a lone high surrogate, ending on a SIMD block boundary.
 		{"UnpairedSurrogateAtBlockEnd", []uint16{
 			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
 			0xD800, // Unpaired at 8-char boundary
 		}, []byte{65, 66, 67, 68, 69, 70, 71, 237, 160, 128}},
-		{
-			"LowSurrogateRange", []uint16{
-				0xDC00, 0xDC01, 0xDCFF},
-			[]byte{0xED, 0xB0, 0x80, 0xED, 0xB0, 0x81, 0xED, 0xB3, 0xBF},
-		},
-		{
-			"HighSurrogateRange", []uint16{
-				0xD800, 0xD801, 0xDBFF},
+		// "HighSurrogateRange": Tests the first, second, and last possible high surrogates (U+D800, U+D801, U+DBFF).
+		{"HighSurrogateRange", []uint16{
+			0xD800, 0xD801, 0xDBFF},
 			[]byte{
 				0xED, 0xA0, 0x80, // First high surrogate
 				0xED, 0xA0, 0x81, // Second high surrogate
 				0xED, 0xAF, 0xBF, // Last high surrogate
-			},
-		},
-		{
-			"AlternatingSurrogates", []uint16{
-				0xD800, 0xDC00, 0xD801, 0xDC01},
-			[]byte{0xF0, 0x90, 0x80, 0x80, 0xF0, 0x90, 0x90, 0x81},
-		},
-		// Specific low surrogate encoding tests
+			}},
+		// "LowSurrogateRange": Tests a few low surrogates across the valid range (U+DC00, U+DC01, U+DCFF).
+		{"LowSurrogateRange", []uint16{
+			0xDC00, 0xDC01, 0xDCFF},
+			[]byte{0xED, 0xB0, 0x80, 0xED, 0xB0, 0x81, 0xED, 0xB3, 0xBF}},
+		// "LowSurrogateEdgeCases": Tests the absolute first (U+DC00) and last (U+DFFF) low surrogates.
 		{"LowSurrogateEdgeCases", []uint16{
 			0xDC00, 0xDFFF},
 			[]byte{
 				0xED, 0xB0, 0x80, // First low (DC00)
 				0xED, 0xBF, 0xBF, // Last low (DFFF)
 			}},
-
+		// "LowSurrogateBytePatterns": Tests specific low surrogates to verify correct byte pattern generation.
 		{"LowSurrogateBytePatterns", []uint16{
 			0xDC01, 0xDC20, 0xDC7F},
 			[]byte{
@@ -119,13 +139,7 @@ func TestUTF16_To_WTF8(t *testing.T) {
 				0xED, 0xB0, 0xA0, // Check middle bits
 				0xED, 0xB1, 0xBF, // Check high bits
 			}},
-
-		{"MixedUnpairedSurrogates", []uint16{
-			0xD800, 0xDC00, 0xDBFF, 0xDFFF},
-			[]byte{
-				0xF0, 0x90, 0x80, 0x80, // Valid pair D800,DC00 -> U+10000
-				0xF4, 0x8F, 0xBF, 0xBF, // Valid pair DBFF,DFFF -> U+10FFFF
-			}},
+		// "TrulyUnpairedSurrogates": "A" and "B" interspersed with unpaired high and low surrogates.
 		{"TrulyUnpairedSurrogates", []uint16{
 			0xD800, 0x0041, 0xDFFF, 0x0042},
 			[]byte{
@@ -135,7 +149,38 @@ func TestUTF16_To_WTF8(t *testing.T) {
 				0x42, // ASCII 'B'
 			}},
 
-		// Mixed content cases
+		// --- Conformance & Edge Cases (from WTF-8 Spec) ---
+
+		// "ReversedSurrogatePair": A low surrogate U+DC00 followed by a high surrogate U+D800. Must be treated as two unpaired surrogates.
+		{"ReversedSurrogatePair",
+			[]uint16{0xDC00, 0xD800},
+			[]byte{0xED, 0xB0, 0x80, 0xED, 0xA0, 0x80}},
+		// "CodePointBeforeSurrogates": U+D7FF, the code point just before the high surrogate range. Must be a normal 3-byte sequence.
+		{"CodePointBeforeSurrogates",
+			[]uint16{0xD7FF},
+			[]byte{0xED, 0x9F, 0xBF}},
+		// "CodePointAfterSurrogates": U+E000, the code point just after the low surrogate range. Must be a normal 3-byte sequence.
+		{"CodePointAfterSurrogates",
+			[]uint16{0xE000},
+			[]byte{0xEE, 0x80, 0x80}},
+		// "TwoHighSurrogates": Two consecutive high surrogates. Must be treated as two unpaired surrogates.
+		{"TwoHighSurrogates",
+			[]uint16{0xD800, 0xD801},
+			[]byte{0xED, 0xA0, 0x80, 0xED, 0xA0, 0x81}},
+		// "TwoLowSurrogates": Two consecutive low surrogates. Must be treated as two unpaired surrogates.
+		{"TwoLowSurrogates",
+			[]uint16{0xDC00, 0xDC01},
+			[]byte{0xED, 0xB0, 0x80, 0xED, 0xB0, 0x81}},
+		// "HighSurrogateAtEnd": "AB" followed by a lone high surrogate at the end of the string.
+		{"HighSurrogateAtEnd", []uint16{
+			0x41, 0x42, 0xD800}, []byte{65, 66, 237, 160, 128}},
+		// "LowSurrogateAtStart": A lone low surrogate at the start of the string, followed by "AB".
+		{"LowSurrogateAtStart", []uint16{
+			0xDC00, 0x41, 0x42}, []byte{237, 176, 128, 65, 66}},
+
+		// --- Mixed Content & Complex Cases ---
+
+		// "MixedAllTypes": "A你😀[unpaired]B". A mix of ASCII, BMP, a valid surrogate pair, an unpaired surrogate, and more ASCII.
 		{"MixedAllTypes", []uint16{
 			0x41,           // ASCII
 			0x4F60,         // BMP
@@ -149,22 +194,7 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			237, 160, 128, // Unpaired high surrogate
 			66, // B
 		}},
-
-		// NULL handling (for wrappers)
-		{"NullTerminated", []uint16{
-			0x41, 0x42, 0x00, 0x43, 0x44}, []byte("AB")},
-		{"StartWithNull", []uint16{
-			0x00, 0x41, 0x42, 0x43}, []byte{}},
-		{"NullAtBlockBoundary", []uint16{
-			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
-			0x00, 0x49, 0x4A, // NULL at boundary
-		}, []byte("ABCDEFGH")},
-
-		// Edge cases
-		{"HighSurrogateAtEnd", []uint16{
-			0x41, 0x42, 0xD800}, []byte{65, 66, 237, 160, 128}},
-		{"LowSurrogateAtStart", []uint16{
-			0xDC00, 0x41, 0x42}, []byte{237, 176, 128, 65, 66}},
+		// "SurrogatePairSpanningBlocks": A 16-char string where a surrogate pair is split across two 8-char SIMD blocks.
 		{"SurrogatePairSpanningBlocks", []uint16{
 			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
 			0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0xD83D,
@@ -173,7 +203,7 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			65, 66, 67, 68, 69, 70, 71, 72,
 			73, 74, 75, 76, 77, 78, 79, 240, 159, 152, 128,
 		}},
-
+		// "FullBMPBlock16": Full block of 16 3-byte BMP characters to test non-ASCII performance.
 		{"FullBMPBlock16", []uint16{
 			0x4E00, 0x4E01, 0x4E02, 0x4E03, 0x4E04, 0x4E05, 0x4E06, 0x4E07,
 			0x4E08, 0x4E09, 0x4E0A, 0x4E0B, 0x4E0C, 0x4E0D, 0x4E0E, 0x4E0F,
@@ -183,55 +213,46 @@ func TestUTF16_To_WTF8(t *testing.T) {
 			0xE4, 0xB8, 0x88, 0xE4, 0xB8, 0x89, 0xE4, 0xB8, 0x8A, 0xE4, 0xB8, 0x8B,
 			0xE4, 0xB8, 0x8C, 0xE4, 0xB8, 0x8D, 0xE4, 0xB8, 0x8E, 0xE4, 0xB8, 0x8F,
 		}},
-		{
-			"FullBMPBlock8", []uint16{
-				0x4E00, 0x4E01, 0x4E02, 0x4E03, 0x4E04, 0x4E05, 0x4E06, 0x4E07,
-			}, []byte{
-				0xE4, 0xB8, 0x80, 0xE4, 0xB8, 0x81, 0xE4, 0xB8, 0x82, 0xE4, 0xB8, 0x83,
-				0xE4, 0xB8, 0x84, 0xE4, 0xB8, 0x85, 0xE4, 0xB8, 0x86, 0xE4, 0xB8, 0x87,
-			}},
-		{
-			"MixedBMPAndASCII", []uint16{
-				0x4E00, 0x0041, 0x4E01, 0x0042, 0x4E02, 0x0043, 0x4E03, 0x0044,
-			}, []byte{
-				0xE4, 0xB8, 0x80, 0x41, 0xE4, 0xB8, 0x81, 0x42,
-				0xE4, 0xB8, 0x82, 0x43, 0xE4, 0xB8, 0x83, 0x44,
-			}},
-		{
-			name:  "SingleAccent", // "ó"
+		// "FullBMPBlock8": Full block of 8 3-byte BMP characters.
+		{"FullBMPBlock8", []uint16{
+			0x4E00, 0x4E01, 0x4E02, 0x4E03, 0x4E04, 0x4E05, 0x4E06, 0x4E07,
+		}, []byte{
+			0xE4, 0xB8, 0x80, 0xE4, 0xB8, 0x81, 0xE4, 0xB8, 0x82, 0xE4, 0xB8, 0x83,
+			0xE4, 0xB8, 0x84, 0xE4, 0xB8, 0x85, 0xE4, 0xB8, 0x86, 0xE4, 0xB8, 0x87,
+		}},
+		// "MixedBMPAndASCII": An alternating sequence of BMP and ASCII characters.
+		{"MixedBMPAndASCII", []uint16{
+			0x4E00, 0x0041, 0x4E01, 0x0042, 0x4E02, 0x0043, 0x4E03, 0x0044,
+		}, []byte{
+			0xE4, 0xB8, 0x80, 0x41, 0xE4, 0xB8, 0x81, 0x42,
+			0xE4, 0xB8, 0x82, 0x43, 0xE4, 0xB8, 0x83, 0x44,
+		}},
+
+		// --- Accented Characters (2-byte UTF-8) ---
+
+		// "SingleAccent": "ó" (U+00F3).
+		{name: "SingleAccent",
 			input: []uint16{0x00F3},
-			want:  []byte{0xC3, 0xB3},
-		},
-		{
-			name:  "MoreAccents", // "áéíóúñÁÉÍÓÚÑ",
+			want:  []byte{0xC3, 0xB3}},
+		// "MoreAccents": "áéíóúñÁÉÍÓÚÑ". A string of common accented characters.
+		{name: "MoreAccents",
 			input: []uint16{0x00E1, 0x00E9, 0x00ED, 0x00F3, 0x00FA, 0x00F1, 0x00C1, 0x00C9, 0x00CD, 0x00D3, 0x00DA, 0x00D1},
-			want:  []byte{0xC3, 0xA1, 0xC3, 0xA9, 0xC3, 0xAD, 0xC3, 0xB3, 0xC3, 0xBA, 0xC3, 0xB1, 0xC3, 0x81, 0xC3, 0x89, 0xC3, 0x8D, 0xC3, 0x93, 0xC3, 0x9A, 0xC3, 0x91},
-		},
-		{
-			"ReversedSurrogatePair",
-			[]uint16{0xDC00, 0xD800},
-			[]byte{0xED, 0xB0, 0x80, 0xED, 0xA0, 0x80}, // Should be two separate unpaired surrogates
-		},
-		{
-			"CodePointBeforeSurrogates",
-			[]uint16{0xD7FF},
-			[]byte{0xED, 0x9F, 0xBF},
-		},
-		{
-			"CodePointAfterSurrogates",
-			[]uint16{0xE000},
-			[]byte{0xEE, 0x80, 0x80},
-		},
-		{
-			"TwoHighSurrogates",
-			[]uint16{0xD800, 0xD801},
-			[]byte{0xED, 0xA0, 0x80, 0xED, 0xA0, 0x81},
-		},
-		{
-			"TwoLowSurrogates",
-			[]uint16{0xDC00, 0xDC01},
-			[]byte{0xED, 0xB0, 0x80, 0xED, 0xB0, 0x81},
-		},
+			want:  []byte{0xC3, 0xA1, 0xC3, 0xA9, 0xC3, 0xAD, 0xC3, 0xB3, 0xC3, 0xBA, 0xC3, 0xB1, 0xC3, 0x81, 0xC3, 0x89, 0xC3, 0x8D, 0xC3, 0x93, 0xC3, 0x9A, 0xC3, 0x91}},
+
+		// --- NULL Termination Handling ---
+		// These tests are important for C-style string interoperability.
+
+		// "NullTerminated": "AB\x00CD". The string should be truncated at the first NULL.
+		{"NullTerminated", []uint16{
+			0x41, 0x42, 0x00, 0x43, 0x44}, []byte("AB")},
+		// "StartWithNull": "\x00ABC". An empty string should be returned.
+		{"StartWithNull", []uint16{
+			0x00, 0x41, 0x42, 0x43}, []byte{}},
+		// "NullAtBlockBoundary": "ABCDEFGH\x00IJ". A NULL character appearing at a SIMD block boundary.
+		{"NullAtBlockBoundary", []uint16{
+			0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
+			0x00, 0x49, 0x4A, // NULL at boundary
+		}, []byte("ABCDEFGH")},
 	}
 
 	for _, tt := range tests {
