@@ -143,7 +143,7 @@ func NewSystemTraceProviderSession(name string) (s *RealTimeSession) {
 	return
 }
 
-// TODO: remove logSessionName, no longer used.
+// TODO: remove logSessionName param, no longer used.
 func NewRealTimeEventTraceProperties(logSessionName string) *EventTracePropertyData2 {
 	traceProps, size := NewEventTracePropertiesV2()
 
@@ -309,8 +309,13 @@ func (s *RealTimeSession) GetTracePropertyCopy() *EventTracePropertyData2 {
 	return s.traceProps.Clone()
 }
 
-// Queries the current trace session to Get updated trace properties and stats.
-// Don't modify the returned properties.
+// Queries the current trace session to get updated trace properties and stats.
+// This is the "controller's view" of the session, using the session handle
+// obtained when Start() was called. It is the most direct way to query a session
+// that this process has created and is actively managing.
+//
+// The returned pointer refers to the session's internal properties struct and should
+// not be modified.
 func (s *RealTimeSession) QueryTrace() (prop *EventTracePropertyData2, err error) {
 	// If you are reusing a EVENT_TRACE_PROPERTIES structure
 	// (i.e. using a structure that you previously passed to StartTrace or ControlTrace),
@@ -345,12 +350,32 @@ func NewQueryTraceProperties(traceName string) *EventTracePropertyData2 {
 	traceProps.LoggerNameOffset = traceProps.GetTraceNameOffset()
 	traceProps.LogFileNameOffset = 0
 
+	if traceProps.Wnode.BufferSize < traceProps.LoggerNameOffset+uint32(len(traceProps.LoggerName)*2) {
+		panic("Not enough buffer space for LoggerName")
+	}
+	if traceProps.Wnode.BufferSize < traceProps.LogFileNameOffset+uint32(len(traceProps.LogFileName)*2) {
+		panic("Not enough buffer space for LogFileName")
+	}
+
 	return traceProps
 }
 
 // Gets the properties of a realtime event trace session with instaceName (loggerName or traceName)
 // logFileName not suported (sessions that write to a file)
 // Use [NewQueryTraceProperties] output as parameter
+//
+// QueryTrace queries the properties and status of a running trace session by name.
+// This is a low-level function that wraps the `ControlTrace` API with the
+// `EVENT_TRACE_CONTROL_QUERY` command. It's used to get statistics for any
+// running session, even those started by other processes.
+//
+// The `queryProp` parameter serves as both input and output. It must be a
+// non-nil pointer to an `EventTracePropertyData2` struct, typically created
+// with `NewQueryTraceProperties`. The `LoggerName` field within this struct
+// is used to identify the session to query. On success, the same struct is
+// populated with the current properties and statistics of the session.
+//
+// This function is used internally by `ConsumerTrace.QueryTrace()`.
 func QueryTrace(queryProp *EventTracePropertyData2) (err error) {
 	if queryProp == nil {
 		return fmt.Errorf("data must be non nil")

@@ -9,7 +9,7 @@ import (
 
 var (
 	eventPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &Event{
 				EventData:    make(map[string]interface{}),
 				UserData:     make(map[string]interface{}),
@@ -27,8 +27,8 @@ type Event struct {
 		Skippable bool
 	} `json:"-"`
 
-	EventData map[string]interface{} `json:",omitempty"`
-	UserData  map[string]interface{} `json:",omitempty"`
+	EventData map[string]any `json:",omitempty"`
+	UserData  map[string]any `json:",omitempty"`
 	System    struct {
 		Channel     string
 		Computer    string
@@ -142,7 +142,7 @@ func (e *Event) Release() {
 	eventPool.Put(e)
 }
 
-func (e *Event) GetProperty(name string) (i interface{}, ok bool) {
+func (e *Event) GetProperty(name string) (i any, ok bool) {
 
 	if e.EventData != nil {
 		if i, ok = e.EventData[name]; ok {
