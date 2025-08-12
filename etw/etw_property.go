@@ -5,7 +5,6 @@ package etw
 import (
 	"fmt"
 	"math"
-	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -36,29 +35,17 @@ type Property struct {
 	userDataRemaining uint16
 }
 
-var (
-	// Property buffer pool to reuse Property structs
-	// Is reused multiple times for every new event record.
-	propertyPool = sync.Pool{
-		New: func() interface{} {
-			return &Property{}
-		},
-	}
-)
+// The global propertyPool is no longer used. Properties are now managed in
+// blocks by the EventRecordHelper for much higher performance.
 
-func getProperty() *Property {
-	return propertyPool.Get().(*Property)
-}
-
-// Sets all fields of the struct to zero/empty values
+// Sets all fields of the struct to zero/empty values.
+// This is called by the helper before a property is reused.
 func (p *Property) reset() {
 	*p = Property{}
 }
 
-func (p *Property) release() {
-	p.reset()
-	propertyPool.Put(p)
-}
+// release is no longer called on individual properties.
+// The EventRecordHelper releases the entire block of properties at once.
 
 func (p *Property) Parseable() bool {
 	return p.evtRecordHelper != nil && p.evtPropInfo != nil && p.pValue > 0
@@ -249,7 +236,7 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 			"Property Length: %d\n"+
 			"Error: %v\n"+
 			"IsMof: %v\n"+
-			"IsXML: %v\n",
+			"IsXML: %v",
 			p.name,
 			p.evtPropInfo.InType(),
 			p.evtPropInfo.OutType(),
@@ -263,7 +250,7 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 		return
 	}
 
-	value = UTF16ToStringETW(*buffPtr)
+	value = UTF16SliceToString(*buffPtr)
 
 	return
 }
@@ -272,6 +259,8 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 var gFixTcpIpGuid = MustParseGUID("9a280ac0-c8e0-11d1-84e2-00c04fb998a2")
 
 // temporary measures to handle legacy MOF events (Kernel events)
+// UPDATE: connid is always 0 for users, only the kernel knows.
+// https://stackoverflow.com/questions/48844533/etw-connid-in-network-events-always-zero/79351348#79351348
 func (p *Property) fixMOFProp() string {
 	if p.evtPropInfo.InType() == TDH_INTYPE_POINTER {
 		// "TcpIp" or "UdpIp"
