@@ -597,13 +597,14 @@ func NewEventTraceSessionProperties(sessionName string) (*EventTracePropertyData
 	return &EventTracePropertyData{}, uint32(unsafe.Sizeof(EventTracePropertyData{}))
 }
 
-// Only if it a name is present
+// Only if a name is present
+// null terminated unicode string.
 func (e *EventTracePropertyData) GetTraceName() *uint16 {
-	if e.Wnode.BufferSize >= e.LoggerNameOffset {
-		return &e.LoggerName[0]
-	} else {
+	if e.LoggerNameOffset == 0 || e.LoggerNameOffset >= e.Wnode.BufferSize {
 		return nil
 	}
+	//return &e.LoggerName[0]
+	return (*uint16)(unsafe.Pointer(uintptr(unsafe.Pointer(e)) + uintptr(e.LoggerNameOffset)))
 }
 
 func (e *EventTracePropertyData) GetFileName() *uint16 {
@@ -733,12 +734,7 @@ func (e *EventTracePropertyData2) GetTraceNameOffset() uint32 {
 	return uint32(unsafe.Offsetof(EventTracePropertyData2{}.LogFileName))
 }
 
-// Set the logger name
-// NOTE: [StartTrace] will set it for us if we provide the LogNameOffset.
-//
-// This does NOT update the [EventTracePropertyData2.Prop.LogNameOffset] field.
-// You have to set it manually.
-func (e *EventTracePropertyData2) SetTraceName(name string) *uint16 {
+func (e *EventTracePropertyData2) SetTraceName_old(name string) *uint16 {
 	if len(name) >= ((cap(e.LoggerName) / 2) - 1) { // 1 for null terminator
 		panic("LoggerName too long")
 	}
@@ -753,18 +749,29 @@ func (e *EventTracePropertyData2) SetTraceName(name string) *uint16 {
 	}
 }
 
-// null terminated unicode string.
-func (e *EventTracePropertyData2) GetLogFileName() *uint16 {
-	return &e.LogFileName[0]
+// Set the logger name
+// NOTE: [StartTrace] will set it for us if we provide the LogNameOffset.
+//
+// This does NOT update the [EventTracePropertyData2.Prop.LogNameOffset] field.
+// You have to set it manually.
+func (e *EventTracePropertyData2) SetTraceName(name string) {
+	loggerName, _ := syscall.UTF16FromString(name)
+	if len(loggerName) > len(e.LoggerName) { // Does it fit in the fixed-size buffer?
+		panic("LoggerName too long for the fixed-size buffer")
+	}
+	copy(e.LoggerName[:], loggerName) // Copy the string into the fixed-size buffer
 }
 
-// Set the log file name as a unicode string
-// NOTE: [StartTrace] will set it for us if we provide the LogFileNameOffset.
-// Same for ControlTrace when querying.
-//
-// This does NOT update the [EventTracePropertyData2.Prop.LogFileNameOffset] field.
-// You have to set it manually.
-func (e *EventTracePropertyData2) SetLogFileName(fName string) *uint16 {
+// null terminated unicode string.
+func (e *EventTracePropertyData2) GetLogFileName() *uint16 {
+	if e.LogFileNameOffset == 0 || e.LogFileNameOffset >= e.Wnode.BufferSize {
+		return nil
+	}
+	//return &e.LogFileName[0]
+	return (*uint16)(unsafe.Pointer(uintptr(unsafe.Pointer(e)) + uintptr(e.LogFileNameOffset)))
+}
+
+func (e *EventTracePropertyData2) SetLogFileName_old(fName string) *uint16 {
 	if len(fName) >= ((cap(e.LogFileName) / 2) - 1) { // 1 for null terminator
 		panic("LogFileName too long")
 	}
@@ -777,6 +784,20 @@ func (e *EventTracePropertyData2) SetLogFileName(fName string) *uint16 {
 	} else {
 		panic("Not enough bugger space for LogFileName")
 	}
+}
+
+// Set the log file name as a unicode string
+// NOTE: [StartTrace] will set it for us if we provide the LogFileNameOffset.
+// Same for ControlTrace when querying.
+//
+// This does NOT update the [EventTracePropertyData2.Prop.LogFileNameOffset] field.
+// You have to set it manually.
+func (e *EventTracePropertyData2) SetLogFileName(fName string) {
+	logFileName, _ := syscall.UTF16FromString(fName)
+	if len(logFileName) > len(e.LogFileName) {
+		panic("LogFileName too long for the fixed-size buffer")
+	}
+	copy(e.LogFileName[:], logFileName)
 }
 
 func (e *EventTracePropertyData2) GetLogFileNameOffset() uint32 {
@@ -889,7 +910,7 @@ type EventFilterEventID struct {
 	Events [1]uint16
 }
 
-func AllocEventFilterEventID(filter []uint16) (f *EventFilterEventID) {
+func AllocEventFilterEventID_old(filter []uint16) (f *EventFilterEventID) {
 	count := uint16(len(filter))
 	size := max(4+len(filter)*2, int(unsafe.Sizeof(EventFilterEventID{})))
 	buf := make([]byte, size)
@@ -902,6 +923,26 @@ func AllocEventFilterEventID(filter []uint16) (f *EventFilterEventID) {
 		eid = unsafe.Add(eid, 2)
 	}
 	f.Count = count
+	return
+}
+
+// AllocEventFilterEventID allocates a buffer for an EVENT_FILTER_EVENT_ID structure
+// with a flexible array member.
+func AllocEventFilterEventID(filter []uint16) (f *EventFilterEventID) {
+	count := uint16(len(filter))
+	// The total size is the header (4 bytes: FilterIn, Reserved, Count)
+	// plus the size of the event data (count * 2 bytes).
+	size := 4 + uintptr(count)*unsafe.Sizeof(uint16(0))
+	buf := make([]byte, size)
+
+	// Cast the start of the buffer to our struct pointer.
+	f = (*EventFilterEventID)(unsafe.Pointer(&buf[0]))
+	f.Count = count
+	if count > 0 {
+		eventsSlice := unsafe.Slice(&f.Events[0], count)
+		copy(eventsSlice, filter) // Copy the filter data into the flexible array member.
+	}
+
 	return
 }
 
@@ -1038,20 +1079,26 @@ func (e *EventTraceLogfile) Clone() *EventTraceLogfile {
 	if e == nil {
 		return nil
 	}
+	
+    // This correctly copies all members, including nested structs and unions.
+    clone := *e
 
-	dst := &EventTraceLogfile{}
-	*dst = *e // Copy value fields
+	// Reset function pointers to zero
+	// These pointers are not valid after the trace session ends.
+    clone.BufferCallback = 0
+    clone.Callback = 0
+    clone.Context = 0
 
 	// Deep copy string pointers
-	dst.LoggerName = CopyUTF16Ptr(e.LoggerName)
-	dst.LogFileName = CopyUTF16Ptr(e.LogFileName)
+	clone.LoggerName = CopyUTF16Ptr(e.LoggerName)
+	clone.LogFileName = CopyUTF16Ptr(e.LogFileName)
 
 	// No need to copy LogfileHeader.LoggerName and LogfileHeader.LogFileName
 	// since they are not used according to Microsoft docs
-	dst.LogfileHeader.LoggerName = nil
-	dst.LogfileHeader.LogFileName = nil
+	clone.LogfileHeader.LoggerName = nil
+	clone.LogfileHeader.LogFileName = nil
 
-	return dst
+	return &clone
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_record
@@ -1138,8 +1185,8 @@ func (e *EventRecord) IsMof() bool {
 }
 
 // TraceEventInfo pool for GetEventInformation() calls.
-// 1024 bytes should be enough for most cases as starting capacity.
-var tdhInfoPool = sync.Pool{New: func() any {b := make([]byte, 1024); return &b}}
+// 8192 bytes should be enough for most cases as starting capacity.
+var tdhInfoPool = sync.Pool{New: func() any { b := make([]byte, 8192); return &b }}
 
 // Used for performance-critical slice length modification.
 type sliceHeader struct {
