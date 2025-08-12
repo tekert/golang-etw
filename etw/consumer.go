@@ -68,7 +68,7 @@ type Consumer struct {
 	closed bool
 
 	tmu    sync.RWMutex // Protect trace updates
-	traces sync.Map     // Traces Information
+	traces sync.Map     // map[string]*ConsumerTrace
 
 	lastError error
 
@@ -116,7 +116,7 @@ type Consumer struct {
 }
 
 type traceContext struct {
-	trace    *Trace
+	trace    *ConsumerTrace
 	consumer *Consumer
 	pools    *localPools // thread local storage pools to reduce possible lock contention.
 }
@@ -158,17 +158,17 @@ func NewConsumer(ctx context.Context) (c *Consumer) {
 // }
 
 // gets or creates a new one if it doesn't exist
-func (c *Consumer) getOrAddTrace(traceName string) *Trace {
-	actual, _ := c.traces.LoadOrStore(traceName, newTrace(traceName))
-	return actual.(*Trace)
+func (c *Consumer) getOrAddTrace(traceName string) *ConsumerTrace {
+	actual, _ := c.traces.LoadOrStore(traceName, newConsumerTrace(traceName))
+	return actual.(*ConsumerTrace)
 }
 
 // Returns the current traces info
-func (c *Consumer) GetTraces() map[string]*Trace {
-	traces := make(map[string]*Trace)
+func (c *Consumer) GetTraces() map[string]*ConsumerTrace {
+	traces := make(map[string]*ConsumerTrace)
 	// create map from sync.Map
 	c.traces.Range(func(key, value interface{}) bool {
-		t := value.(*Trace)
+		t := value.(*ConsumerTrace)
 		c.tmu.RLock()
 		tc := t
 		c.tmu.RUnlock()
@@ -178,17 +178,15 @@ func (c *Consumer) GetTraces() map[string]*Trace {
 	return traces
 }
 
-// GetTrace retrieves a trace by its name from the consumer's trace collection.
-// It returns a pointer to the Trace and a boolean indicating whether the trace was found.
-func (c *Consumer) GetTrace(tname string) (t *Trace, ok bool) {
-	if v, ok := c.traces.Load(tname); ok {
-		trace := v.(*Trace)
-		c.tmu.RLock()
-		t = trace
-		c.tmu.RUnlock()
-		return t, ok
+// GetTrace retrieves a pointer to the live ConsumerTrace object by its name.
+// This allows access to real-time statistics via the exported atomic fields.
+// It returns the trace and a boolean indicating whether it was found.
+func (c *Consumer) GetTrace(tname string) (t *ConsumerTrace, ok bool) {
+	v, ok := c.traces.Load(tname)
+	if !ok {
+		return nil, false
 	}
-	return nil, false
+	return v.(*ConsumerTrace), true
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/etw/rt-lostevent
@@ -228,11 +226,9 @@ func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 	// ensure userctx is not garbage collected after CloseTrace or it crashes invalid mem.
 	userctx := e.getContext()
 
-	c.tmu.Lock()
 	if userctx != nil && userctx.trace.open {
-		userctx.trace.traceLogFileBuffer = e
+		userctx.trace.updateTraceLogFile(e)
 	}
-	c.tmu.Unlock()
 
 	if c.ctx.Err() != nil {
 		// if the consumer has been stopped we
@@ -261,7 +257,7 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 		if !errorOccurred {
 			errorOccurred = true
 			er.getUserContext().trace.ErrorEvents.Add(1) // safe here.
-			log.Error().Err(err).Msg("callback error")   // one time only for now, TODO: sampling.
+			//log.Error().Err(err).Msg("callback error")   // one time only for now, TODO: sampling.
 		}
 		c.lastError = err
 	}
@@ -357,7 +353,7 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 
 	// closing trace handles
 	c.traces.Range(func(key, value interface{}) bool {
-		t := value.(*Trace)
+		t := value.(*ConsumerTrace)
 		log.Debug().Str("trace", t.TraceName).Msg("Closing handle for trace")
 		// if we don't wait for traces ERROR_CTX_CLOSE_PENDING is a valid error
 		// The ERROR_CTX_CLOSE_PENDING code indicates that the CloseTrace function
@@ -413,7 +409,8 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	}
 
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilea
-	var loggerInfo *EventTraceLogfile = &ti.traceLogFile
+	// Create a temporary EventTraceLogfile struct. It will be populated by OpenTrace on success.
+	var loggerInfo EventTraceLogfile
 	// PROCESS_TRACE_MODE_EVENT_RECORD to receive EventRecords (new format)
 	// PROCESS_TRACE_MODE_RAW_TIMESTAMP don't convert TimeStamp member of EVENT_HEADER and EVENT_TRACE_HEADER to system time
 	// PROCESS_TRACE_MODE_REAL_TIME to receive events in real time
@@ -434,13 +431,18 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 		loggerInfo.LoggerName = ti.TraceNameW
 	}
 
-	if traceHandle, err = OpenTrace(loggerInfo); err != nil {
+	if traceHandle, err = OpenTrace(&loggerInfo); err != nil {
 		return err
 	}
 
 	// Trace open
 	ti.handle = syscall.Handle(traceHandle)
 	ti.open = true
+
+	// On success, OpenTrace populates loggerInfo with the initial trace state.
+	// We clone it to create a safe, managed copy and store it in the atomic pointer.
+	// This makes the initial state available immediately.
+	ti.lastTraceLogfile.Store(loggerInfo.Clone())
 
 	return nil
 }
@@ -480,13 +482,13 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 // 	return
 // }
 
-// same as [Trace.QueryTrace] but using string traceName
+// same as [ConsumerTrace.QueryTrace] but using string traceName
 func (c *Consumer) QueryTrace(traceName string) (prop *EventTracePropertyData2, err error) {
 	value, ok := c.traces.Load(traceName)
 	if !ok {
 		return nil, fmt.Errorf("trace %s not found", traceName)
 	}
-	t := value.(*Trace)
+	t := value.(*ConsumerTrace)
 	return t.QueryTrace()
 }
 
@@ -616,7 +618,7 @@ func (c *Consumer) Start() (err error) {
 	// opening all traces that are not opened first,
 	c.traces.Range(func(key, value any) bool {
 		name := key.(string)
-		trace := value.(*Trace)
+		trace := value.(*ConsumerTrace)
 		// if trace is already opened skip
 		if trace.open {
 			return true // continue iteration
@@ -635,13 +637,13 @@ func (c *Consumer) Start() (err error) {
 	// opens a new goroutine for each trace and blocks.
 	c.traces.Range(func(key, value any) bool {
 		name := key.(string)
-		trace := value.(*Trace)
+		trace := value.(*ConsumerTrace)
 		if trace.processing {
 			return true // continue iteration
 		}
 
 		c.Add(1)
-		go func(name string, trace *Trace) {
+		go func(name string, trace *ConsumerTrace) {
 			defer c.Done()
 			//c.processTrace(name, trace)
 			c.processTraceWithTimeout(name, trace)
@@ -652,7 +654,7 @@ func (c *Consumer) Start() (err error) {
 	return
 }
 
-func (c *Consumer) processTrace(name string, trace *Trace) {
+func (c *Consumer) processTrace(name string, trace *ConsumerTrace) {
 	// Lock the goroutine to the OS thread (callback will also be an os thread)
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -684,7 +686,7 @@ func (c *Consumer) processTrace(name string, trace *Trace) {
 
 // Will return from the goroutine if ProcessTrace doesn't return after close.
 // This will leave the ProcessTrace detached and flushing events.
-func (c *Consumer) processTraceWithTimeout(name string, trace *Trace) {
+func (c *Consumer) processTraceWithTimeout(name string, trace *ConsumerTrace) {
 	//traceDone := trace.done // capture the reference just in case
 	pdone := make(chan struct{})
 	// Start ProcessTrace in separate goroutine
