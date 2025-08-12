@@ -4,46 +4,40 @@ package etw
 
 import "strings"
 
-type ProviderDefinition struct {
+type ProviderKernel struct {
 	Name   string
 	Kernel bool
 	GUID   string
 	Flags  uint32
 }
 
-// GetKernelProviderFlags returns the flags for the given kernel provider names or GUIDs
-// It is case insensitive
-func GetKernelProviderFlags(terms ...string) (flags uint32) {
-	for _, t := range terms {
-		for _, pd := range KernelProviders {
-			if strings.EqualFold(t, pd.Name) || t == pd.GUID {
-				flags |= pd.Flags
-			}
-		}
-
-	}
-	return
-}
-
-// Checks if this is a system event trace provider
-func IsKernelProvider(term string) bool {
-	for _, pd := range KernelProviders {
-		if strings.EqualFold(term, pd.Name) || term == pd.GUID {
-			return true
-		}
-	}
-	return false
-}
+// KERNEL_LOGGER_NAME
+const (
+	NtKernelLogger = "NT Kernel Logger"
+	//  0x9e814aad, 0x3204, 0x11d2, 0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39
+)
 
 // https://learn.microsoft.com/en-us/windows/win32/etw/nt-kernel-logger-constants
 var (
+
+	// https://learn.microsoft.com/en-us/windows/win32/etw/msnt-systemtrace
+	//systemTraceControlGuid = MustParseGUIDFromString("{9E814AAD-3204-11D2-9A82-006008A86939}")
+
+	// "Windows Kernel Trace" provider GUID (only one session can be running at any time)
+	// If there is another session running that uses this GUID, the new session will stop the old one.
+	systemTraceControlGuid = &GUID{ /* {9E814AAD-3204-11D2-9A82-006008A86939} */
+		Data1: 0x9e814aad,
+		Data2: 0x3204,
+		Data3: 0x11d2,
+		Data4: [8]byte{0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39},
+	}
 
 	// Most of these are Legacy events, using MOF.
 	// Some providers for the kernel are very old and not parse well, like NetworkTCPIP, use the manifest providers
 	// or the new SystemProvider on Windows 10 SDK build 20348 or later
 	//
 	// But they are still useful for some cases. like obtaining context switches.
-	KernelProviders = []ProviderDefinition{
+	KernelProviders = []ProviderKernel{
 
 		// Some comments where taken from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/Parsers/KernelTraceEventParser.cs
 
@@ -263,4 +257,193 @@ var (
 
 		//{Name: "WmiEventLogger", Kernel: true, GUID: "{44608a51-1851-4456-98b2-b300e931ee41}"}
 	}
+)
+
+var (
+	// New System Provider GUIDs (replaces the old NT Kernel Logger)
+	// Used in windows 10 SDK build 20348 or later
+
+	SystemAlpcProviderGuid       = GUID{0xfcb9baaf, 0xe529, 0x4980, [8]byte{0x92, 0xe9, 0xce, 0xd1, 0xa6, 0xaa, 0xdf, 0xdf}}
+	SystemConfigProviderGuid     = GUID{0xfef3a8b6, 0x318d, 0x4b67, [8]byte{0xa9, 0x6a, 0x3b, 0x0f, 0x6b, 0x8f, 0x18, 0xfe}}
+	SystemCpuProviderGuid        = GUID{0xc6c5265f, 0xeae8, 0x4650, [8]byte{0xaa, 0xe4, 0x9d, 0x48, 0x60, 0x3d, 0x85, 0x10}}
+	SystemHypervisorProviderGuid = GUID{0xbafa072a, 0x918a, 0x4bed, [8]byte{0xb6, 0x22, 0xbc, 0x15, 0x20, 0x97, 0x09, 0x8f}}
+	SystemInterruptProviderGuid  = GUID{0xd4bbee17, 0xb545, 0x4888, [8]byte{0x85, 0x8b, 0x74, 0x41, 0x69, 0x01, 0x5b, 0x25}}
+	SystemIoProviderGuid         = GUID{0x3d5c43e3, 0x0f1c, 0x4202, [8]byte{0xb8, 0x17, 0x17, 0x4c, 0x00, 0x70, 0xdc, 0x79}}
+	SystemIoFilterProviderGuid   = GUID{0xfbd09363, 0x9e22, 0x4661, [8]byte{0xb8, 0xbf, 0xe7, 0xa3, 0x4b, 0x53, 0x5b, 0x8c}}
+	SystemLockProviderGuid       = GUID{0x721ddfd3, 0xdacc, 0x4e1e, [8]byte{0xb2, 0x6a, 0xa2, 0xcb, 0x31, 0xd4, 0x70, 0x5a}}
+	SystemMemoryProviderGuid     = GUID{0x82958ca9, 0xb6cd, 0x47f8, [8]byte{0xa3, 0xa8, 0x03, 0xae, 0x85, 0xa4, 0xbc, 0x24}}
+	SystemObjectProviderGuid     = GUID{0xfebd7460, 0x3d1d, 0x47eb, [8]byte{0xaf, 0x49, 0xc9, 0xee, 0xb1, 0xe1, 0x46, 0xf2}}
+	SystemPowerProviderGuid      = GUID{0xc134884a, 0x32d5, 0x4488, [8]byte{0x80, 0xe5, 0x14, 0xed, 0x7a, 0xbb, 0x82, 0x69}}
+	SystemProcessProviderGuid    = GUID{0x151f55dc, 0x467d, 0x471f, [8]byte{0x83, 0xb5, 0x5f, 0x88, 0x9d, 0x46, 0xff, 0x66}}
+	SystemProfileProviderGuid    = GUID{0xbfeb0324, 0x1cee, 0x496f, [8]byte{0xa4, 0x09, 0x2a, 0xc2, 0xb4, 0x8a, 0x63, 0x22}}
+	SystemRegistryProviderGuid   = GUID{0x16156bd9, 0xfab4, 0x4cfa, [8]byte{0xa2, 0x32, 0x89, 0xd1, 0x09, 0x90, 0x58, 0xe3}}
+	SystemSchedulerProviderGuid  = GUID{0x599a2a76, 0x4d91, 0x4910, [8]byte{0x9a, 0xc7, 0x7d, 0x33, 0xf2, 0xe9, 0x7a, 0x6c}}
+	SystemSyscallProviderGuid    = GUID{0xe4310a25, 0x0b1f, 0x4e6d, [8]byte{0x8c, 0x5d, 0x6a, 0x7b, 0x5b, 0x0d, 0x5c, 0x3d}}
+	SystemTimerProviderGuid      = GUID{0x6a399ae0, 0x4e0b, 0x4d6d, [8]byte{0x8c, 0x5d, 0x6a, 0x7b, 0x5b, 0x0d, 0x5c, 0x3d}}
+)
+
+// GetKernelProviderFlags returns the flags for the given kernel provider names or GUIDs
+// It is case insensitive
+func GetKernelProviderFlags(terms ...string) (flags uint32) {
+	for _, t := range terms {
+		for _, pd := range KernelProviders {
+			if strings.EqualFold(t, pd.Name) || t == pd.GUID {
+				flags |= pd.Flags
+			}
+		}
+
+	}
+	return
+}
+
+// Checks if this is a system event trace provider
+func IsKernelProvider(term string) bool {
+	for _, pd := range KernelProviders {
+		if strings.EqualFold(term, pd.Name) || term == pd.GUID {
+			return true
+		}
+	}
+	return false
+}
+
+// v10.0.20348 evntrace.h
+// System Provider Keywords
+// Source: Windows SDK build 20348.1
+// Used for: https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+const (
+	// System ALPC Provider
+	SYSTEM_ALPC_KW_GENERAL = 0x00000001
+
+	// System Config Provider
+	SYSTEM_CONFIG_KW_SYSTEM   = 0x00000001
+	SYSTEM_CONFIG_KW_GRAPHICS = 0x00000002
+	SYSTEM_CONFIG_KW_STORAGE  = 0x00000004
+	SYSTEM_CONFIG_KW_NETWORK  = 0x00000008
+	SYSTEM_CONFIG_KW_SERVICES = 0x00000010
+	SYSTEM_CONFIG_KW_PNP      = 0x00000020
+	SYSTEM_CONFIG_KW_OPTICAL  = 0x00000040
+
+	// System CPU Provider
+	SYSTEM_CPU_KW_CONFIG        = 0x00000001
+	SYSTEM_CPU_KW_CACHE_FLUSH   = 0x00000002
+	SYSTEM_CPU_KW_SPEC_CONTROL  = 0x00000004
+	SYSTEM_CPU_KW_DOMAIN_CHANGE = 0x00000008
+
+	// System Hypervisor Provider
+	SYSTEM_HYPERVISOR_KW_PROFILE    = 0x00000001
+	SYSTEM_HYPERVISOR_KW_CALLOUTS   = 0x00000002
+	SYSTEM_HYPERVISOR_KW_VTL_CHANGE = 0x00000004
+
+	// System Interrupt Provider
+	SYSTEM_INTERRUPT_KW_GENERAL         = 0x00000001
+	SYSTEM_INTERRUPT_KW_CLOCK_INTERRUPT = 0x00000002
+	SYSTEM_INTERRUPT_KW_DPC             = 0x00000004
+	SYSTEM_INTERRUPT_KW_DPC_QUEUE       = 0x00000008
+	SYSTEM_INTERRUPT_KW_WDF_DPC         = 0x00000010
+	SYSTEM_INTERRUPT_KW_WDF_INTERRUPT   = 0x00000020
+	SYSTEM_INTERRUPT_KW_IPI             = 0x00000040
+
+	// System IO Provider
+	SYSTEM_IO_KW_DISK         = 0x00000001
+	SYSTEM_IO_KW_DISK_INIT    = 0x00000002
+	SYSTEM_IO_KW_FILENAME     = 0x00000004
+	SYSTEM_IO_KW_SPLIT        = 0x00000008
+	SYSTEM_IO_KW_FILE         = 0x00000010
+	SYSTEM_IO_KW_OPTICAL      = 0x00000020
+	SYSTEM_IO_KW_OPTICAL_INIT = 0x00000040
+	SYSTEM_IO_KW_DRIVERS      = 0x00000080
+	SYSTEM_IO_KW_CC           = 0x00000100
+	SYSTEM_IO_KW_NETWORK      = 0x00000200
+	SYSTEM_IO_KW_FILE_INIT    = 0x00000400
+	SYSTEM_IO_KW_TIMER        = 0x00000800
+
+	// System IO Filter Provider
+	SYSTEM_IOFILTER_KW_GENERAL = 0x00000001
+	SYSTEM_IOFILTER_KW_INIT    = 0x00000002
+	SYSTEM_IOFILTER_KW_FASTIO  = 0x00000004
+	SYSTEM_IOFILTER_KW_FAILURE = 0x00000008
+
+	// System Lock Provider
+	SYSTEM_LOCK_KW_SPINLOCK          = 0x00000001
+	SYSTEM_LOCK_KW_SPINLOCK_COUNTERS = 0x00000002
+	SYSTEM_LOCK_KW_SYNC_OBJECTS      = 0x00000004
+
+	// System Memory Provider
+	SYSTEM_MEMORY_KW_GENERAL       = 0x00000001
+	SYSTEM_MEMORY_KW_HARD_FAULTS   = 0x00000002
+	SYSTEM_MEMORY_KW_ALL_FAULTS    = 0x00000004
+	SYSTEM_MEMORY_KW_POOL          = 0x00000008
+	SYSTEM_MEMORY_KW_MEMINFO       = 0x00000010
+	SYSTEM_MEMORY_KW_PFSECTION     = 0x00000020
+	SYSTEM_MEMORY_KW_MEMINFO_WS    = 0x00000040
+	SYSTEM_MEMORY_KW_HEAP          = 0x00000080
+	SYSTEM_MEMORY_KW_WS            = 0x00000100
+	SYSTEM_MEMORY_KW_CONTMEM_GEN   = 0x00000200
+	SYSTEM_MEMORY_KW_VIRTUAL_ALLOC = 0x00000400
+	SYSTEM_MEMORY_KW_FOOTPRINT     = 0x00000800
+	SYSTEM_MEMORY_KW_SESSION       = 0x00001000
+	SYSTEM_MEMORY_KW_REFSET        = 0x00002000
+	SYSTEM_MEMORY_KW_VAMAP         = 0x00004000
+	SYSTEM_MEMORY_KW_NONTRADEABLE  = 0x00008000
+
+	// System Object Provider
+	SYSTEM_OBJECT_KW_GENERAL = 0x00000001
+	SYSTEM_OBJECT_KW_HANDLE  = 0x00000002
+
+	// System Power Provider
+	SYSTEM_POWER_KW_GENERAL          = 0x00000001
+	SYSTEM_POWER_KW_HIBER_RUNDOWN    = 0x00000002
+	SYSTEM_POWER_KW_PROCESSOR_IDLE   = 0x00000004
+	SYSTEM_POWER_KW_IDLE_SELECTION   = 0x00000008
+	SYSTEM_POWER_KW_PPM_EXIT_LATENCY = 0x00000010
+
+	// System Process Provider
+	SYSTEM_PROCESS_KW_GENERAL       = 0x00000001
+	SYSTEM_PROCESS_KW_INSWAP        = 0x00000002
+	SYSTEM_PROCESS_KW_FREEZE        = 0x00000004
+	SYSTEM_PROCESS_KW_PERF_COUNTER  = 0x00000008
+	SYSTEM_PROCESS_KW_WAKE_COUNTER  = 0x00000010
+	SYSTEM_PROCESS_KW_WAKE_DROP     = 0x00000020
+	SYSTEM_PROCESS_KW_WAKE_EVENT    = 0x00000040
+	SYSTEM_PROCESS_KW_DEBUG_EVENTS  = 0x00000080
+	SYSTEM_PROCESS_KW_DBGPRINT      = 0x00000100
+	SYSTEM_PROCESS_KW_JOB           = 0x00000200
+	SYSTEM_PROCESS_KW_WORKER_THREAD = 0x00000400
+	SYSTEM_PROCESS_KW_THREAD        = 0x00000800
+	SYSTEM_PROCESS_KW_LOADER        = 0x00001000
+
+	// System Profile Provider
+	SYSTEM_PROFILE_KW_GENERAL     = 0x00000001
+	SYSTEM_PROFILE_KW_PMC_PROFILE = 0x00000002
+
+	// System Registry Provider
+	SYSTEM_REGISTRY_KW_GENERAL      = 0x00000001
+	SYSTEM_REGISTRY_KW_HIVE         = 0x00000002
+	SYSTEM_REGISTRY_KW_NOTIFICATION = 0x00000004
+
+	// System Scheduler Provider
+	SYSTEM_SCHEDULER_KW_XSCHEDULER            = 0x00000001
+	SYSTEM_SCHEDULER_KW_DISPATCHER            = 0x00000002
+	SYSTEM_SCHEDULER_KW_KERNEL_QUEUE          = 0x00000004
+	SYSTEM_SCHEDULER_KW_SHOULD_YIELD          = 0x00000008
+	SYSTEM_SCHEDULER_KW_ANTI_STARVATION       = 0x00000010
+	SYSTEM_SCHEDULER_KW_LOAD_BALANCER         = 0x00000020
+	SYSTEM_SCHEDULER_KW_AFFINITY              = 0x00000040
+	SYSTEM_SCHEDULER_KW_PRIORITY              = 0x00000080
+	SYSTEM_SCHEDULER_KW_IDEAL_PROCESSOR       = 0x00000100
+	SYSTEM_SCHEDULER_KW_CONTEXT_SWITCH        = 0x00000200
+	SYSTEM_SCHEDULER_KW_COMPACT_CSWITCH       = 0x00000400
+	SYSTEM_SCHEDULER_KW_SCHEDULE_THREAD       = 0x00000800
+	SYSTEM_SCHEDULER_KW_READY_QUEUE           = 0x00001000
+	SYSTEM_SCHEDULER_KW_CPU_PARTITION         = 0x00002000
+	SYSTEM_SCHEDULER_KW_THREAD_FEEDBACK_READ  = 0x00004000
+	SYSTEM_SCHEDULER_KW_WORKLOAD_CLASS_UPDATE = 0x00008000
+	SYSTEM_SCHEDULER_KW_AUTOBOOST             = 0x00010000
+
+	// System Syscall Provider
+	SYSTEM_SYSCALL_KW_GENERAL = 0x00000001
+
+	// System Timer Provider
+	SYSTEM_TIMER_KW_GENERAL     = 0x00000001
+	SYSTEM_TIMER_KW_CLOCK_TIMER = 0x00000002
 )
