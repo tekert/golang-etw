@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -55,20 +54,6 @@ func setAcess(provider etw.GUID) error {
 			etw.TRACELOG_ACCESS_REALTIME|
 			etw.TRACELOG_REGISTER_GUIDS|
 			0xfff)
-}
-
-func parseFilter(s string) (provider string, eventIds []uint16) {
-	eventIds = make([]uint16, 0)
-	split := strings.Split(s, ":")
-	if len(split) == 2 {
-		provider = split[0]
-		for _, ss := range strings.Split(split[1], ",") {
-			if eventId, err := strconv.ParseUint(ss, 10, 16); err == nil {
-				eventIds = append(eventIds, uint16(eventId))
-			}
-		}
-	}
-	return
 }
 
 func unsafeRandomGuid() *etw.GUID {
@@ -387,8 +372,6 @@ func main() {
 	c := etw.NewConsumer(context.Background()).
 		FromSessions(etw.SessionSlice(producers)...).
 		FromTraceNames(sessions...)
-
-	c.InitFilters(p.Providers())
 
 	if filemon {
 		c.EventRecordCallback = filemonEventRecordCB
