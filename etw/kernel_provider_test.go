@@ -5,7 +5,7 @@ package etw
 import (
 	"testing"
 
-	"github.com/0xrawsec/toast"
+	"github.com/tekert/golang-etw/internal/test"
 )
 
 func hasFlag(flags, flag uint32) bool {
@@ -13,7 +13,7 @@ func hasFlag(flags, flag uint32) bool {
 }
 
 func TestKernelProviders(t *testing.T) {
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	for _, p := range KernelProviders {
 		tt.Assert(IsKernelProvider(p.Name))

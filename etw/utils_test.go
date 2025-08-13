@@ -10,12 +10,12 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/0xrawsec/toast"
+	"github.com/tekert/golang-etw/internal/test"
 )
 
 func TestUtils(t *testing.T) {
 
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	s := "this is a utf16 string"
 	sutf16, err := syscall.UTF16PtrFromString(s)
@@ -38,6 +38,7 @@ func TestUtils(t *testing.T) {
 // Helper
 // Allocate SID with proper SubAuthority array size
 func allocSID(t testing.TB, subAuthorityCount uint8) *SID {
+	t.Helper()
 	// Calculate total size needed
 	sidSize := unsafe.Sizeof(SID{}) - unsafe.Sizeof([1]uint32{}) +
 		uintptr(subAuthorityCount)*unsafe.Sizeof(uint32(0))
@@ -56,7 +57,7 @@ func allocSID(t testing.TB, subAuthorityCount uint8) *SID {
 }
 
 func TestSIDConversion(t *testing.T) {
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	tests := []struct {
 		name     string
@@ -113,11 +114,11 @@ func TestSIDConversion(t *testing.T) {
 
 			// Compare results
 			tt.Assert(gotAPI == tc.want,
-				"API result mismatch: got %v, want %v", gotAPI, tc.want)
+				"API result mismatch: got "+gotAPI+", want "+tc.want)
 			tt.Assert(gotGO == tc.want,
-				"GO result mismatch: got %v, want %v", gotGO, tc.want)
+				"GO result mismatch: got "+gotGO+", want "+tc.want)
 			tt.Assert(gotAPI == gotGO,
-				"Results differ: API=%v, GO=%v", gotAPI, gotGO)
+				"Results differ: API=" + gotAPI + ", GO=" + gotGO)
 		})
 	}
 }

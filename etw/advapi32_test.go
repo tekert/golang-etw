@@ -5,12 +5,12 @@ package etw
 import (
 	"testing"
 
-	"github.com/0xrawsec/toast"
+	"github.com/tekert/golang-etw/internal/test"
 )
 
 func TestAccessString(t *testing.T) {
 
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	//systemSID := "S-1-5-18"
 

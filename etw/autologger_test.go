@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xrawsec/toast"
+	"github.com/tekert/golang-etw/internal/test"
 )
 
 const (
@@ -32,7 +32,7 @@ func regQueryValue(path, valueName string) (string, error) {
 
 func TestAutologger(t *testing.T) {
 	// DO NOT run in parallel. These tests modify a global system resource (registry).
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	guid, err := UUID()
 	tt.CheckErr(err)
@@ -51,14 +51,14 @@ func TestAutologger(t *testing.T) {
 	_ = a.Delete()
 
 	t.Run("CreateAndVerify", func(t *testing.T) {
-		tt := toast.FromT(t)
+		tt := test.FromT(t)
 		tt.CheckErr(a.Create())
 		tt.Assert(a.Exists(), "Autologger key should exist after creation")
 
 		// Verify a few key values were written correctly.
 		val, err := regQueryValue(a.Path(), "Start")
 		tt.CheckErr(err)
-		tt.Assert(val == "0x1", "Expected Start to be 1, got %s", val)
+		tt.Assertf(val == "0x1", "Expected Start to be 1, got %s", val)
 
 		val, err = regQueryValue(a.Path(), "GUID")
 		tt.CheckErr(err)
@@ -66,7 +66,7 @@ func TestAutologger(t *testing.T) {
 	})
 
 	t.Run("EnableProviderWithFilter", func(t *testing.T) {
-		tt := toast.FromT(t)
+		tt := test.FromT(t)
 		provider, err := ParseProvider(testKernelFileProvider)
 		tt.CheckErr(err)
 
@@ -86,12 +86,12 @@ func TestAutologger(t *testing.T) {
 		// Corrected: Expected binary format for an EventIDFilter with 2 IDs (10, 12):
 		// EVENT_FILTER_DESCRIPTOR (16 bytes) + EVENT_FILTER_EVENT_ID data (8 bytes) = 24 bytes total.
 		// The hex string will be twice that length (48 characters).
-		tt.Assert(len(val) == 48, "Expected FilterData to be 48 hex chars long, got %d", len(val))
+		tt.Assertf(len(val) == 48, "Expected FilterData to be 48 hex chars long, got %d", len(val))
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		tt := toast.FromT(t)
+		tt := test.FromT(t)
 		tt.CheckErr(a.Delete())
-		tt.Assert(!a.Exists(), "Autologger key should not exist after deletion")
+		tt.Assertf(!a.Exists(), "Autologger key should not exist after deletion")
 	})
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xrawsec/toast"
+	"github.com/tekert/golang-etw/internal/test"
 )
 
 func TestGUID(t *testing.T) {
@@ -14,7 +14,7 @@ func TestGUID(t *testing.T) {
 	var g *GUID
 	var err error
 
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	// with curly brackets
 	guid := "{45d8cccd-539f-4b72-a8b7-5c683142609a}"
@@ -39,7 +39,7 @@ func TestGUID(t *testing.T) {
 func TestGUIDEquality(t *testing.T) {
 	t.Parallel()
 
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 	p := MustParseProvider("Microsoft-Windows-Kernel-File")
 	g1 := p.GUID
 	g2 := p.GUID

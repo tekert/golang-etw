@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xrawsec/toast"
+	"github.com/tekert/golang-etw/internal/test"
 )
 
 const (
@@ -41,7 +41,7 @@ func randBetween(min, max int) (i int) {
 func TestIsKnownProvider(t *testing.T) {
 	t.Parallel()
 
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	tt.Assert(IsKnownProvider("Microsoft-Windows-Kernel-File"))
 	tt.Assert(!IsKnownProvider("Microsoft-Windows-Unknown-Provider"))
@@ -52,7 +52,7 @@ func TestProducerConsumer(t *testing.T) {
 	var err error
 
 	eventCount := 0
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	// Producer part
 	ses := NewRealTimeSession("GolangTest")
@@ -109,7 +109,7 @@ func TestProducerConsumer(t *testing.T) {
 }
 
 func TestKernelSession(t *testing.T) {
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 	eventCount := 0
 
 	traceFlags := []uint32{
@@ -166,7 +166,7 @@ func TestKernelSession(t *testing.T) {
 }
 
 func TestEventMapInfo(t *testing.T) {
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 	eventCount := 0
 
 	prod := NewRealTimeSession("GolangTest")
@@ -262,7 +262,7 @@ func TestEventMapInfo(t *testing.T) {
 
 func TestLostEvents(t *testing.T) {
 
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	// Producer part
 	ses := NewRealTimeSession("GolangTest")
@@ -355,7 +355,7 @@ func TestConsumerCallbacks(t *testing.T) {
 	var err error
 
 	eventCount := 0
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	// Producer part
 	ses := NewRealTimeSession("GolangTest")
@@ -574,7 +574,7 @@ func TestConsumerCallbacks(t *testing.T) {
 func TestParseProvider(t *testing.T) {
 	t.Parallel()
 
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	// Test case 1: Just name
 	p, err := ParseProvider(KernelFileProviderName)
@@ -637,7 +637,7 @@ func TestConvertSid(t *testing.T) {
 	var sid *SID
 	var err error
 
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 	systemSID := "S-1-5-18"
 
 	sid, err = ConvertStringSidToSidW(systemSID)
@@ -648,11 +648,11 @@ func TestConvertSid(t *testing.T) {
 func TestSessionSlice(t *testing.T) {
 	t.Parallel()
 
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 
 	intSlice := make([]int, 0)
 	sessions := make([]Session, 0)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		sessions = append(sessions, NewRealTimeSession(fmt.Sprintf("test-%d", i)))
 		intSlice = append(intSlice, i)
 	}
@@ -679,7 +679,7 @@ func TestSessionSlice(t *testing.T) {
 // the goroutine.
 // Abort is the same but with no timeout.
 func TestCallbackConcurrency(t *testing.T) {
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 	SetLogDebugLevel()
 
 	c := NewConsumer(context.Background())
@@ -765,7 +765,7 @@ func TestCallbackConcurrency(t *testing.T) {
 // TestProviderFiltering validates the kernel-level filtering capabilities of EnableTraceEx2.
 // It correctly demonstrates the behavior of different filter types with kernel providers.
 func TestProviderFiltering(t *testing.T) {
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 	pid := uint32(os.Getpid())
 	exePath, err := os.Executable()
 	tt.CheckErr(err)
@@ -783,7 +783,7 @@ func TestProviderFiltering(t *testing.T) {
 		provider     string
 		filters      []ProviderFilter
 		expectEvents bool
-		validate     func(t *toast.T, e *Event)
+		validate     func(t *test.T, e *Event)
 		explanation  string // Explains the expected behavior.
 	}{
 		{
@@ -791,9 +791,9 @@ func TestProviderFiltering(t *testing.T) {
 			provider:     KernelMemoryProviderGuid,
 			filters:      []ProviderFilter{NewEventIDFilter(true, 1, 2)},
 			expectEvents: true,
-			validate: func(t *toast.T, e *Event) {
+			validate: func(t *test.T, e *Event) {
 				isExpectedID := e.System.EventID == 1 || e.System.EventID == 2
-				t.Assert(isExpectedID, "Received event with unexpected ID: %d", e.System.EventID)
+				t.Assertf(isExpectedID, "Received event with unexpected ID: %d", e.System.EventID)
 			},
 			explanation: "EventID filters work as expected, filtering event content.",
 		},
@@ -802,7 +802,7 @@ func TestProviderFiltering(t *testing.T) {
 			provider:     KernelMemoryProviderGuid,
 			filters:      []ProviderFilter{NewEventIDFilter(false, 1, 2)},
 			expectEvents: true,
-			validate: func(t *toast.T, e *Event) {
+			validate: func(t *test.T, e *Event) {
 				isExcludedID := e.System.EventID == 1 || e.System.EventID == 2
 				t.Assert(!isExcludedID, "Received an event that should have been excluded (ID 1 or 2)")
 			},
@@ -813,7 +813,7 @@ func TestProviderFiltering(t *testing.T) {
 			provider:     "Microsoft-Windows-Kernel-Process",
 			filters:      []ProviderFilter{NewPIDFilter(pid)},
 			expectEvents: true, // We expect events because the PID filter is ignored.
-			validate: func(t *toast.T, e *Event) {
+			validate: func(t *test.T, e *Event) {
 				// Note: PID filter for kernel providers filters at provider level (kernel=PID 4),
 				// not at the event content level. Events can be about any process.
 				t.Logf("PID Filter: Received event about PID %d (filter was for PID %d)",
@@ -827,7 +827,7 @@ func TestProviderFiltering(t *testing.T) {
 			provider:     "Microsoft-Windows-Kernel-Process",
 			filters:      []ProviderFilter{NewExecutableNameFilter(exeName)},
 			expectEvents: true, // We expect events, but not necessarily from our exe
-			validate: func(t *toast.T, e *Event) {
+			validate: func(t *test.T, e *Event) {
 				// Note: Executable name filter for kernel providers filters at provider level,
 				// not at the event content level. Events can be about any process.
 				t.Logf("ExeName Filter: Received event about PID %d (filter was for exe %s)",
@@ -844,9 +844,9 @@ func TestProviderFiltering(t *testing.T) {
 				NewPIDFilter(pid),
 			},
 			expectEvents: true, // We expect events because the PID filter is ignored, but the EventID filter works.
-			validate: func(t *toast.T, e *Event) {
+			validate: func(t *test.T, e *Event) {
 				isExpectedID := e.System.EventID == 12 || e.System.EventID == 13 || e.System.EventID == 14
-				t.Assert(isExpectedID, "Received event with unexpected ID: %d", e.System.EventID)
+				t.Assertf(isExpectedID, "Received event with unexpected ID: %d", e.System.EventID)
 				// PID part may not work as expected - just log it
 				t.Logf("Combined: Event ID %d from PID %d (filter was for PID %d)",
 					e.System.EventID, e.System.Execution.ProcessID, pid)
@@ -858,7 +858,7 @@ func TestProviderFiltering(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc // Capture range variable.
 		t.Run(tc.name, func(t *testing.T) {
-			tt := toast.FromT(t)
+			tt := test.FromT(t)
 			t.Logf("Explanation: %s", tc.explanation)
 
 			// Stop any lingering session from a previous failed run.
@@ -950,50 +950,49 @@ func TestProviderFiltering(t *testing.T) {
 	}
 }
 
-
 // Helper to compare static properties between two trace properties
-func assertStaticPropsEqual(t *toast.T, expected, actual *EventTracePropertyData2, contextMsg string) {
-	t.Assert(actual.BufferSize == expected.BufferSize,
+func assertStaticPropsEqual(t *test.T, expected, actual *EventTracePropertyData2, contextMsg string) {
+	t.Assertf(actual.BufferSize == expected.BufferSize,
 		"%s: BufferSize mismatch: expected=%d, got=%d",
 		contextMsg, expected.BufferSize, actual.BufferSize)
-	t.Assert(actual.MinimumBuffers == expected.MinimumBuffers,
+	t.Assertf(actual.MinimumBuffers == expected.MinimumBuffers,
 		"%s: MinimumBuffers mismatch: expected=%d, got=%d",
 		contextMsg, expected.MinimumBuffers, actual.MinimumBuffers)
-	t.Assert(actual.MaximumBuffers == expected.MaximumBuffers,
+	t.Assertf(actual.MaximumBuffers == expected.MaximumBuffers,
 		"%s: MaximumBuffers mismatch: expected=%d, got=%d",
 		contextMsg, expected.MaximumBuffers, actual.MaximumBuffers)
-	t.Assert(actual.LogFileMode == expected.LogFileMode,
+	t.Assertf(actual.LogFileMode == expected.LogFileMode,
 		"%s: LogFileMode mismatch: expected=%d, got=%d",
 		contextMsg, expected.LogFileMode, actual.LogFileMode)
 }
 
 // Helper to validate trace name
-func assertTraceName(t *toast.T, prop *EventTracePropertyData2, expectedName string, contextMsg string) {
+func assertTraceName(t *test.T, prop *EventTracePropertyData2, expectedName string, contextMsg string) {
 	name := UTF16PtrToString(prop.GetTraceName())
-	t.Assert(name == expectedName,
+	t.Assertf(name == expectedName,
 		"%s: Name mismatch: expected=%s, got=%s",
 		contextMsg, expectedName, name)
 }
 
 // Helper to validate runtime stats
-func assertRuntimeStats(t *toast.T, prop *EventTracePropertyData2, contextMsg string) {
-	t.Assert(prop.NumberOfBuffers > 0,
+func assertRuntimeStats(t *test.T, prop *EventTracePropertyData2, contextMsg string) {
+	t.Assertf(prop.NumberOfBuffers > 0,
 		"%s: Expected NumberOfBuffers > 0, got %d",
 		contextMsg, prop.NumberOfBuffers)
-	t.Assert(prop.BuffersWritten > 0,
+	t.Assertf(prop.BuffersWritten > 0,
 		"%s: Expected BuffersWritten > 0, got %d",
 		contextMsg, prop.BuffersWritten)
 }
 
 // Helper to compare runtime stats between properties
-func assertRuntimeStatsEqual(t *toast.T, expected, actual *EventTracePropertyData2, contextMsg string) {
-	t.Assert(actual.NumberOfBuffers == expected.NumberOfBuffers,
+func assertRuntimeStatsEqual(t *test.T, expected, actual *EventTracePropertyData2, contextMsg string) {
+	t.Assertf(actual.NumberOfBuffers == expected.NumberOfBuffers,
 		"%s: NumberOfBuffers mismatch: expected=%d, got=%d",
 		contextMsg, expected.NumberOfBuffers, actual.NumberOfBuffers)
-	t.Assert(actual.BuffersWritten == expected.BuffersWritten,
+	t.Assertf(actual.BuffersWritten == expected.BuffersWritten,
 		"%s: BuffersWritten mismatch: expected=%d, got=%d",
 		contextMsg, expected.BuffersWritten, actual.BuffersWritten)
-	t.Assert(actual.EventsLost == expected.EventsLost,
+	t.Assertf(actual.EventsLost == expected.EventsLost,
 		"%s: EventsLost mismatch: expected=%d, got=%d",
 		contextMsg, expected.EventsLost, actual.EventsLost)
 }
@@ -1005,7 +1004,7 @@ func assertRuntimeStatsEqual(t *toast.T, expected, actual *EventTracePropertyDat
 // It verifies that static properties are consistent across all methods and that runtime
 // statistics are updated correctly.
 func TestQueryTraceMethods(t *testing.T) {
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 	loggerName := "TestingGoEtw"
 	//loggerNameW, err := syscall.UTF16PtrFromString(loggerName)
 	//tt.CheckErr(err)
@@ -1084,7 +1083,7 @@ func TestQueryTraceMethods(t *testing.T) {
 // TestConsumerTrace_QueryTraceFail validates that calling QueryTrace on a standalone
 // ConsumerTrace object that is not associated with a running session correctly fails.
 func TestConsumerTrace_QueryTraceFail(t *testing.T) {
-	tt := toast.FromT(t)
+	tt := test.FromT(t)
 	_ = tt
 
 	// This test validates that calling QueryTrace on a standalone ConsumerTrace
