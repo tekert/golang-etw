@@ -9,9 +9,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
+	"unsafe"
 )
 
 const (
@@ -70,42 +70,92 @@ func (a *AutoLogger) Create() (err error) {
 	return
 }
 
-func binaryFilter(filter []uint16) (f string, err error) {
-	buf := new(bytes.Buffer)
-	if err = binary.Write(buf, binary.LittleEndian, filter); err != nil {
-		return
+// serializeFiltersForAutologger creates the binary data block for the FilterData registry value.
+// The format is one or more EVENT_FILTER_DESCRIPTORs followed immediately by their corresponding data.
+func serializeFiltersForAutologger(filters []ProviderFilter) (string, error) {
+	if len(filters) == 0 {
+		return "", nil
 	}
-	return hex.EncodeToString(buf.Bytes()), nil
+
+	type filterInfo struct {
+		desc EventFilterDescriptor
+		data []byte
+	}
+
+	var infos []filterInfo
+	var totalDataSize uint32
+
+	// 1. Build descriptors and copy data for each filter.
+	for _, f := range filters {
+		desc, cleanup := f.build()
+		if cleanup != nil {
+			defer cleanup()
+		}
+
+		if desc.Type != EVENT_FILTER_TYPE_NONE {
+			data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(desc.Ptr))), desc.Size)
+			// It's important to copy the data, as the original pointer might become invalid.
+			dataCopy := make([]byte, desc.Size)
+			copy(dataCopy, data)
+
+			infos = append(infos, filterInfo{desc: desc, data: dataCopy})
+			totalDataSize += desc.Size
+		}
+	}
+
+	if len(infos) == 0 {
+		return "", nil
+	}
+
+	// 2. Create the final binary blob.
+	descSize := uint32(unsafe.Sizeof(EventFilterDescriptor{}))
+	totalDescSize := uint32(len(infos)) * descSize
+	finalBuf := bytes.NewBuffer(make([]byte, 0, totalDescSize+totalDataSize))
+
+	// 3. Write descriptors with updated Ptr offsets.
+	currentDataOffset := totalDescSize
+	for _, info := range infos {
+		desc := info.desc
+		desc.Ptr = uint64(currentDataOffset) // Ptr is offset from start of blob.
+		if err := binary.Write(finalBuf, binary.LittleEndian, &desc); err != nil {
+			return "", fmt.Errorf("failed to write descriptor: %w", err)
+		}
+		currentDataOffset += desc.Size
+	}
+
+	// 4. Write all filter data.
+	for _, info := range infos {
+		if _, err := finalBuf.Write(info.data); err != nil {
+			return "", fmt.Errorf("failed to write filter data: %w", err)
+		}
+	}
+
+	return hex.EncodeToString(finalBuf.Bytes()), nil
 }
 
 func (a *AutoLogger) EnableProvider(p Provider) (err error) {
 	path := fmt.Sprintf(`%s\%s`, a.Path(), p.GUID.StringU())
 
-	sargs := [][]string{}
-
-	// ETWtrace parameters
-	if p.Name != "" {
-		sargs = append(sargs, []string{path, "ProviderName", regSz, p.Name})
+	sargs := [][]string{
+		{path, "Enabled", regDword, "0x1"},
+		{path, "EnableLevel", regDword, hexStr(p.EnableLevel)},
+		{path, "MatchAnyKeyword", regQword, hexStr(p.MatchAnyKeyword)},
 	}
 
-	sargs = append(sargs, []string{path, "Enabled", regDword, "0x1"})
-	sargs = append(sargs, []string{path, "EnableLevel", regDword, hexStr(p.EnableLevel)})
-	sargs = append(sargs, []string{path, "MatchAnyKeyword", regQword, hexStr(p.MatchAnyKeyword)})
-
-	if p.MatchAnyKeyword != 0 {
+	if p.MatchAllKeyword != 0 {
 		sargs = append(sargs, []string{path, "MatchAllKeyword", regQword, hexStr(p.MatchAllKeyword)})
 	}
 
-	// enable event filtering
-	if len(p.Filter) > 0 {
-		var binFilter string
-		if binFilter, err = binaryFilter(p.Filter); err != nil {
-			return fmt.Errorf("failed to create binary filter: %w", err)
+	// As per documentation, all filters are serialized into a single REG_BINARY
+	// value named "FilterData".
+	if len(p.Filters) > 0 {
+		var filterData string
+		if filterData, err = serializeFiltersForAutologger(p.Filters); err != nil {
+			return fmt.Errorf("failed to create binary filter data: %w", err)
 		}
-		filtersPath := filepath.Join(path, "Filters")
-		sargs = append(sargs, []string{filtersPath, "Enabled", regDword, "0x1"})
-		sargs = append(sargs, []string{filtersPath, "EventIdFilterIn", regDword, "0x1"})
-		sargs = append(sargs, []string{filtersPath, "EventIds", regBinary, binFilter})
+		if filterData != "" {
+			sargs = append(sargs, []string{path, "FilterData", regBinary, filterData})
+		}
 	}
 
 	// executing commands
