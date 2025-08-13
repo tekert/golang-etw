@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"unsafe"
 )
 
 var (
-	providers ProviderMap
-
-	DefaultProvider = Provider{EnableLevel: 0xff}
+	providers       ProviderMap
+	providersOnce   sync.Once
+	defaultProvider = Provider{EnableLevel: 0xff, MatchAnyKeyword: 0xffffffffffffffff, MatchAllKeyword: 0}
 
 	// Error returned when a provider is not found on the system
 	ErrUnkownProvider = fmt.Errorf("unknown provider")
@@ -20,6 +21,8 @@ var (
 
 type ProviderMap map[string]*Provider
 
+// Provider represents an ETW event provider, identified by its name and GUID,
+// and includes the necessary options for enabling it in a trace session.
 type Provider struct {
 	GUID GUID
 	Name string
@@ -29,7 +32,7 @@ type Provider struct {
 	// Custom logging levels can also be defined, but levels 6–15 are reserved.
 	// More than one logging level can be captured by ORing respective levels;
 	// supplying 255 (0xFF) is the standard method of capturing all supported logging levels.
-	// Note that if you set the Level to LogAlways, it ensures that all error events will always be written.
+	// Note that if you set the EnableLevel to LogAlways, it ensures that all error events will always be written.
 	EnableLevel uint8
 
 	// 64-bit bitmask of keywords that determine the categories of events that you want the provider to write.
@@ -48,23 +51,36 @@ type Provider struct {
 	// 64-bit bitmask of keywords that restricts the events that you want the provider to write.
 	// The provider typically writes an event if the event's keyword bits match all of the bits
 	// set in this value or if the event has no keyword bits set, in addition to meeting the Level
-	// and MatchAnyKeyword criteria.
+	// and MatchAllKeyword criteria.
 	//
 	// This value is frequently set to 0.
 	//
 	// Note that this mask is not used if Keywords(Any) is set to zero.
 	MatchAllKeyword uint64
 
-	// This is used only for filtering Event IDs for now.
+	// Filters provides a mechanism for more granular, kernel-level filtering,
+	// supporting types like EventIDFilter, PIDFilter, etc.
+	//
+	// Performance Note: There is a significant performance difference between filtering
+	// via Level/Keywords and filtering via this `Filters` slice.
+	//
+	// - Level/Keyword Filtering (Highest Performance): This is "provider-side" filtering.
+	//   The provider code itself checks if a specific level or keyword is enabled *before*
+	//   it generates an event. If the event is disabled, the `EventWrite` call is skipped
+	//   entirely, resulting in near-zero CPU and memory overhead for filtered-out events.
+	//
+	// - `Filters` Slice (Medium Performance): This is "runtime-side" filtering. The provider
+	//   generates the event and sends it to the ETW runtime. The runtime then checks these
+	//   filters (e.g., EventID, PID) before forwarding the event to the session buffer.
+	//   This means the overhead of creating and serializing the event has already been
+	//   incurred. This method is effective for reducing trace data volume but does not
+	//   reduce the initial CPU overhead of event generation.
 	//
 	// For more info read:
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-enabletraceex2#remarks
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-enable_trace_parameters EnableFilterDesc
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_filter_descriptor EVENT_FILTER_TYPE_EVENT_ID
-	//
-	// (This kind of filtering is only effective in reducing trace data volume and is not as effective
-	// for reducing trace CPU overhead)
-	Filter []uint16
+	Filters []ProviderFilter
 }
 
 // IsZero returns true if the provider is empty
@@ -72,42 +88,13 @@ func (p *Provider) IsZero() bool {
 	return p.GUID.IsZero()
 }
 
-func (p *Provider) eventIDFilterDescriptor() (d EventFilterDescriptor) {
-
-	efeid := AllocEventFilterEventID(p.Filter)
-	// Enable this event ID (0x0 disables events with this id)
-	efeid.FilterIn = 0x1
-
-	d = EventFilterDescriptor{
-		Ptr:  uint64(uintptr(unsafe.Pointer(efeid))),
-		Size: uint32(efeid.Size()),
-		Type: EVENT_FILTER_TYPE_EVENT_ID,
-	}
-
-	return
-}
-
-func (p *Provider) BuildFilterDesc() (fd []EventFilterDescriptor) {
-
-	fd = append(fd, p.eventIDFilterDescriptor())
-
-	return
-}
-
-// MustParseProvider parses a provider string or panics.
-// It wraps [ParseProvider] in a panic-on-error call.
-//
-// Format (Name|GUID)<string>:EnableLevel<uint8>:(EventIDs,)<uint8>:MatchAnyKeyword<uint16>:MatchAllKeyword<uint16>
-//
-// Example: Microsoft-Windows-Kernel-File:0xff:13,14:0x80
-//
-// (0xff here means any Level, 13 and 14 are the event IDs and 0x80 is the MatchAnyKeyword)
-func MustParseProvider(s string) (p Provider) {
-	var err error
-	if p, err = ParseProvider(s); err != nil {
+// MustParseProvider is a helper that wraps ParseProvider and panics on error.
+func MustParseProvider(s string) Provider {
+	p, err := ParseProvider(s)
+	if err != nil {
 		panic(err)
 	}
-	return
+	return p
 }
 
 // IsKnownProvider returns true if the provider is known
@@ -116,80 +103,79 @@ func IsKnownProvider(p string) bool {
 	return !prov.IsZero()
 }
 
-// ParseProvider parses a string and returns a provider.
-// The returned provider is initialized from DefaultProvider.
-// Format (Name|GUID)<string>:EnableLevel<uint8>:(EventIDs,)<uint8>:MatchAnyKeyword<uint16>:MatchAllKeyword<uint16>
+// ParseProvider parses a configuration string and returns a Provider with its
+// configuration options.
 //
-// Example: Microsoft-Windows-Kernel-File:0xff:13,14:0x80
+// The format is strictly positional:
+// (Name|GUID)[:Level[:EventIDs[:MatchAnyKeyword[:MatchAllKeyword]]]]
 //
-// (0xff here means any Level, 13 and 14 are the event IDs and 0x80 is the MatchAnyKeyword)
+// To skip a parameter, an empty value must be provided. For example, to specify
+// only a keyword, the format would be "ProviderName:::0x10".
 //
-// You can check the keywords and level using this command in console:
-// logman query providers "<provider_name>"
+// Example: "Microsoft-Windows-Kernel-File:0xff:12,13,14"
 //
-// For events ID the best way is to check the manifest in your system.
-//
-// Use https://github.com/zodiacon/EtwExplorer
+// NOTE: For finding events ID check the manifest in your system.
+//  > logman query providers "provider-name"
+//  > wevtutil gp "provider-name"
+// Or Use https://github.com/zodiacon/EtwExplorer
 //
 // More info at:
 // https://learn.microsoft.com/en-us/windows/win32/wes/defining-keywords-used-to-classify-types-of-events
 func ParseProvider(s string) (p Provider, err error) {
 	var u uint64
 
-	split := strings.Split(s, ":")
-	for i := range split {
-		chunk := split[i]
+	// Use default provider configuration
+	p = defaultProvider
+
+	parts := strings.Split(s, ":")
+
+	for i, chunk := range parts {
+		// An empty chunk means the user wants to use the default for this position.
+		if chunk == "" && i > 0 { // i > 0 to not skip the provider name
+			continue
+		}
+
 		switch i {
-		case 0: // parsing Name or GUID
-			p = ResolveProvider(chunk)
-			if p.IsZero() {
+		case 0: // Part 0: Name/GUID (required)
+			resolvedProvider := ResolveProvider(chunk)
+			if resolvedProvider.IsZero() {
 				err = fmt.Errorf("%w %s", ErrUnkownProvider, chunk)
 				return
 			}
-		case 1: // parsing EnableLevel
-			if chunk == "" {
-				break
-			}
+			// Only copy the identifying information, preserving the defaults set above.
+			p.GUID = resolvedProvider.GUID
+			p.Name = resolvedProvider.Name
+		case 1: // Part 1: Level
 			if u, err = strconv.ParseUint(chunk, 0, 8); err != nil {
-				err = fmt.Errorf("failed to parse EnableLevel: %w", err)
+				err = fmt.Errorf("failed to parse EnableLevel '%s': %w", chunk, err)
 				return
-			} else {
-				p.EnableLevel = uint8(u)
 			}
-		case 2: // parsing EventIDs
-			if chunk == "" {
-				break
-			}
-			for _, eid := range strings.Split(chunk, ",") {
-				if u, err = strconv.ParseUint(eid, 0, 16); err != nil {
-					err = fmt.Errorf("failed to parse EventID: %w", err)
+			p.EnableLevel = uint8(u)
+		case 2: // Part 2: EventIDs
+			idStrings := strings.Split(chunk, ",")
+			ids := make([]uint16, 0, len(idStrings))
+			for _, idStr := range idStrings {
+				if u, err = strconv.ParseUint(idStr, 0, 16); err != nil {
+					err = fmt.Errorf("failed to parse EventID '%s': %w", idStr, err)
 					return
-				} else {
-					p.Filter = append(p.Filter, uint16(u))
 				}
+				ids = append(ids, uint16(u))
 			}
-		case 3: // parsing MatchAnyKeyword
-			if chunk == "" {
-				break
+			if len(ids) > 0 {
+				p.Filters = append(p.Filters, NewEventIDFilter(true, ids...))
 			}
+		case 3: // Part 3: MatchAnyKeyword
 			if u, err = strconv.ParseUint(chunk, 0, 64); err != nil {
-				err = fmt.Errorf("failed to parse MatchAnyKeyword: %w", err)
+				err = fmt.Errorf("failed to parse MatchAnyKeyword '%s': %w", chunk, err)
 				return
-			} else {
-				p.MatchAnyKeyword = u
 			}
-		case 4: // parsing MatchAllKeyword
-			if chunk == "" {
-				break
-			}
+			p.MatchAnyKeyword = u
+		case 4: // Part 4: MatchAllKeyword
 			if u, err = strconv.ParseUint(chunk, 0, 64); err != nil {
-				err = fmt.Errorf("failed to parse MatchAllKeyword: %w", err)
+				err = fmt.Errorf("failed to parse MatchAllKeyword '%s': %w", chunk, err)
 				return
-			} else {
-				p.MatchAllKeyword = u
 			}
-		default:
-			return
+			p.MatchAllKeyword = u
 		}
 	}
 	return
@@ -214,8 +200,7 @@ func EnumerateProviders() (m ProviderMap) {
 		ptpi := (*TraceProviderInfo)(unsafe.Pointer(it + i*unsafe.Sizeof(buf.TraceProviderInfoArray[0])))
 		guidString := ptpi.ProviderGuid.StringU()
 		name := UTF16AtOffsetToString(startProvEnumInfo, uintptr(ptpi.ProviderNameOffset))
-		// We use a default provider here
-		p := DefaultProvider
+		p := Provider{}
 		p.GUID = ptpi.ProviderGuid
 		p.Name = name
 		m[name] = &p
@@ -224,13 +209,14 @@ func EnumerateProviders() (m ProviderMap) {
 	return
 }
 
+func initProviders() {
+	providers = EnumerateProviders()
+}
+
 // ResolveProvider return a Provider structure given a GUID or
 // a provider name as input
 func ResolveProvider(s string) (p Provider) {
-
-	if providers == nil {
-		providers = EnumerateProviders()
-	}
+	providersOnce.Do(initProviders)
 
 	if g, err := ParseGUID(s); err == nil {
 		s = g.StringU()

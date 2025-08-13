@@ -2,7 +2,7 @@
 
 package etw
 
-// Important documentation hidden in the Remarks section:
+// Important documentation "hidden" in the Remarks section:
 // It's about almost everything session and provider related.
 // https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-enabletraceex2
 
@@ -23,9 +23,9 @@ type Session interface {
 type RealTimeSession struct {
 	traceProps    *EventTracePropertyData2
 	sessionHandle syscall.Handle
+	traceName     string
 
-	traceName string
-	providers []Provider
+	enabledProviders []Provider
 }
 
 func (p *RealTimeSession) IsKernelSession() bool {
@@ -39,7 +39,7 @@ func NewRealTimeSession(name string) (s *RealTimeSession) {
 	s = &RealTimeSession{}
 	s.traceProps = NewRealTimeEventTraceProperties(name)
 	s.traceName = name
-	s.providers = make([]Provider, 0)
+	s.enabledProviders = make([]Provider, 0)
 	return
 }
 
@@ -121,14 +121,14 @@ func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 //
 // OR
 //
-// 	var prov etw.Provider
-//  prov.GUID = etw.SystemProcessProviderGuid
-//  prov.EnableLevel = 0xff // any level
-//  prov.MatchAnyKeyword = etw.SYSTEM_PROCESS_KW_GENERAL
-//  prov.MatchAllKeyword = 0
-//  if err := s.EnableProvider(prov); err != nil {
-// 	 panic(err)
-//  }
+//		var prov etw.Provider
+//	 prov.GUID = etw.SystemProcessProviderGuid
+//	 prov.EnableLevel = 0xff // any level
+//	 prov.MatchAnyKeyword = etw.SYSTEM_PROCESS_KW_GENERAL
+//	 prov.MatchAllKeyword = 0
+//	 if err := s.EnableProvider(prov); err != nil {
+//		 panic(err)
+//	 }
 func NewSystemTraceProviderSession(name string) (s *RealTimeSession) {
 	s = NewRealTimeSession(name)
 	s.traceProps.LogFileMode |= EVENT_TRACE_SYSTEM_LOGGER_MODE
@@ -200,38 +200,48 @@ func (s *RealTimeSession) Start() (err error) {
 	return
 }
 
-// EnableProvider enables the trace session using [EnableTraceEx2]
-// to receive events from a given provider
+// EnableProvider enables the trace session to receive events from a given provider
+// using the configuration options specified within the Provider struct.
+//
+// Performance Note: Filtering events via the provider's Level and Keywords is the
+// most efficient method, as it prevents the provider from generating disabled events
+// in the first place. Other filter types (e.g., EventIDFilter) are applied by the
+// ETW runtime after the event has been generated, which reduces trace volume but not
+// the initial CPU overhead of generation.
 func (s *RealTimeSession) EnableProvider(prov Provider) (err error) {
-	var guid *GUID
-
-	// If the trace is not started yet we have to start it
-	// otherwise we cannot enable provider
+    // If the trace is not started yet we have to start it
+    // otherwise we cannot enable provider
 	if !s.IsStarted() {
 		if err = s.Start(); err != nil {
 			return
 		}
 	}
 
-	guid = &prov.GUID
+	var descriptors []EventFilterDescriptor
+	// The data backing the pointers in the descriptors is managed by Go's GC.
+	// It will be kept alive on the stack/heap during the synchronous EnableTraceEx2 call.
+	for _, f := range prov.Filters {
+		desc, _ := f.build() // cleanup is not needed for these simple filter types
+		if desc.Type != EVENT_FILTER_TYPE_NONE {
+			descriptors = append(descriptors, desc)
+		}
+	}
 
 	params := EnableTraceParameters{
 		Version: 2,
+		
 		// Does not seem to bring valuable information
 		//EnableProperty: EVENT_ENABLE_PROPERTY_PROCESS_START_KEY,
 	}
 
-	if len(prov.Filter) > 0 {
-		fds := prov.BuildFilterDesc()
-		if len(fds) > 0 {
-			params.EnableFilterDesc = (*EventFilterDescriptor)(unsafe.Pointer(&fds[0]))
-			params.FilterDescCount = uint32(len(fds))
-		}
+	if len(descriptors) > 0 {
+		params.EnableFilterDesc = (*EventFilterDescriptor)(unsafe.Pointer(&descriptors[0]))
+		params.FilterDescCount = uint32(len(descriptors))
 	}
 
 	if err = EnableTraceEx2(
 		s.sessionHandle,
-		guid,
+		&prov.GUID,
 		EVENT_CONTROL_CODE_ENABLE_PROVIDER,
 		prov.EnableLevel,
 		prov.MatchAnyKeyword,
@@ -239,10 +249,10 @@ func (s *RealTimeSession) EnableProvider(prov Provider) (err error) {
 		0,
 		&params,
 	); err != nil {
-		return
+		return fmt.Errorf("EnableTraceEx2 failed for provider %s (%s): %w", prov.Name, prov.GUID.String(), err)
 	}
 
-	s.providers = append(s.providers, prov)
+	s.enabledProviders = append(s.enabledProviders, prov)
 
 	return
 }
@@ -267,13 +277,14 @@ func (s *RealTimeSession) DisableProvider(prov Provider) (err error) {
 		return
 	}
 
-	// Optional: Remove from the active provider list. // TODO, check this // ! TESTING
-	for i, p := range s.providers {
-		if p.GUID.Equals(&prov.GUID) {
-			s.providers = append(s.providers[:i], s.providers[i+1:]...)
-			break
+	// Remove from the active provider list.
+	newEnabled := s.enabledProviders[:0]
+	for _, p := range s.enabledProviders {
+		if !p.GUID.Equals(&prov.GUID) {
+			newEnabled = append(newEnabled, p)
 		}
 	}
+	s.enabledProviders = newEnabled
 
 	return
 }
@@ -291,7 +302,7 @@ func (s *RealTimeSession) GetRundownEvents(guid *GUID) (err error) {
 			EVENT_CONTROL_CODE_CAPTURE_STATE,
 			0, 0, 0, 0, nil)
 	} else {
-		for _, p := range s.providers {
+		for _, p := range s.enabledProviders {
 			// If the provider is not enabled, we cannot get rundown events
 			if p.EnableLevel == 0 {
 				continue
@@ -317,17 +328,22 @@ func (s *RealTimeSession) TraceName() string {
 
 // Providers implements Session interface
 func (s *RealTimeSession) Providers() []Provider {
-	return s.providers
+	// Return a copy to prevent modification of the internal slice.
+	providers := make([]Provider, len(s.enabledProviders))
+	copy(providers, s.enabledProviders)
+	return providers
 }
 
 // Stop stops the session. It first attempts to disable all enabled providers
 // and then blocks until all buffers are flushed and the session is fully stopped.
 func (s *RealTimeSession) Stop() error {
 	// It's best practice to disable providers before stopping the session.
-	for _, p := range s.providers {
+	for _, p := range s.enabledProviders {
 		// We can ignore errors here, as we're stopping the session anyway.
 		_ = s.DisableProvider(p)
 	}
+
+	s.enabledProviders = nil // Clear the slice
 
 	return ControlTrace(s.sessionHandle, nil, &s.traceProps.EventTraceProperties2,
 		EVENT_TRACE_CONTROL_STOP)
@@ -370,6 +386,8 @@ func (s *RealTimeSession) Flush() error {
 }
 
 // Provide a valid trace name
+// This returns a wrapper for the [EventTraceProperties2] struct that accounts for
+// the strings space after the struct.
 func NewQueryTraceProperties(traceName string) *EventTracePropertyData2 {
 	traceProps, size := NewEventTracePropertiesV2()
 	// Set only required fields for QUERY
@@ -426,6 +444,19 @@ func QueryTrace(queryProp *EventTracePropertyData2) (err error) {
 		return fmt.Errorf("ControlTrace query failed: %w", err)
 	}
 	return nil
+}
+
+// StopSession stops a trace session by its name. This is useful for cleaning up
+// sessions that might have been left running from previous processes.
+func StopSession(name string) error {
+	prop := NewQueryTraceProperties(name)
+	// The session handle is not used when stopping a trace by name.
+	const nullTraceHandle = 0
+	u16Name, err := syscall.UTF16PtrFromString(name)
+	if err != nil {
+		return err
+	}
+	return ControlTrace(nullTraceHandle, u16Name, &prop.EventTraceProperties2, EVENT_TRACE_CONTROL_STOP)
 }
 
 // (used for internal debuggging)
