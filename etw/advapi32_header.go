@@ -1064,6 +1064,20 @@ func (e *EventTraceLogfile) GetProcessTraceMode() uint32 {
 	return e.Union1
 }
 
+func (e *EventTraceLogfile) GetProcessTraceModeStrings() []string {
+	var modes []string
+	if e.Union1&PROCESS_TRACE_MODE_REAL_TIME != 0 {
+		modes = append(modes, "REAL_TIME")
+	}
+	if e.Union1&PROCESS_TRACE_MODE_EVENT_RECORD != 0 {
+		modes = append(modes, "EVENT_RECORD")
+	}
+	if e.Union1&PROCESS_TRACE_MODE_RAW_TIMESTAMP != 0 {
+		modes = append(modes, "RAW_TIMESTAMP")
+	}
+	return modes
+}
+
 func (e *EventTraceLogfile) SetProcessTraceMode(ptm uint32) {
 	e.Union1 = ptm
 }
@@ -1079,7 +1093,7 @@ func (e *EventTraceLogfile) Clone() *EventTraceLogfile {
 	if e == nil {
 		return nil
 	}
-	
+
     // This correctly copies all members, including nested structs and unions.
     clone := *e
 
@@ -1168,7 +1182,9 @@ func (e *EventRecord) RelatedActivityID() GUID {
 				return *g
 			}
 		} else {
-			log.Error().Err(err).Msg("failed to get extended data item")
+			if sampler := loggerManager.sampler; sampler == nil || sampler.ShouldLog() {
+				conlog.Error().Err(err).Msg("failed to get extended data item")
+			}
 		}
 	}
 	return nullGUID

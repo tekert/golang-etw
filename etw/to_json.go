@@ -17,7 +17,7 @@ type JsonLogfile struct {
 	LoggerName    string
 	CurrentTime   time.Time
 	BuffersRead   uint32
-	ProcessMode   uint32 // From Union1
+	ProcessMode   []string  // From Union1 uint32 to array strings
 	LogfileHeader JsonLogHeader
 	BufferSize    uint32
 	Filled        uint32
@@ -136,7 +136,7 @@ func (etl *EventTraceLogfile) ToJSON() (*JsonLogfile, error) {
 	safe := &JsonLogfile{
 		CurrentTime:   UnixTimeStamp(etl.CurrentTime).UTC(),
 		BuffersRead:   etl.BuffersRead,
-		ProcessMode:   etl.Union1,
+		ProcessMode:   etl.GetProcessTraceModeStrings(),
 		LogfileHeader: header,
 		BufferSize:    etl.BufferSize,
 		Filled:        etl.Filled,
