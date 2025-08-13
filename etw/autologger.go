@@ -24,7 +24,7 @@ const (
 	regBinary = "REG_BINARY"
 )
 
-func hexStr(i interface{}) string {
+func hexStr(i any) string {
 	return fmt.Sprintf("0x%x", i)
 }
 
@@ -46,7 +46,20 @@ func (a *AutoLogger) Path() string {
 	return fmt.Sprintf(`%s\%s`, strings.TrimRight(AutologgerPath, `\`), strings.TrimLeft(a.Name, `\`))
 }
 
+// Create creates a new autologger session with the specified parameters.
+// If the session already exists , it returns an error.
+// If the session is successfully created, it returns nil.
 func (a *AutoLogger) Create() (err error) {
+	if a.Name == "" {
+		return fmt.Errorf("AutoLogger name cannot be empty")
+	}
+	if a.GuidS == "" {
+		return fmt.Errorf("AutoLogger GUID cannot be empty")
+	}
+	if a.Exists() {
+		return fmt.Errorf("AutoLogger session '%s' already exists", a.Name)
+	}
+
 	sargs := [][]string{
 		// ETWtrace parameters
 		{a.Path(), "GUID", regSz, a.GuidS},
@@ -88,9 +101,6 @@ func serializeFiltersForAutologger(filters []ProviderFilter) (string, error) {
 	// 1. Build descriptors and copy data for each filter.
 	for _, f := range filters {
 		desc, cleanup := f.build()
-		if cleanup != nil {
-			defer cleanup()
-		}
 
 		if desc.Type != EVENT_FILTER_TYPE_NONE {
 			data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(desc.Ptr))), desc.Size)
@@ -100,6 +110,12 @@ func serializeFiltersForAutologger(filters []ProviderFilter) (string, error) {
 
 			infos = append(infos, filterInfo{desc: desc, data: dataCopy})
 			totalDataSize += desc.Size
+		}
+
+		// Cleanup must be called after we are done with the memory from build(),
+		// but before the next loop iteration to avoid resource leaks.
+		if cleanup != nil {
+			cleanup()
 		}
 	}
 
