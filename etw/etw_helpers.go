@@ -289,7 +289,7 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 	if erh.TraceInfo, erh.teiBuffer, err = er.GetEventInformation(); err != nil {
 		// TODO: many of these when using some NT Kernel Logger MOF events, investigate wich kernel provider is it.
 		err = fmt.Errorf("GetEventInformation failed : %s", err)
-		erh.logTraceInfo(plog.Trace()).Msg("GetEventInformation failed")
+		erh.logTraceInfo(conlog.Trace()).Msg("GetEventInformation failed")
 	}
 
 	return
@@ -861,10 +861,12 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		epi := e.getEpiAt(i)
 		if epi == nil {
 			e.addPropError()
-			e.logTraceInfo(log.Error()).
-				Uint32("index", i).
-				Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
-				Msg("prepareProperties: getEpiAt returned nil, skipping property")
+			if sampler := loggerManager.sampler; sampler == nil || sampler.ShouldLog() {
+				e.logTraceInfo(conlog.Error()).
+					Uint32("index", i).
+					Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
+					Msg("prepareProperties: getEpiAt returned nil, skipping property")
+			}
 			continue // This is not a fatal error, we can continue processing.
 		}
 

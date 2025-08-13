@@ -102,7 +102,7 @@ func (p *Property) FormatToString() (string, error) {
 			p.value, err = p.decodeToString(p.evtPropInfo.OutType())
 			if err != nil {
 				//p.evtRecordHelper.addPropError() // we have to try the old parser anyway.
-				log.Debug().Err(err).Msg("failed to parse property with custom parser")
+				conlog.Debug().Err(err).Msg("failed to parse property with custom parser")
 				// fallback to tdh parser
 				p.value, _, err = p.formatToStringTdh()
 			}
@@ -225,7 +225,7 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 		p.evtRecordHelper.addPropError()
 
 		if !isDebug {
-			log.Debug().Err(err).Msg("tdh failed to format property")
+			conlog.Debug().Err(err).Msg("tdh failed to format property")
 			return "", udc, fmt.Errorf("tdh failed to format property: %s", err)
 		}
 
@@ -245,7 +245,10 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 			p.evtRecordHelper.TraceInfo.IsMof(),
 			p.evtRecordHelper.TraceInfo.IsXML(),
 		)
-		log.Error().Err(err).Msg("failed to format property")
+		// Use sampled error logging for hot path - avoid spam but still log some errors
+		if sampler := loggerManager.sampler; sampler == nil || sampler.ShouldLog() {
+			conlog.Error().Err(err).Msg("failed to format property")
+		}
 
 		return
 	}
