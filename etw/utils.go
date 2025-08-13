@@ -21,6 +21,7 @@ import (
 // for details.
 //
 // Note that it must not be embedded, due to the Lock and Unlock methods.
+//lint:ignore U1000 explanation
 type noCopy struct{}
 
 // Lock is a no-op used by -copylocks checker from `go vet`.

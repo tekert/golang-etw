@@ -9,6 +9,13 @@ func utf16ToStringSSE2_v3(src *uint16, srcLen int, dst []byte) (written int)
 
 func utf16ToStringSSE2_v4(src *uint16, srcLen int, dst []byte) (written int)
 
+// ! TESTING
+//func utf16ToWTF8_SIMD_test(src *uint16, srcLen int, dst []byte) (written int)
+// func utf16ToWTF8_simdutf_scalar(src *uint16, srcLen int, dst []byte) (written int)
+// func utf16ToWTF8_webkit(src *uint16, srcLen int, dst []byte) (written int)
+// func utf16ToWTF8_v8(src *uint16, srcLen int, dst []byte) (written int)
+
+
 type utf16Converter func(src *uint16, srcLen int, dst []byte) int
 
 func DecodeSIMD(s []uint16, converter utf16Converter) string {

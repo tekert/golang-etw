@@ -34,9 +34,9 @@ var (
 	}
 )
 
-var (
-	aSource = []string{"XML instrumentation manifest", "WMI MOF class", "WPP TMF file"}
-)
+// var (
+// 	aSource = []string{"XML instrumentation manifest", "WMI MOF class", "WPP TMF file"}
+// )
 
 // SessionSlice converts a slice of structures implementing Session
 // to a slice of Session.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tekert/golang-etw/etw/pkg/hexf"
+	"github.com/tekert/golang-etw/internal/hexf"
 )
 
 // This is called only for static analysis purposes, so it's not used often

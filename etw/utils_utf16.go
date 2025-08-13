@@ -5,7 +5,7 @@ package etw
 import (
 	"unsafe"
 
-	"github.com/tekert/golang-etw/etw/pkg/utf16f"
+	"github.com/tekert/golang-etw/internal/utf16f"
 )
 
 const maxUtf16CachedLength2 = 256 // Don't cache strings larger than this.

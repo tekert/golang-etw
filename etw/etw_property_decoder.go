@@ -17,7 +17,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/tekert/golang-etw/etw/pkg/hexf"
+	"github.com/tekert/golang-etw/internal/hexf"
 )
 
 // decodeToString attempts to parse the property value based on OutType.
