@@ -8,7 +8,7 @@ import (
 	"github.com/tekert/golang-etw/internal/utf16f"
 )
 
-const maxUtf16CachedLength2 = 256 // Don't cache strings larger than this.
+const maxUtf16CachedLength2 = 256 // Maximum string length to cache (prevents cache pollution from large strings)
 
 // utf16Convert performs a cache lookup for a given string slice and its hash.
 // On a cache miss, it calls the final utf16 conversion function and stores the result in the cache.
@@ -44,9 +44,9 @@ func UTF16PtrToString(p *uint16) string {
 		return ""
 	}
 
-	// Find the string length and calculate its hash in a single loop.
-	// This specialized loop is the key to this function's performance.
-	h := uint64(14695981039346656037) // FNV offset basis
+	// Calculate string length and FNV-1a hash in a single loop for optimal performance.
+	// This specialized loop is the key to this function's efficiency.
+	h := uint64(fnvOffset64) // FNV-1a offset basis
 	end := unsafe.Pointer(p)
 	n := 0
 	for {
@@ -54,8 +54,8 @@ func UTF16PtrToString(p *uint16) string {
 		if char == 0 {
 			break // Null terminator found
 		}
-		h ^= uint64(char)
-		h *= 1099511628211 // FNV prime
+		h ^= uint64(char)   // XOR with character value
+		h *= fnvPrime64     // Multiply by FNV prime
 
 		end = unsafe.Pointer(uintptr(end) + 2) // 2 bytes per uint16
 		n++
@@ -75,7 +75,7 @@ func UTF16SliceToString(s []uint16) string {
 	if len(s) == 0 {
 		return ""
 	}
-	// Pass h=0 to signal that the hash needs to be computed inside the helper.
+	// Pass h=0 to signal that the hash needs to be computed inside the helper function.
 	return utf16Convert(s, 0, len(s))
 }
 

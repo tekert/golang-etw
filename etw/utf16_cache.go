@@ -9,19 +9,26 @@ import (
 // making it ideal for caching repeated strings like event property names.
 var globalUtf16Cache = utf16Cache{}
 
+const (
+	// FNV-1a hash constants for 64-bit hash computation
+	// These are the standard FNV-1a constants as defined in the FNV specification
+	fnvOffset64 = 14695981039346656037 // FNV-1a 64-bit offset basis
+	fnvPrime64  = 1099511628211        // FNV-1a 64-bit prime multiplier
+)
+
 // utf16Cache wraps a sync.Map for type safety and to provide the cache API.
 type utf16Cache struct {
-	data sync.Map
+	data sync.Map // map[uint64]string - maps FNV-1a hash to converted string
 }
 
 // hash calculates the FNV-1a hash for a UTF-16 slice.
 //
 //go:inline
 func (c *utf16Cache) hash(data []uint16) uint64 {
-	h := uint64(14695981039346656037) // FNV offset basis
+	h := uint64(fnvOffset64) // FNV-1a offset basis
 	for _, v := range data {
-		h ^= uint64(v)
-		h *= 1099511628211 // Mult FNV prime
+		h ^= uint64(v)    // XOR with the 16-bit value
+		h *= fnvPrime64   // Multiply by FNV prime
 	}
 	return h
 }
@@ -34,7 +41,7 @@ func (c *utf16Cache) getKey(hash uint64) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	// The value must be type-asserted back to a string.
+	// Type assertion is safe since we only store strings in this cache
 	return value.(string), true
 }
 
