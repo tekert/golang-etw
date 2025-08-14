@@ -15,33 +15,69 @@ import (
 )
 
 const (
+	// AutologgerPath is the registry path where AutoLogger configurations are stored.
+	// AutoLogger sessions are ETW sessions that start automatically during system boot,
+	// allowing capture of events from early system startup before user-mode applications run.
 	AutologgerPath = `HKLM\System\CurrentControlSet\Control\WMI\Autologger`
-	regExe         = `C:\Windows\System32\reg.exe`
 
-	regDword  = "REG_DWORD"
-	regQword  = "REG_QWORD"
-	regSz     = "REG_SZ"
-	regBinary = "REG_BINARY"
+	regExe    = `C:\Windows\System32\reg.exe` // Path to Windows registry editor executable
+	regDword  = "REG_DWORD"                   // Registry DWORD type for 32-bit integer values
+	regQword  = "REG_QWORD"                   // Registry QWORD type for 64-bit integer values
+	regSz     = "REG_SZ"                      // Registry string type
+	regBinary = "REG_BINARY"                  // Registry binary type for filter data
 )
 
 func hexStr(i any) string {
 	return fmt.Sprintf("0x%x", i)
 }
 
+// AutoLogger represents an ETW AutoLogger session configuration.
+// AutoLogger sessions start automatically during system boot, making them useful
+// for capturing events from early system startup, driver initialization, and
+// other boot-time activities that occur before user-mode applications can start
+// regular ETW sessions.
+//
+// The configuration is stored in the Windows registry and read by the ETW
+// subsystem during boot. Once created, AutoLogger sessions persist across
+// reboots until explicitly deleted.
+//
+// Reference: https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-an-autologger-session
 type AutoLogger struct {
-	Name        string
-	GuidS       string
+	// Name is the unique identifier for this AutoLogger session.
+	// This becomes the session name and the registry key name.
+	Name string
+
+	// GuidS is the string representation of the AutoLogger session GUID.
+	// This GUID uniquely identifies the logging session.
+	GuidS string
+
+	// LogFileMode specifies the logging mode flags for the session.
+	// Common values include EVENT_TRACE_FILE_MODE_SEQUENTIAL for sequential file logging
+	// or EVENT_TRACE_REAL_TIME_MODE for real-time event delivery.
 	LogFileMode uint32
-	BufferSize  uint32
-	ClockType   uint32
+
+	// BufferSize specifies the size of each trace buffer in kilobytes.
+	// ETW events can be up to 64KB, so buffers must be at least this size.
+	// Larger buffers improve efficiency but use more memory.
+	BufferSize uint32
+
+	// ClockType specifies the type of timestamp to use for events.
+	// Common values: 1 = Performance Counter, 2 = System Time, 3 = CPU Cycle Counter
+	ClockType uint32
+
 	// MaxFileSize is the maximum file size of the log file, in megabytes.
-	// If a real time session with RealtimePersistence this is the maximum file size of the backup file.
-	// If not set the default is 100MB, to specify no limit this parameter must be 0 in the registry.
-	// But here 0 means that we want don't want to configure MaxFileSize, if we want to set it, this
-	// member needs to be explicitely set > 0
+	// For real-time sessions with RealtimePersistence, this is the maximum size of the backup file.
+	//
+	// Registry Behavior:
+	// - If not set in registry: defaults to 100MB
+	// - If set to 0 in registry: no limit (unlimited growth)
+	// - If this field is 0: the MaxFileSize registry value is not configured
+	// - If this field is > 0: the MaxFileSize registry value is set to this value
 	MaxFileSize uint32
 }
 
+// Path returns the full registry path for this AutoLogger session configuration.
+// The path follows the format: HKLM\System\CurrentControlSet\Control\WMI\Autologger\{SessionName}
 func (a *AutoLogger) Path() string {
 	return fmt.Sprintf(`%s\%s`, strings.TrimRight(AutologgerPath, `\`), strings.TrimLeft(a.Name, `\`))
 }
@@ -149,6 +185,8 @@ func serializeFiltersForAutologger(filters []ProviderFilter) (string, error) {
 	return hex.EncodeToString(finalBuf.Bytes()), nil
 }
 
+// EnableProvider enables a provider for this AutoLogger session by writing the necessary
+// configuration to the registry.
 func (a *AutoLogger) EnableProvider(p Provider) (err error) {
 	path := fmt.Sprintf(`%s\%s`, a.Path(), p.GUID.StringU())
 
