@@ -33,26 +33,24 @@ var (
 	// We use a global pool for EventRecordHelper.
 	helperPool    = sync.Pool{New: func() any { return &EventRecordHelper{} }}
 	tdhBufferPool = sync.Pool{New: func() any { s := make([]uint16, 128); return &s }}
-	// We use a global pool for individual property blocks.
-	propSingleBlockPool = sync.Pool{New: func() any { b := make([]Property, propertyBlockSize); return &b }}
 )
 
-// TODO: Most members of EventRecordHelper don't need pools for thread(trace) local storage that etw provides.
-// TODO: we can just use local pointers and avoid the sync.Pool overhead.
-
-// traceStorage holds all the necessary reusable memory for a single trace goroutine.
+// traceStorage holds all the necessary reusable memory for a single trace (goroutine).
 // This avoids using sync.Pool for thread-local data, reducing overhead.
 type traceStorage struct {
 	// Reusable buffers and slices. They are reset before processing each event.
-	propertyBlocks  []*[]Property // Holds blocks of properties.
-	properties      map[string]*Property
-	arrayProperties map[string]*[]*Property
-	structArrays    map[string][]map[string]*Property
-	structSingle    []map[string]*Property
-	selectedProps   map[string]bool
-	integerValues   []uint16
-	epiArray        []*EventPropertyInfo
-	teiBuffer       []byte // For GetEventInformation()
+	properties      map[string]*Property              // For single properties
+	arrayProperties map[string]*[]*Property           // For arrays of properties
+	structArrays    map[string][]map[string]*Property // For arrays of structs
+	structSingle    []map[string]*Property            // For non-array structs
+	selectedProps   map[string]bool                   // Properties selected for parsing
+	integerValues   []uint16                          // For caching integer values used in property lengths/counts
+	epiArray        []*EventPropertyInfo              // For caching EventPropertyInfo
+	teiBuffer       []byte                            // For GetEventInformation()
+
+	// Freelist cache for Property structs.
+	propCache []Property
+	propIdx   int
 
 	// Pools for nested structures that can't be easily managed by a single slice.
 	propertyMapPool sync.Pool // For nested structs in struct arrays.
@@ -62,7 +60,6 @@ type traceStorage struct {
 // newTraceStorage creates a new storage area for a goroutine.
 func newTraceStorage() *traceStorage {
 	return &traceStorage{
-		propertyBlocks:  make([]*[]Property, 0, 8),
 		properties:      make(map[string]*Property, 64),
 		arrayProperties: make(map[string]*[]*Property, 8),
 		structArrays:    make(map[string][]map[string]*Property, 4),
@@ -72,6 +69,10 @@ func newTraceStorage() *traceStorage {
 		epiArray:        make([]*EventPropertyInfo, 0, 64),
 		teiBuffer:       make([]byte, 8192), // Initial size for GetEventInformation()
 
+		// Initialize the property cache with a reasonable capacity to avoid frequent reallocations.
+		propCache: make([]Property, 0, 256),
+		propIdx:   0,
+
 		propertyMapPool: sync.Pool{New: func() any { return make(map[string]*Property, 8) }},
 		propSlicePool:   sync.Pool{New: func() any { s := make([]*Property, 0, 8); return &s }},
 	}
@@ -80,11 +81,8 @@ func newTraceStorage() *traceStorage {
 // reset clears the storage so it can be reused for the next event.
 // It resets slice lengths to 0 (preserving capacity) and clears maps.
 func (ts *traceStorage) reset() {
-	// 1. Return property blocks to the global pool.
-	for _, block := range ts.propertyBlocks {
-		propSingleBlockPool.Put(block)
-	}
-	ts.propertyBlocks = ts.propertyBlocks[:0]
+	// 1. Reset property cache index. The underlying slice is reused.
+	ts.propIdx = 0
 
 	// 2. Clear properties map.
 	clear(ts.properties)
@@ -103,8 +101,8 @@ func (ts *traceStorage) reset() {
 			clear(propStruct)
 			ts.propertyMapPool.Put(propStruct)
 		}
-		clear(ts.structArrays) // TODO: preguntar porque puse delete enves de clear.
 	}
+	clear(ts.structArrays)
 
 	// 5. Clear single struct slice, returning inner maps to the pool.
 	for _, propStruct := range ts.structSingle {
@@ -147,11 +145,6 @@ type EventRecordHelper struct {
 	// both are filled when an index is queried
 	integerValues *[]uint16
 	epiArray      *[]*EventPropertyInfo
-
-	// propertyBlocks stores slices of properties from a pool to reduce
-	// individual allocations and release operations.
-	propertyBlocks *[]*[]Property
-	propertyIdx    int
 
 	// Buffer that contains the memory for TraceEventInfo.
 	// used internally to reuse the memory allocation.
@@ -229,8 +222,9 @@ func (e *EventRecordHelper) logTraceInfo(entry *plog.Entry) *plog.Entry {
 }
 
 // Release EventRecordHelper back to memory pool.
-// The reusable memory is now in traceStorage and is reset by the next call to newEventRecordHelper.
-// We only need to zero out the helper struct and return it to the global pool.
+// Note: The reusable memory (maps, slices, etc.) referenced by EventRecordHelper
+// is managed and reset by traceStorage.reset() before reuse. This method only
+// zeroes out the struct fields themselves.
 func (e *EventRecordHelper) release() {
 	*e = EventRecordHelper{}
 	helperPool.Put(e)
@@ -286,26 +280,22 @@ func (e *EventRecordHelper) initialize() {
 	e.epiArray = &storage.epiArray
 	*e.epiArray = (*e.epiArray)[:maxPropCount]
 
-	// Get property blocks slice
-	e.propertyBlocks = &storage.propertyBlocks
-
 	// userDataIt iterator will be incremented for each queried property by prop size
 	e.userDataIt = e.EventRec.UserData
 	e.userDataEnd = e.EventRec.UserData + uintptr(e.EventRec.UserDataLength)
 }
 
-// newProperty retrieves a new property from a pooled block, avoiding individual allocations.
+// newProperty retrieves a new property from the thread-local freelist.
 func (e *EventRecordHelper) newProperty() *Property {
-	// Do we need a new block?
-	if len(*e.propertyBlocks) == 0 || e.propertyIdx >= propertyBlockSize {
-		newBlock := propSingleBlockPool.Get().(*[]Property)
-		*e.propertyBlocks = append(*e.propertyBlocks, newBlock)
-		e.propertyIdx = 0
+	storage := e.storage
+	if storage.propIdx >= len(storage.propCache) {
+		// Freelist is empty, grow the cache. Append will handle capacity increase.
+		storage.propCache = append(storage.propCache, Property{})
 	}
 
-	// Get the next property from the current block.
-	p := &(*(*e.propertyBlocks)[len(*e.propertyBlocks)-1])[e.propertyIdx]
-	e.propertyIdx++
+	// Get the next property from the cache.
+	p := &storage.propCache[storage.propIdx]
+	storage.propIdx++
 	p.reset() // Ensure the property is clean before use.
 	return p
 }
