@@ -12,9 +12,11 @@ import (
 // from the perspective of a consumer. An instance of this struct is created for
 // each trace name or session that a Consumer is attached to.
 type ConsumerTrace struct {
-	// Can be a trace name or full file name path.
+	// TraceName can be either a trace session name (for real-time sessions) or
+	// a full file name path (for ETL file traces). For real-time sessions, this
+	// corresponds to the LoggerName used when starting the session.
 	TraceName  string
-	TraceNameW *uint16
+	TraceNameW *uint16 // UTF-16 representation of TraceName for Windows API calls
 
 	// handle that OpenTrace returned if open = true, else 0
 	handle syscall.Handle
@@ -22,7 +24,7 @@ type ConsumerTrace struct {
 	open bool // True is the trace is open
 
 	// Keep ETW traceContext alive (don't nil it or they can be crashes.)
-	ctx *traceContext
+	_ctx *traceContext
 
 	// True if the trace is currently blocking in ProcessTrace
 	processing bool
@@ -41,7 +43,8 @@ type ConsumerTrace struct {
 	// events lost when the file was originally recorded.
 	lastTraceLogfile atomic.Pointer[EventTraceLogfile]
 
-	// Trace EventTracePropertyData stats
+	// traceProps holds EVENT_TRACE_PROPERTIES_V2 structure for querying session statistics.
+	// This is only available for real-time sessions and is nil for ETL file traces.
 	traceProps *EventTracePropertyData2
 
 	// The RTLostEvent event type indicates that one or more realtime events were lost.
@@ -52,7 +55,7 @@ type ConsumerTrace struct {
 	// Note that a single notification may represent multiple underlying events being
 	// dropped by the kernel. For the authoritative total count of lost events,
 	// query the session properties via `Session.QueryTrace()` or `ConsumerTrace.QueryTrace()`
-	//  and check the `EventsLost` field. The two numbers are not expected to match.
+	// and check the `EventsLost` field. The two numbers are not expected to match.
 	//
 	//  Remarks:
 	// In the Event Tracing for Windows (ETW) API, the discrepancy between the EventsLost
@@ -81,19 +84,31 @@ type ConsumerTrace struct {
 	// count compared to the EventsLost total.
 	RTLostEvents atomic.Uint64
 
-	// The RTLostBuffer event type indicates that one or more realtime buffers were lost.
+	// RTLostBuffer counts RT_LostBuffer notifications indicating that one or more
+	// real-time buffers were lost by the ETW subsystem. This typically occurs when
+	// system resources are insufficient to maintain the buffer pool.
 	RTLostBuffer atomic.Uint64
 
-	// The RTLostFile indicates that the backing file used by the AutoLogger to capture events was lost.
+	// RTLostFile counts RT_LostFile notifications indicating that the backing file
+	// used by an AutoLogger session to capture events was lost. This is specific to
+	// AutoLogger configurations where events are persisted to disk.
 	RTLostFile atomic.Uint64
 
-	// The number of events that were proccesed with errors.
+	// ErrorEvents counts the number of events that encountered processing errors.
+	// This includes events that could not be parsed, had invalid data, or caused
+	// exceptions during processing.
 	ErrorEvents atomic.Uint64
 
-	// Numbers of properties that where skipped/lost due parsing errors.
+	// ErrorPropsParse counts the number of event properties that were skipped or lost
+	// due to parsing errors. This can occur when event data is corrupted, has an
+	// unexpected format, or when the property parsing logic encounters unsupported data types.
 	ErrorPropsParse atomic.Uint64
 }
 
+// IsTraceOpen returns true if the trace is currently open and ready for processing.
+// A trace is considered open when OpenTrace has been successfully called and
+// the trace handle is valid. This does not indicate whether ProcessTrace is
+// currently running.
 func (t *ConsumerTrace) IsTraceOpen() bool {
 	return t.open
 }
@@ -108,14 +123,17 @@ func (t *ConsumerTrace) IsTraceOpen() bool {
 // for reliable lost event counts, use `ConsumerTrace.RTLostEvents` or query the session
 // properties via `Session.QueryTrace()`.
 func (t *ConsumerTrace) GetLogFileCopy() *EventTraceLogfile {
-	return t.lastTraceLogfile.Load()
+	return t.lastTraceLogfile.Load().Clone()
 }
 
-// updateTraceLogFile efficiently updates only the changing non-pointer fields in place.
+// updateTraceLogFile updates the internal copy of the EventTraceLogfile structure
+// with the latest data from the provided buffer.
 func (t *ConsumerTrace) updateTraceLogFile(bufferLogFile *EventTraceLogfile) {
 	if bufferLogFile == nil {
 		return
 	}
+
+	// TODO: detect file name changes and update it too
 
 	current := t.lastTraceLogfile.Load()
 	if current == nil {

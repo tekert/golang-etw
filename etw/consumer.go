@@ -15,8 +15,7 @@ import (
 )
 
 var (
-	//rtLostEventGuid = MustParseGUIDFromString("{6A399AE0-4BC6-4DE9-870B-3657F8947E7E}") // don't use, not evaluated compile time.
-
+	// rtLostEventGuid is the GUID for RT_LostEvent notifications that indicate real-time event loss.
 	// https://learn.microsoft.com/en-us/windows/win32/etw/rt-lostevent
 	rtLostEventGuid = &GUID{ /* {6A399AE0-4BC6-4DE9-870B-3657F8947E7E}*/
 		Data1: 0x6a399ae0,
@@ -112,23 +111,31 @@ type Consumer struct {
 	// NOTE: Remember to call e.Release() after processing the event.
 	// to improve performance when using this type of processing.
 	//
-	// errors returned by this callback will be logged
+	// Errors returned by this callback are logged but do not stop processing.
 	EventCallback func(*Event) error
 
-	// The total number of event's lost.
+	// LostEvents tracks the total number of events lost across all trace sessions.
+	// This is incremented based on RT_LostEvent notifications.
 	LostEvents atomic.Uint64
 
-	// The total number of events that were skipped.
+	// Skipped tracks the total number of events that were filtered out by callbacks.
+	// Events are counted as skipped when any callback returns false or calls Skip().
 	Skipped atomic.Uint64
 
-	// to force stop the Consumer ProcessTrace if buffer takes too long to empty.
-	// stores timeout in nanoseconds
-	closeTimeout time.Duration // stores timeout in nanoseconds
+	// closeTimeout specifies the maximum time to wait for ProcessTrace to complete
+	// when closing the Consumer. If ProcessTrace doesn't return within this timeout,
+	// the Consumer will attempt to force termination.
+	closeTimeout time.Duration
 
-	// EventsBatch channel configutation.
+	// Events provides a buffered channel interface for batch event processing.
+	// When configured, events are queued in batches rather than processed individually
+	// through callbacks, allowing for more efficient bulk processing patterns.
 	Events *EventBuffer
 }
 
+// traceContext holds the context information passed to ETW callbacks.
+// This structure bridges the gap between the C callback environment and Go,
+// providing access to the Consumer, ConsumerTrace, and thread-local storage.
 type traceContext struct {
 	trace    *ConsumerTrace
 	consumer *Consumer
@@ -408,7 +415,9 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 
 	var traceHandle syscall.Handle
 	ti := c.getOrAddTrace(name)
-	ti.ctx = &traceContext{
+	// Important: we must keep a Go reference so we save this first to ti._ctx
+	// so that it is not garbage collected
+	ti._ctx = &traceContext{
 		trace:    ti,
 		consumer: c,
 		storage:  newTraceStorage(),
@@ -428,7 +437,7 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	}
 	loggerInfo.BufferCallback = syscall.NewCallbackCDecl(c.bufferCallback)
 	loggerInfo.Callback = syscall.NewCallbackCDecl(c.callback)
-	loggerInfo.Context = uintptr(unsafe.Pointer(ti.ctx))
+	loggerInfo.Context = uintptr(unsafe.Pointer(ti._ctx))
 	// Use memory allocated already in the trace struct for the name
 	if !ti.realtime {
 		loggerInfo.LogFileName = ti.TraceNameW // We consume from the file.
@@ -637,7 +646,7 @@ func (c *Consumer) processTrace(name string, trace *ConsumerTrace) {
 		}
 	}
 	trace.processing = false
-	trace.ctx = nil // context can be safely released now. (bufferCallback will not be called anymore)
+	trace._ctx = nil // context can be safely released now. (bufferCallback will not be called anymore)
 	seslog.Debug().Str("trace", name).Msg("ProcessTrace finished")
 }
 

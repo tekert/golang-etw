@@ -206,8 +206,8 @@ func (s *RealTimeSession) Start() (err error) {
 // Performance Note: Filtering events via the provider's Level and Keywords is the
 // most efficient method, as it prevents the provider from generating disabled events
 // in the first place. Other filter types (e.g., EventIDFilter) are applied by the
-// ETW runtime after the event has been generated, which reduces trace volume but not
-// the initial CPU overhead of generation.
+// ETW runtime after the event has been generated (depends on provider), which reduces
+// trace volume but not the initial CPU overhead of generation.
 func (s *RealTimeSession) EnableProvider(prov Provider) (err error) {
     // If the trace is not started yet we have to start it
     // otherwise we cannot enable provider
@@ -229,7 +229,7 @@ func (s *RealTimeSession) EnableProvider(prov Provider) (err error) {
 
 	params := EnableTraceParameters{
 		Version: 2,
-		
+
 		// Does not seem to bring valuable information
 		//EnableProperty: EVENT_ENABLE_PROPERTY_PROCESS_START_KEY,
 	}

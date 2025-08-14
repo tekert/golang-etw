@@ -20,23 +20,25 @@ var (
 	nullGUID = GUID{}
 )
 
-/*
-typedef struct _GUID {
-	DWORD Data1;
-	WORD Data2;
-	WORD Data3;
-	BYTE Data4[8];
-} GUID;
-*/
-
-// GUID structure
-// Example: {9E814AAD-3204-11D2-9A82-006008A86939} =
-// GUID(0x9e814aad, 0x3204, 0x11d2, [8]byte{0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39})
+// GUID represents a Windows GUID (Globally Unique Identifier) structure.
+// GUIDs are 128-bit values used throughout Windows APIs to uniquely identify
+// objects, interfaces, and other entities.
+//
+// The structure matches the Windows GUID layout:
+// - Data1: 32-bit value
+// - Data2: 16-bit value
+// - Data3: 16-bit value
+// - Data4: 8-byte array
+//
+// String format: {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}
+// Example: {9E814AAD-3204-11D2-9A82-006008A86939}
+//
+// Reference: https://learn.microsoft.com/en-us/windows/win32/api/guiddef/ns-guiddef-guid
 type GUID struct {
-	Data1 uint32
-	Data2 uint16
-	Data3 uint16
-	Data4 [8]byte
+	Data1 uint32    // First 32 bits of the GUID
+	Data2 uint16    // Next 16 bits of the GUID
+	Data3 uint16    // Next 16 bits of the GUID
+	Data4 [8]byte   // Final 64 bits of the GUID as 8 bytes
 }
 
 // IsZero checks if GUID is all zeros
@@ -44,8 +46,11 @@ func (g *GUID) IsZero() bool {
 	return g.Equals(&nullGUID)
 }
 
-// UPPERCASE StringU representation of the GUID
-// These are 10x more performant than sprintf
+// StringU returns the uppercase string representation of the GUID in standard format.
+// The format is: {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}
+//
+// This implementation is ~10x faster than using fmt.Sprintf by avoiding
+// allocations and using optimized hex encoding.
 func (g *GUID) StringU() string {
 	var b [38]byte
 	b[0] = '{'
@@ -79,8 +84,11 @@ func (g *GUID) StringU() string {
 	return unsafe.String(unsafe.SliceData(b[:]), len(b))
 }
 
-// lowercase string representation of the GUID
-// These are 10x more performant than sprintf
+// String returns the lowercase string representation of the GUID in standard format.
+// The format is: {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
+//
+// This implementation is ~10x faster than using fmt.Sprintf by avoiding
+// allocations and using optimized hex encoding.
 func (g *GUID) String() string {
 	var b [38]byte
 	b[0] = '{'
@@ -114,6 +122,8 @@ func (g *GUID) String() string {
 	return unsafe.String(unsafe.SliceData(b[:]), len(b))
 }
 
+// Equals compares this GUID with another GUID for equality.
+// Returns true if all fields of both GUIDs are identical.
 func (g *GUID) Equals(other *GUID) bool {
 	return g.Data1 == other.Data1 &&
 		g.Data2 == other.Data2 &&

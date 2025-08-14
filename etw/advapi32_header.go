@@ -1207,6 +1207,8 @@ func (e *EventRecord) IsMof() bool {
 // 	Cap  int
 // }
 
+// GetEventInformation retrieves the event schema information for the given event record.
+// It uses a provided buffer to store the information, resizing it if necessary.
 func (e *EventRecord) GetEventInformation(buffer *[]byte) (tei *TraceEventInfo, err error) {
 	if buffer == nil || cap(*buffer) == 0 {
 		// This should not happen with traceStorage, but as a safeguard:

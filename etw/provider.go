@@ -19,6 +19,7 @@ var (
 	ErrUnkownProvider = fmt.Errorf("unknown provider")
 )
 
+// ProviderMap is a map that indexes ETW providers by both their name and GUID string representation.
 type ProviderMap map[string]*Provider
 
 // Provider represents an ETW event provider, identified by its name and GUID,
