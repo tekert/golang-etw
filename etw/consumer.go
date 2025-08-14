@@ -159,19 +159,6 @@ func NewConsumer(ctx context.Context) (c *Consumer) {
 	return c
 }
 
-// // Returns a deep copy of the struct, so it can be safely used after trace is closed.
-// // The original it's no longer valid when the Consumer is stopped. (Trace handle closed)
-// // When the trace is closed, this struct is cloned so it can be returned to the user.
-// func (c *Consumer) cloneTraceLogfile(tname string) (et *EventTraceLogfile) {
-// 	if v, ok := c.traces.Load(tname); ok {
-// 		trace := v.(*Trace)
-// 		c.tmu.RLock()
-// 		et = trace.traceLogFile.Clone()
-// 		c.tmu.RUnlock()
-// 	}
-// 	return
-// }
-
 // gets or creates a new one if it doesn't exist
 func (c *Consumer) getOrAddTrace(traceName string) *ConsumerTrace {
 	actual, _ := c.traces.LoadOrStore(traceName, newConsumerTrace(traceName))
@@ -373,18 +360,19 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 	c.traces.Range(func(key, value interface{}) bool {
 		t := value.(*ConsumerTrace)
 		seslog.Debug().Str("trace", t.TraceName).Msg("Closing handle for trace")
-		// if we don't wait for traces ERROR_CTX_CLOSE_PENDING is a valid error
+		// if we don't wait for traces, ERROR_CTX_CLOSE_PENDING is a valid error
 		// The ERROR_CTX_CLOSE_PENDING code indicates that the CloseTrace function
-		// call was successful; the ProcessTrace function will stop processing events
-		// after it processes all previously-queued events
-		// (ProcessTrace will not receive any new events after you call the CloseTrace function).
+		// call was successful; the ProcessTrace function will unblock and return
+		// after the etw buffer for the session is empty and the last callback returns.
+		// (ProcessTrace will not receive any new events in it's buffer after you call
+		// the CloseTrace function).
 		if t.handle != 0 {
 			var err error
-
 			// Mark as closed to prevent further updates
 			c.tmu.Lock()
 			t.open = false
 			if err = CloseTrace(t.handle); err != nil && err != ERROR_CTX_CLOSE_PENDING {
+				seslog.Error().Err(err).Str("trace", t.TraceName).Msg("CloseTrace failed")
 				lastErr = err
 			}
 			t.handle = 0
@@ -464,41 +452,6 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 
 	return nil
 }
-
-// // Gets the properties of a trace session with traceName in utf16
-// // useful for checking an existing TraceLogFile logName.
-// // same as [Trace.QueryTrace] but for traceNameW in utf16
-// func (c *Consumer) QueryTraceW(traceNameW *uint16) (prop *EventTracePropertyData2, err error) {
-// 	if traceNameW == nil {
-// 		return nil, fmt.Errorf("traceNameW is nil")
-// 	}
-
-// 	c.traces.Range(func(key, value interface{}) bool {
-// 		t := value.(*Trace)
-
-// 		// if pointer points to the same location, same name.
-// 		if (traceNameW == t.TraceNameW) {
-// 			prop, err = t.QueryTrace()
-// 			return false
-// 		}
-
-// 		// Compare UTF16 strings until null terminator
-// 		for i := 0; ; i++ {
-// 			c1 := *(*uint16)(unsafe.Add(unsafe.Pointer(traceNameW), i*2))
-// 			c2 := *(*uint16)(unsafe.Add(unsafe.Pointer(t.TraceNameW), i*2))
-
-// 			if c1 != c2 {
-// 				return true // continue Range
-// 			}
-// 			if c1 == 0 && c2 == 0 { // null terminator
-// 				prop, err = t.QueryTrace()
-// 				return false // stop Range
-// 			}
-// 		}
-// 	})
-
-// 	return
-// }
 
 // same as [ConsumerTrace.QueryTrace] but using string traceName
 func (c *Consumer) QueryTrace(traceName string) (prop *EventTracePropertyData2, err error) {
@@ -663,10 +616,11 @@ func (c *Consumer) processTrace(name string, trace *ConsumerTrace) {
 	defer runtime.UnlockOSThread()
 
 	goroutineID := getGoroutineID()
-	seslog.Info().Str("trace", name).Interface("goroutineID", goroutineID).Msg("Starting processTrace")
+	seslog.Info().Str("trace", name).Interface("goroutineID", goroutineID).Msg("Starting processing trace")
 
 	trace.processing = true
 	// https://docs.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-processtrace
+	// IMPORTANT:
 	// Won't return even if canceled (CloseTrace or callbackBuffer returning 0),
 	// until the session buffer is empty, meaning the defined callback has to return
 	// for every remaining event in the buffer, then ProcessTrace will unblock.
@@ -690,32 +644,33 @@ func (c *Consumer) processTrace(name string, trace *ConsumerTrace) {
 // Will return from the goroutine if ProcessTrace doesn't return after close.
 // This will leave the ProcessTrace detached and flushing events.
 func (c *Consumer) processTraceWithTimeout(name string, trace *ConsumerTrace) {
-	//traceDone := trace.done // capture the reference just in case
 	pdone := make(chan struct{})
 	// Start ProcessTrace in separate goroutine
 	go func() {
 		defer close(pdone)
-		c.processTrace(name, trace)
+		c.processTrace(name, trace) // blocks until ProcessTrace returns
 	}()
 
-	// Wait for either context cancellation or ProcessTrace return
+	// When the consumer is stopped (ctx closed) or processTrace returned
+	// we check wich of the two happened.
+	// Consumer stopped -> wait for ProcessTrace to finish or timeout.
+	// ProcessTrace returned -> we return immediately.
 	select {
-	case <-c.ctx.Done():
-		//<-traceDone // wait for handle to be closed first.
+	case <-c.ctx.Done(): // Consumer stopped
 		if c.closeTimeout != 0 {
-			// Wait for ProcessTrace to finish naturally or timeout
-			select {
+			select { // Wait for ProcessTrace to flush remaining events or timeout
 			case <-pdone:
-				// ProcessTrace completed before timeout
+				// ProcessTrace returned before timeout
+				return
 			case <-time.After(c.closeTimeout):
-				seslog.Warn().Str("trace", name).Msg("ProcessTrace did not complete within timeout")
-				// Let goroutine continue but we return to unblock c.Wait()
+				seslog.Warn().Str("trace", name).Msg("ProcessTrace did not return within timeout")
+				// Let goroutine continue but we return to unblock c.Wait() in c.close()
 				return
 			}
 		}
 		// If forceTimeout == 0, wait for normal completion
 		<-pdone
-	case <-pdone:
+	case <-pdone: // ProcessTrace returned
 		// ProcessTrace completed before Consumer stop (context close).
 	}
 }
