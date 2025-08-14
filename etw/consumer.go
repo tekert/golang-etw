@@ -132,7 +132,7 @@ type Consumer struct {
 type traceContext struct {
 	trace    *ConsumerTrace
 	consumer *Consumer
-	pools    *localPools // thread local storage pools to reduce possible lock contention.
+	storage  *traceStorage // thread local storage to reduce allocations and lock contention.
 }
 
 // Helper function to get the traceContext from the UserContext
@@ -196,7 +196,7 @@ func (c *Consumer) GetTrace(tname string) (t *ConsumerTrace, ok bool) {
 func (c *Consumer) handleLostEvent(e *EventRecord) {
 	var traceInfo *TraceEventInfo
 	var err error
-	if traceInfo, _, err = e.GetEventInformation(); err == nil {
+	if traceInfo, err = e.GetEventInformation(nil); err == nil {
 		u := e.getUserContext() // No need to protect with mutex here.
 		switch traceInfo.EventDescriptor.Opcode {
 		case 32:
@@ -411,7 +411,7 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	ti.ctx = &traceContext{
 		trace:    ti,
 		consumer: c,
-		pools:    newLocalPools(),
+		storage:  newTraceStorage(),
 	}
 
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilea
@@ -448,7 +448,7 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	// On success, OpenTrace populates loggerInfo with the initial trace state.
 	// We clone it to create a safe, managed copy and store it in the atomic pointer.
 	// This makes the initial state available immediately.
-	ti.lastTraceLogfile.Store(loggerInfo.Clone())
+	ti.lastTraceLogfile.Store(&loggerInfo)
 
 	return nil
 }

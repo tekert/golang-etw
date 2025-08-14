@@ -30,49 +30,100 @@ var (
 
 // Global Memory Pools
 var (
-	// We use global pool only for EventRecordHelper and local per goroutine pools for other object.
+	// We use a global pool for EventRecordHelper.
 	helperPool    = sync.Pool{New: func() any { return &EventRecordHelper{} }}
 	tdhBufferPool = sync.Pool{New: func() any { s := make([]uint16, 128); return &s }}
+	// We use a global pool for individual property blocks.
 	propSingleBlockPool = sync.Pool{New: func() any { b := make([]Property, propertyBlockSize); return &b }}
 )
 
- // TODO: Most members of EventRecordHelper don't need pools for thread(trace) local storage that etw provides.
- // TODO: we can just use local pointers and avoid the sync.Pool overhead.
+// TODO: Most members of EventRecordHelper don't need pools for thread(trace) local storage that etw provides.
+// TODO: we can just use local pointers and avoid the sync.Pool overhead.
 
-// localPools holds all the necessary pools for a single trace goroutine.
-type localPools struct {
-	//helperPool           sync.Pool
-	propMultipleBlocksPool sync.Pool // *e.propertyBlocks
+// traceStorage holds all the necessary reusable memory for a single trace goroutine.
+// This avoids using sync.Pool for thread-local data, reducing overhead.
+type traceStorage struct {
+	// Reusable buffers and slices. They are reset before processing each event.
+	propertyBlocks  []*[]Property // Holds blocks of properties.
+	properties      map[string]*Property
+	arrayProperties map[string]*[]*Property
+	structArrays    map[string][]map[string]*Property
+	structSingle    []map[string]*Property
+	selectedProps   map[string]bool
+	integerValues   []uint16
+	epiArray        []*EventPropertyInfo
+	teiBuffer       []byte // For GetEventInformation()
 
-	// Pools for various members of EventRecordHelper
-	propertyMapPool      sync.Pool // e.Properties
-	arrayPropertyMapPool sync.Pool // e.ArrayProperties
-	propSlicePool        sync.Pool // (*[]*Property) of (e.ArrayProperties)
-	structArraysMapPool  sync.Pool // e.StructArrays
-	structSingleMapPool  sync.Pool // *e.StructSingle
-	selectedPropsPool    sync.Pool // e.selectedProperties
-	integerValuesPool    sync.Pool // *e.integerValues
-	epiArrayPool         sync.Pool // *e.epiArray
-	tdhInfoPool          sync.Pool // *e.teiBuffer  used for GetEventInformation()
+	// Pools for nested structures that can't be easily managed by a single slice.
+	propertyMapPool sync.Pool // For nested structs in struct arrays.
+	propSlicePool   sync.Pool // For simple arrays of properties.
 }
 
-// newLocalPools creates a new set of pools for a goroutine.
-// This is to avoid some potential lock contention, we can get as high as 200k events/s
-func newLocalPools() *localPools {
-	return &localPools{
-		//helperPool:           sync.Pool{New: func() any { return &EventRecordHelper{} }},
-		propMultipleBlocksPool: sync.Pool{New: func() any { b := make([]*[]Property, 0, 8); return &b }},
+// newTraceStorage creates a new storage area for a goroutine.
+func newTraceStorage() *traceStorage {
+	return &traceStorage{
+		propertyBlocks:  make([]*[]Property, 0, 8),
+		properties:      make(map[string]*Property, 64),
+		arrayProperties: make(map[string]*[]*Property, 8),
+		structArrays:    make(map[string][]map[string]*Property, 4),
+		structSingle:    make([]map[string]*Property, 0, 4),
+		selectedProps:   make(map[string]bool, 16),
+		integerValues:   make([]uint16, 0, 64),
+		epiArray:        make([]*EventPropertyInfo, 0, 64),
+		teiBuffer:       make([]byte, 8192), // Initial size for GetEventInformation()
 
-		propertyMapPool:      sync.Pool{New: func() any { return make(map[string]*Property, 8) }},
-		arrayPropertyMapPool: sync.Pool{New: func() any { return make(map[string]*[]*Property) }},
-		propSlicePool:        sync.Pool{New: func() any { s := make([]*Property, 0, 8); return &s }},
-		structArraysMapPool:  sync.Pool{New: func() any { return make(map[string][]map[string]*Property) }},
-		structSingleMapPool:  sync.Pool{New: func() any { s := make([]map[string]*Property, 0, 4); return &s }},
-		selectedPropsPool:    sync.Pool{New: func() any { return make(map[string]bool) }},
-		integerValuesPool:    sync.Pool{New: func() any { s := make([]uint16, 0, 16); return &s }},
-		epiArrayPool:         sync.Pool{New: func() any { s := make([]*EventPropertyInfo, 0, 16); return &s }},
-		tdhInfoPool:          sync.Pool{New: func() any { b := make([]byte, 8192); return &b }}, // GetEventInformation() in advapi32_header.go
+		propertyMapPool: sync.Pool{New: func() any { return make(map[string]*Property, 8) }},
+		propSlicePool:   sync.Pool{New: func() any { s := make([]*Property, 0, 8); return &s }},
 	}
+}
+
+// reset clears the storage so it can be reused for the next event.
+// It resets slice lengths to 0 (preserving capacity) and clears maps.
+func (ts *traceStorage) reset() {
+	// 1. Return property blocks to the global pool.
+	for _, block := range ts.propertyBlocks {
+		propSingleBlockPool.Put(block)
+	}
+	ts.propertyBlocks = ts.propertyBlocks[:0]
+
+	// 2. Clear properties map.
+	clear(ts.properties)
+
+	// 3. Clear array properties map, returning inner slices to the pool.
+	for _, propSlicePtr := range ts.arrayProperties {
+		clear(*propSlicePtr)
+		*propSlicePtr = (*propSlicePtr)[:0]
+		ts.propSlicePool.Put(propSlicePtr)
+	}
+	clear(ts.arrayProperties)
+
+	// 4. Clear struct arrays map, returning inner maps to the pool.
+	for _, structs := range ts.structArrays {
+		for _, propStruct := range structs {
+			clear(propStruct)
+			ts.propertyMapPool.Put(propStruct)
+		}
+		clear(ts.structArrays) // TODO: preguntar porque puse delete enves de clear.
+	}
+
+	// 5. Clear single struct slice, returning inner maps to the pool.
+	for _, propStruct := range ts.structSingle {
+		clear(propStruct)
+		ts.propertyMapPool.Put(propStruct)
+	}
+	ts.structSingle = ts.structSingle[:0]
+
+	// 6. Clear selected properties map.
+	clear(ts.selectedProps)
+
+	// 7. Reset integer values slice.
+	ts.integerValues = ts.integerValues[:0]
+
+	// 8. Reset epi array slice, clearing pointers to prevent stale data.
+	clear(ts.epiArray)
+	ts.epiArray = ts.epiArray[:0]
+
+	// teiBuffer does not need to be reset, it gets overwritten.
 }
 
 type EventRecordHelper struct {
@@ -116,8 +167,8 @@ type EventRecordHelper struct {
 
 	selectedProperties map[string]bool
 
-	// Keep a reference to the pools used to create this helper.
-	pools *localPools
+	// A reference to the thread-local storage for this trace.
+	storage *traceStorage
 }
 
 func (e *EventRecordHelper) remainingUserDataLength() uint16 {
@@ -177,148 +228,66 @@ func (e *EventRecordHelper) logTraceInfo(entry *plog.Entry) *plog.Entry {
 	return entry
 }
 
-// Release EventRecordHelper back to memory pool
-// Including all the memory allocations that were made during the processing of the event
-// (increases performance substantially).
+// Release EventRecordHelper back to memory pool.
+// The reusable memory is now in traceStorage and is reset by the next call to newEventRecordHelper.
+// We only need to zero out the helper struct and return it to the global pool.
 func (e *EventRecordHelper) release() {
-	// Since we have to release the property struct memory by iterating we may as well
-	// reset the memory of the maps and slices while doing it
-	pools := e.pools
-
-	// Important: Don't store references to slices! that are part of EventRecordHelper
-	// This will create subtle data race if we share &internal locations to other pooled structs.
-
-	// 1. Return property blocks to the pool. This is much faster than releasing one by one.
-	for _, block := range *e.propertyBlocks {
-		propSingleBlockPool.Put(block)
-	}
-	*e.propertyBlocks = (*e.propertyBlocks)[:0] // no need to clear it, only reset length.
-	pools.propMultipleBlocksPool.Put(e.propertyBlocks)
-
-	// 2. Clear and return maps and slices that hold pointers to properties.
-	// The properties themselves are now managed by the blocks, so no need to iterate and release.
-	if e.Properties != nil {
-		clear(e.Properties)
-		pools.propertyMapPool.Put(e.Properties)
-	}
-
-	// 3. Reset/Clear and return ArrayProperties to the pool map[string]*[]*Property
-	if e.ArrayProperties != nil {
-		for _, propSlicePtr := range e.ArrayProperties {
-			// The slice itself needs to be returned to the pool, but not its contents.
-			clear(*propSlicePtr)
-			*propSlicePtr = (*propSlicePtr)[:0]
-			pools.propSlicePool.Put(propSlicePtr)
-		}
-		// Release the top-level container map[string]
-		clear(e.ArrayProperties)
-		pools.arrayPropertyMapPool.Put(e.ArrayProperties)
-	}
-
-	// 4a. StructArrays map
-	if e.StructArrays != nil {
-		for _, structs := range e.StructArrays {
-			for _, propStruct := range structs {
-				clear(propStruct)
-				pools.propertyMapPool.Put(propStruct)
-			}
-		}
-		clear(e.StructArrays)
-		pools.structArraysMapPool.Put(e.StructArrays)
-	}
-
-	// 4b. SingleStructs slice
-	if e.StructSingle != nil {
-		for _, propStruct := range *e.StructSingle {
-			clear(propStruct)
-			pools.propertyMapPool.Put(propStruct)
-		}
-		*e.StructSingle = (*e.StructSingle)[:0]
-		pools.structSingleMapPool.Put(e.StructSingle)
-	}
-
-	// 5. Clear and return selectedProperties
-	if e.selectedProperties != nil {
-		clear(e.selectedProperties)
-		pools.selectedPropsPool.Put(e.selectedProperties)
-	}
-
-	// 6. Reset integerValues slice (keep capacity) and return to pool
-	if e.integerValues != nil {
-		*e.integerValues = (*e.integerValues)[:0]
-		pools.integerValuesPool.Put(e.integerValues)
-	}
-
-	// 7. Reset epiArray slice (keep capacity) and return to pool
-	if e.epiArray != nil {
-		// Important: Zero out the pointers in the backing array so that when this
-		// slice is reused, it doesn't contain stale pointers from a previous event.
-		// This is critical for the `if (*e.epiArray)[i] == nil` check in getEpiAt.
-		clear(*e.epiArray)
-		*e.epiArray = (*e.epiArray)[:0]
-		pools.epiArrayPool.Put(e.epiArray)
-	}
-
-	// 8. Release back into the pool the mem allocation for TraceEventInfo
-	if e.teiBuffer != nil {
-		tdhInfoPool.Put(e.teiBuffer) // use global pool for this one
-	}
-
-	// Last. Finally, Reset fields and Release this object memory
 	*e = EventRecordHelper{}
-
-	//pools.helperPool.Put(e) // Put back into the goroutine specific pool
 	helperPool.Put(e)
 }
 
 // Creates a new EventRecordHelper that has the EVENT_RECORD and gets a TRACE_EVENT_INFO for that event.
 func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
-	erh = helperPool.Get().(*EventRecordHelper) // Use global pool for this one.
-	pools := er.getUserContext().pools
-	//erh = pools.helperPool.Get().(*EventRecordHelper)
-	erh.pools = pools // Associate the pools with this helper instance.
+	erh = helperPool.Get().(*EventRecordHelper)
+	storage := er.getUserContext().storage
 
+	// Reset the thread-local storage before processing a new event.
+	storage.reset()
+
+	erh.storage = storage
 	erh.EventRec = er
-	if erh.TraceInfo, erh.teiBuffer, err = er.GetEventInformation(); err != nil {
+
+	// Use the teiBuffer from storage for GetEventInformation.
+	// The buffer will be resized by GetEventInformation if needed.
+	if erh.TraceInfo, err = er.GetEventInformation(&storage.teiBuffer); err != nil {
 		// TODO: many of these when using some NT Kernel Logger MOF events, investigate wich kernel provider is it.
 		err = fmt.Errorf("GetEventInformation failed : %s", err)
-		erh.logTraceInfo(conlog.Trace()).Msg("GetEventInformation failed")
+		conlog.Trace().Msg("GetEventInformation failed")
 	}
+	erh.teiBuffer = &storage.teiBuffer // Keep a reference
 
 	return
 }
 
 // This memory was already reseted when it was released.
 func (e *EventRecordHelper) initialize() {
-	pools := e.pools
-	e.Properties = pools.propertyMapPool.Get().(map[string]*Property)
-	e.ArrayProperties = pools.arrayPropertyMapPool.Get().(map[string]*[]*Property)
+	storage := e.storage
+	e.Properties = storage.properties
+	e.ArrayProperties = storage.arrayProperties
 
 	// Structure handling
-	e.StructArrays = pools.structArraysMapPool.Get().(map[string][]map[string]*Property)
-	e.StructSingle = pools.structSingleMapPool.Get().(*[]map[string]*Property)
+	e.StructArrays = storage.structArrays
+	e.StructSingle = &storage.structSingle
 
-	e.selectedProperties = pools.selectedPropsPool.Get().(map[string]bool)
+	e.selectedProperties = storage.selectedProps
 
 	maxPropCount := int(e.TraceInfo.PropertyCount)
 	// Get and resize integer values
-	e.integerValues = pools.integerValuesPool.Get().(*[]uint16)
-	if cap(*e.integerValues) < maxPropCount {
-		*e.integerValues = make([]uint16, maxPropCount)
-	} else {
-		*e.integerValues = (*e.integerValues)[:maxPropCount]
+	if cap(storage.integerValues) < maxPropCount {
+		storage.integerValues = make([]uint16, maxPropCount)
 	}
+	e.integerValues = &storage.integerValues
+	*e.integerValues = (*e.integerValues)[:maxPropCount]
 
 	// Get and resize epi array
-	e.epiArray = pools.epiArrayPool.Get().(*[]*EventPropertyInfo)
-	if cap(*e.epiArray) < maxPropCount {
-		*e.epiArray = make([]*EventPropertyInfo, maxPropCount)
-	} else {
-		*e.epiArray = (*e.epiArray)[:maxPropCount]
+	if cap(storage.epiArray) < maxPropCount {
+		storage.epiArray = make([]*EventPropertyInfo, maxPropCount)
 	}
+	e.epiArray = &storage.epiArray
+	*e.epiArray = (*e.epiArray)[:maxPropCount]
 
 	// Get property blocks slice
-	e.propertyBlocks = pools.propMultipleBlocksPool.Get().(*[]*[]Property)
+	e.propertyBlocks = &storage.propertyBlocks
 
 	// userDataIt iterator will be incremented for each queried property by prop size
 	e.userDataIt = e.EventRec.UserData
@@ -763,7 +732,7 @@ func (e *EventRecordHelper) prepareStruct(epi *EventPropertyInfo, arrayCount uin
 
 	// Treat non-array properties as arrays with one element.
 	for range arrayCount {
-		propStruct := e.pools.propertyMapPool.Get().(map[string]*Property)
+		propStruct := e.storage.propertyMapPool.Get().(map[string]*Property)
 
 		startIndex := epi.StructStartIndex()
 		lastMember := startIndex + epi.NumOfStructMembers()
@@ -774,7 +743,7 @@ func (e *EventRecordHelper) prepareStruct(epi *EventPropertyInfo, arrayCount uin
 				// On error, return the map to the pool.
 				// No need to release individual properties due to block pooling.
 				clear(propStruct)
-				e.pools.propertyMapPool.Put(propStruct)
+				e.storage.propertyMapPool.Put(propStruct)
 				return err
 			}
 			propStruct[p.name] = p
@@ -812,7 +781,7 @@ func (e *EventRecordHelper) prepareSimpleArray(i uint32, epi *EventPropertyInfo,
 	}
 
 	// For regular simple arrays, get a slice from the pool.
-	array := e.pools.propSlicePool.Get().(*[]*Property)
+	array := e.storage.propSlicePool.Get().(*[]*Property)
 	if cap(*array) < int(arrayCount) {
 		*array = make([]*Property, 0, arrayCount)
 	}
@@ -826,7 +795,7 @@ func (e *EventRecordHelper) prepareSimpleArray(i uint32, epi *EventPropertyInfo,
 			// No need to release individual properties due to block pooling.
 			clear(*array)
 			*array = (*array)[:0]
-			e.pools.propSlicePool.Put(array)
+			e.storage.propSlicePool.Put(array)
 			return err
 		}
 		*array = append(*array, p)
@@ -836,7 +805,7 @@ func (e *EventRecordHelper) prepareSimpleArray(i uint32, epi *EventPropertyInfo,
 		e.ArrayProperties[arrayName] = array
 	} else {
 		// Return the unused slice to the pool if the array ended up empty.
-		e.pools.propSlicePool.Put(array)
+		e.storage.propSlicePool.Put(array)
 	}
 
 	return nil

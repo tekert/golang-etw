@@ -1094,14 +1094,14 @@ func (e *EventTraceLogfile) Clone() *EventTraceLogfile {
 		return nil
 	}
 
-    // This correctly copies all members, including nested structs and unions.
-    clone := *e
+	// This correctly copies all members, including nested structs and unions.
+	clone := *e
 
 	// Reset function pointers to zero
 	// These pointers are not valid after the trace session ends.
-    clone.BufferCallback = 0
-    clone.Callback = 0
-    clone.Context = 0
+	clone.BufferCallback = 0
+	clone.Callback = 0
+	clone.Context = 0
 
 	// Deep copy string pointers
 	clone.LoggerName = CopyUTF16Ptr(e.LoggerName)
@@ -1200,48 +1200,42 @@ func (e *EventRecord) IsMof() bool {
 	return e.EventHeader.Flags&EVENT_HEADER_FLAG_CLASSIC_HEADER != 0
 }
 
-// TraceEventInfo pool for GetEventInformation() calls.
-// 8192 bytes should be enough for most cases as starting capacity.
-var tdhInfoPool = sync.Pool{New: func() any { b := make([]byte, 8192); return &b }}
+// // Used for performance-critical slice length modification.
+// type sliceHeader struct {
+// 	Data uintptr
+// 	Len  int
+// 	Cap  int
+// }
 
-// Used for performance-critical slice length modification.
-type sliceHeader struct {
-	Data uintptr
-	Len  int
-	Cap  int
-}
-
-func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, teiBuffer *[]byte, err error) {
-	buffp := tdhInfoPool.Get().(*[]byte)
+func (e *EventRecord) GetEventInformation(buffer *[]byte) (tei *TraceEventInfo, err error) {
+	if buffer == nil || cap(*buffer) == 0 {
+		// This should not happen with traceStorage, but as a safeguard:
+		*buffer = make([]byte, 8192) // Default initial size
+	}
 
 	// Use the buffer's capacity to inform the C API of the total available memory.
-	bufferSize := uint32(cap(*buffp))
-	tei = (*TraceEventInfo)(unsafe.Pointer(unsafe.SliceData(*buffp)))
+	bufferSize := uint32(cap(*buffer))
+	tei = (*TraceEventInfo)(unsafe.Pointer(unsafe.SliceData(*buffer)))
 	err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
 
 	if err == ERROR_INSUFFICIENT_BUFFER {
-		tdhInfoPool.Put(buffp)
-		newBuf := make([]byte, bufferSize)
-		buffp = &newBuf
-		tei = (*TraceEventInfo)(unsafe.Pointer(unsafe.SliceData(*buffp)))
+		// The provided buffer was too small. Allocate a new one of the required size.
+		*buffer = make([]byte, bufferSize)
+		tei = (*TraceEventInfo)(unsafe.Pointer(unsafe.SliceData(*buffer)))
 		err = TdhGetEventInformation(e, 0, nil, tei, &bufferSize)
 	}
 	if err != nil {
-		// Other errors
-		tdhInfoPool.Put(buffp)
 		if err == ERROR_NOT_FOUND {
-			return nil, nil,
-				fmt.Errorf("%w: event schema not found (provider not registered or classic event)", err)
+			return nil, fmt.Errorf("%w: event schema not found (provider not registered or classic event)", err)
 		}
-		return nil, nil, fmt.Errorf("TdhGetEventInformation failed: %w", err)
+		return nil, fmt.Errorf("TdhGetEventInformation failed: %w", err)
 	}
 
 	// On success, update the slice's length to match the actual data written by the API.
-	// Is not ncessesary, is not used, but just for correctness (if debugging this slice)
-	(*sliceHeader)(unsafe.Pointer(buffp)).Len = int(bufferSize)
+	// This isn't strictly necessary, as we work with the pointer and capacity, but it's good practice.
+	*buffer = (*buffer)[:bufferSize]
 
-	// Use tei, then optionally put tei into pool when done
-	return tei, buffp, nil
+	return tei, nil
 }
 
 /*

@@ -111,13 +111,31 @@ func (t *ConsumerTrace) GetLogFileCopy() *EventTraceLogfile {
 	return t.lastTraceLogfile.Load()
 }
 
-// updateTraceLogFile atomically swaps the old trace log info with a new, cloned version.
+// updateTraceLogFile efficiently updates only the changing non-pointer fields in place.
 func (t *ConsumerTrace) updateTraceLogFile(bufferLogFile *EventTraceLogfile) {
 	if bufferLogFile == nil {
 		return
 	}
-	cloned := bufferLogFile.Clone()
-	t.lastTraceLogfile.Store(cloned)
+
+	current := t.lastTraceLogfile.Load()
+	if current == nil {
+		// First time - store the pointer directly as the live copy
+		t.lastTraceLogfile.Store(bufferLogFile)
+		return
+	}
+
+	// Update non-pointer fields
+	current.CurrentTime = bufferLogFile.CurrentTime
+	current.BuffersRead = bufferLogFile.BuffersRead
+	current.BufferSize = bufferLogFile.BufferSize
+	current.Filled = bufferLogFile.Filled
+	current.EventsLost = bufferLogFile.EventsLost
+
+	// Copy entire LogfileHeader
+	current.LogfileHeader = bufferLogFile.LogfileHeader
+
+	// Copy Union1 fields
+	current.Union1 = bufferLogFile.Union1
 }
 
 // QueryTrace retrieves the status and current settings for this tracing session.
