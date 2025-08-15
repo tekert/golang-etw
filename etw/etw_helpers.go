@@ -950,7 +950,7 @@ func (e *EventRecordHelper) mofClassVersion() uint8 {
 
 // }
 
-// func parseMofProperty(data []byte, prop MofPropertyDef) (interface{}, int, error) {
+// func parseMofProperty(data []byte, prop MofPropertyDef) (any, int, error) {
 
 // }
 
