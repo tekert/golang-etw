@@ -23,17 +23,26 @@ const (
 	DefaultLogger  LoggerName = "default"
 )
 
-// ErrorSampler provides high-performance error sampling for hot paths
-type ErrorSampler struct {
+// Sampler defines the interface for deciding if a log message should be processed.
+type Sampler interface {
+	// ShouldLog determines if a log event should be written.
+	// The key is a stable identifier for the log site.
+	// The err object can be used for more advanced decisions, like sampling
+	// based on the error type or value. It can be nil.
+	ShouldLog(key string, err error) bool
+}
+
+// RateSampler provides high-performance rate-based sampling for hot paths.
+type RateSampler struct {
 	rate   int64 // Sample 1 in N errors
 	window int64 // Time window in nanoseconds
 	count  int64 // Current count in window
 	last   int64 // Last reset time
 }
 
-// NewErrorSampler creates a new error sampler
-func NewErrorSampler(rate int, window time.Duration) *ErrorSampler {
-	return &ErrorSampler{
+// NewRateSampler creates a new rate sampler.
+func NewRateSampler(rate int, window time.Duration) *RateSampler {
+	return &RateSampler{
 		rate:   int64(rate),
 		window: int64(window),
 		count:  0,
@@ -41,8 +50,9 @@ func NewErrorSampler(rate int, window time.Duration) *ErrorSampler {
 	}
 }
 
-// ShouldLog returns true if this error should be logged (sampled)
-func (s *ErrorSampler) ShouldLog() bool {
+// ShouldLog returns true if this error should be logged based on the rate limit.
+// TODO: Add deduplication based on key and err.
+func (s *RateSampler) ShouldLog(key string, err error) bool {
 	now := time.Now().UnixNano()
 	lastReset := atomic.LoadInt64(&s.last)
 
@@ -58,17 +68,42 @@ func (s *ErrorSampler) ShouldLog() bool {
 }
 
 // Stats returns current sampling statistics
-func (s *ErrorSampler) Stats() (total int64, window time.Duration) {
+func (s *RateSampler) Stats() (total int64, window time.Duration) {
 	total = atomic.LoadInt64(&s.count)
 	elapsed := time.Now().UnixNano() - atomic.LoadInt64(&s.last)
 	window = time.Duration(elapsed)
 	return
 }
 
+// HotpathLogger extends plog.Logger with methods for high-performance sampling.
+type HotpathLogger struct {
+	*plog.Logger
+	sampler Sampler
+}
+
+// SampledError starts a new sampled log event with Error level.
+// The key is used for deduplication. If the event is sampled out,
+// a nil event is returned and the rest of the chain is ignored.
+func (l *HotpathLogger) SampledError(key string) *plog.Entry {
+	// For now, we pass a nil error. The sampler can be extended to use it.
+	if l.sampler == nil || l.sampler.ShouldLog(key, nil) {
+		return l.Logger.Error()
+	}
+	return nil // phuslu/log handles nil events efficiently
+}
+
+// SampledWarn starts a new sampled log event with Warn level.
+func (l *HotpathLogger) SampledWarn(key string) *plog.Entry {
+	if l.sampler == nil || l.sampler.ShouldLog(key, nil) {
+		return l.Logger.Warn()
+	}
+	return nil
+}
+
 // LoggerManager manages all three loggers
 type LoggerManager struct {
 	writer  plog.Writer
-	sampler *ErrorSampler
+	sampler Sampler
 	loggers map[LoggerName]*plog.Logger // Use a map for scalability
 
 	// Keep direct references for convenience and internal use
@@ -80,15 +115,18 @@ type LoggerManager struct {
 // Global logger manager and convenient logger variables
 var (
 	loggerManager *LoggerManager
-	conlog        *plog.Logger // Consumer hot path
-	seslog        *plog.Logger // Session operations
-	log           *plog.Logger // Default/everything else
+	conlog        *HotpathLogger // Consumer hot path
+	seslog        *plog.Logger   // Session operations
+	log           *plog.Logger   // Default/everything else
 )
 
 // Initialize loggers on package import
 func init() {
 	loggerManager = NewLoggerManager()
-	conlog = loggerManager.conlog
+	conlog = &HotpathLogger{
+		Logger:  loggerManager.loggers[ConsumerLogger],
+		sampler: loggerManager.sampler,
+	}
 	seslog = loggerManager.seslog
 	log = loggerManager.deflog
 }
@@ -98,7 +136,7 @@ func init() {
 // NewLoggerManager creates a new logger manager with default settings
 func NewLoggerManager() *LoggerManager {
 	writer := &plog.IOWriter{Writer: os.Stderr}
-	sampler := NewErrorSampler(100, time.Second) // Sample 1 in 100 errors per second
+	sampler := NewRateSampler(100, time.Second) // Sample 1 in 100 errors per second
 
 	lm := &LoggerManager{
 		writer:  writer,
@@ -158,7 +196,7 @@ func (lm *LoggerManager) SetLogLevels(levels map[LoggerName]plog.Level) {
 }
 
 // GetSampler returns the error sampler for hot path error logging
-func (lm *LoggerManager) GetSampler() *ErrorSampler {
+func (lm *LoggerManager) GetSampler() Sampler {
 	return lm.sampler
 }
 
@@ -176,13 +214,13 @@ func SetLogLevelsAll(level plog.Level) {
 	SetLogLevels(levels)
 }
 
-func SetLogDebugLevel() {SetLogLevelsAll(plog.DebugLevel)}
-func SetLogInfoLevel() {SetLogLevelsAll(plog.InfoLevel)}
-func SetLogWarnLevel() {SetLogLevelsAll(plog.WarnLevel)}
-func SetLogErrorLevel() {SetLogLevelsAll(plog.ErrorLevel)}
-func SetLogFatalLevel() {SetLogLevelsAll(plog.FatalLevel)}
-func SetLogPanicLevel() {SetLogLevelsAll(plog.PanicLevel)}
-func SetLogTraceLevel() {SetLogLevelsAll(plog.TraceLevel)}
+func SetLogDebugLevel() { SetLogLevelsAll(plog.DebugLevel) }
+func SetLogInfoLevel()  { SetLogLevelsAll(plog.InfoLevel) }
+func SetLogWarnLevel()  { SetLogLevelsAll(plog.WarnLevel) }
+func SetLogErrorLevel() { SetLogLevelsAll(plog.ErrorLevel) }
+func SetLogFatalLevel() { SetLogLevelsAll(plog.FatalLevel) }
+func SetLogPanicLevel() { SetLogLevelsAll(plog.PanicLevel) }
+func SetLogTraceLevel() { SetLogLevelsAll(plog.TraceLevel) }
 
 // DisableLogging sets all loggers to OffLevel (no output)
 func DisableLogging() {
