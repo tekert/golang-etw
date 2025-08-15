@@ -4,6 +4,7 @@ package etw
 
 import (
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"syscall"
 )
@@ -32,8 +33,8 @@ type ConsumerTrace struct {
 	// is a realtime trace session or etl file trace
 	realtime bool
 
-	// Atomically updated pointer to a cloned, safe-to-read copy of the
-	// last EventTraceLogfile structure received from a buffer callback.
+	// traceLogfile holds the last EventTraceLogfile structure received from a
+	// buffer callback. Access to this struct must be protected by logfileMu.
 	//
 	// NOTE: For real-time sessions, the `EventsLost` fields within this
 	// structure and its `LogfileHeader` are often not populated. The number of
@@ -41,11 +42,13 @@ type ConsumerTrace struct {
 	// in `RTLostEvents`) and by querying the session properties directly.
 	// For file-based traces (ETL files), `LogfileHeader.EventsLost` reflects
 	// events lost when the file was originally recorded.
-	lastTraceLogfile atomic.Pointer[EventTraceLogfile]
+	traceLogfile EventTraceLogfile
+	// logfileMu protects logfile against concurrent access.
+	logfileMu sync.RWMutex
 
 	// traceProps holds EVENT_TRACE_PROPERTIES_V2 structure for querying session statistics.
 	// This is only available for real-time sessions and is nil for ETL file traces.
-	traceProps *EventTracePropertyData2
+	traceProps *EventTraceProperties2Wrapper
 
 	// The RTLostEvent event type indicates that one or more realtime events were lost.
 	// The RTLostEvent and RTLostBuffer event types are delivered before processing
@@ -110,7 +113,33 @@ type ConsumerTrace struct {
 // the trace handle is valid. This does not indicate whether ProcessTrace is
 // currently running.
 func (t *ConsumerTrace) IsTraceOpen() bool {
-	return t.open
+    return t.open
+}
+
+// Lock locks the logfile statistics for reading.
+// It should be used in conjunction with GetLogFile() and Unlock().
+func (t *ConsumerTrace) Lock() {
+    t.logfileMu.RLock()
+}
+
+// Unlock unlocks the logfile statistics.
+func (t *ConsumerTrace) Unlock() {
+    t.logfileMu.RUnlock()
+}
+
+// GetLogFile returns a pointer to the current EventTraceLogfile statistics.
+//
+// IMPORTANT: To prevent data races, the caller must wrap access to the returned
+// pointer with Lock() and Unlock(). The pointer is only valid while the lock is held.
+//
+// Example:
+//
+//	trace.Lock()
+//	stats := trace.GetLogFile()
+//	fmt.Printf("Buffers Read: %d\n", stats.BuffersRead)
+//	trace.Unlock()
+func (t *ConsumerTrace) GetLogFile() *EventTraceLogfile {
+    return &t.traceLogfile
 }
 
 // GetLogFileCopy returns a safe-to-read copy of the last known EventTraceLogfile state.
@@ -123,7 +152,10 @@ func (t *ConsumerTrace) IsTraceOpen() bool {
 // for reliable lost event counts, use `ConsumerTrace.RTLostEvents` or query the session
 // properties via `Session.QueryTrace()`.
 func (t *ConsumerTrace) GetLogFileCopy() *EventTraceLogfile {
-	return t.lastTraceLogfile.Load().Clone()
+	t.logfileMu.RLock()
+	defer t.logfileMu.RUnlock()
+	// Create a copy to return to the user.
+	return t.traceLogfile.Clone()
 }
 
 // updateTraceLogFile updates the internal copy of the EventTraceLogfile structure
@@ -133,27 +165,23 @@ func (t *ConsumerTrace) updateTraceLogFile(bufferLogFile *EventTraceLogfile) {
 		return
 	}
 
+	t.logfileMu.Lock()
+	defer t.logfileMu.Unlock()
+
 	// TODO: detect file name changes and update it too
 
-	current := t.lastTraceLogfile.Load()
-	if current == nil {
-		// First time - store the pointer directly as the live copy
-		t.lastTraceLogfile.Store(bufferLogFile)
-		return
-	}
-
 	// Update non-pointer fields
-	current.CurrentTime = bufferLogFile.CurrentTime
-	current.BuffersRead = bufferLogFile.BuffersRead
-	current.BufferSize = bufferLogFile.BufferSize
-	current.Filled = bufferLogFile.Filled
-	current.EventsLost = bufferLogFile.EventsLost
+	t.traceLogfile.CurrentTime = bufferLogFile.CurrentTime
+	t.traceLogfile.BuffersRead = bufferLogFile.BuffersRead
+	t.traceLogfile.BufferSize = bufferLogFile.BufferSize
+	t.traceLogfile.Filled = bufferLogFile.Filled
+	t.traceLogfile.EventsLost = bufferLogFile.EventsLost
 
 	// Copy entire LogfileHeader
-	current.LogfileHeader = bufferLogFile.LogfileHeader
+	t.traceLogfile.LogfileHeader = bufferLogFile.LogfileHeader
 
 	// Copy Union1 fields
-	current.Union1 = bufferLogFile.Union1
+	t.traceLogfile.Union1 = bufferLogFile.Union1
 }
 
 // QueryTrace retrieves the status and current settings for this tracing session.
@@ -167,7 +195,7 @@ func (t *ConsumerTrace) updateTraceLogFile(bufferLogFile *EventTraceLogfile) {
 // Returns:
 //   - *EventTracePropertyData2: A pointer to the trace property data structure containing the session settings
 //   - error: An error if the query operation fails, nil otherwise
-func (t *ConsumerTrace) QueryTrace() (prop *EventTracePropertyData2, err error) {
+func (t *ConsumerTrace) QueryTrace() (prop *EventTraceProperties2Wrapper, err error) {
 	if t.traceProps == nil {
 		return nil, fmt.Errorf("trace has no session properties to query (likely a file-based trace)")
 	}

@@ -33,6 +33,12 @@ var (
 	}
 )
 
+// There 4 places where to get Lost events:
+// 1. [Consumer Callback] From the RT_LostEvent event type.
+// 2. [Consumer BufferCallback] From the LogfileInfo.EventsLost (seems it's not always populated).
+// 3. [Consumer BufferCallback] From the LogfileInfo.LogfileHeader.EventsLost (only for ETL files).
+// 4. [Session side] From the QueryTrace() call, which returns the total number of lost events
+
 // var (
 // 	aSource = []string{"XML instrumentation manifest", "WMI MOF class", "WPP TMF file"}
 // )
@@ -144,6 +150,7 @@ type traceContext struct {
 
 // Helper function to get the traceContext from the UserContext
 // These are used from ETW callbacks to get a reference back to our context.
+// NOTE: keep the pointer alive
 func (er *EventRecord) getUserContext() *traceContext {
 	return (*traceContext)(unsafe.Pointer(er.UserContext))
 }
@@ -176,7 +183,7 @@ func (c *Consumer) getOrAddTrace(traceName string) *ConsumerTrace {
 func (c *Consumer) GetTraces() map[string]*ConsumerTrace {
 	traces := make(map[string]*ConsumerTrace)
 	// create map from sync.Map
-	c.traces.Range(func(key, value interface{}) bool {
+	c.traces.Range(func(key, value any) bool {
 		t := value.(*ConsumerTrace)
 		c.tmu.RLock()
 		tc := t
@@ -203,19 +210,26 @@ func (c *Consumer) GetTrace(tname string) (t *ConsumerTrace, ok bool) {
 func (c *Consumer) handleLostEvent(e *EventRecord) {
 	var traceInfo *TraceEventInfo
 	var err error
-	if traceInfo, err = e.GetEventInformation(nil); err == nil {
-		u := e.getUserContext() // No need to protect with mutex here.
+	var buffer []byte
+
+	traceInfo, err = e.GetEventInformation(&buffer)
+	if err != nil {
+		conlog.Error().Err(err).Msg("Failed to get event information for lost event")
+	}
+
+	ctx := e.getUserContext()
+	if ctx != nil && ctx.trace != nil && err == nil {
 		switch traceInfo.EventDescriptor.Opcode {
 		case 32:
 			// The RTLostEvent event type indicates that one or more events were lost.
-			u.trace.RTLostEvents.Add(1)
+			ctx.trace.RTLostEvents.Add(1)
 		case 33:
 			// The RTLostBuffer event type indicates that one or more buffers were lost
-			u.trace.RTLostBuffer.Add(1)
+			ctx.trace.RTLostBuffer.Add(1)
 		case 34:
 			// The RTLostFile indicates that the backing file used by the AutoLogger
 			// to capture events was lost.
-			u.trace.RTLostFile.Add(1)
+			ctx.trace.RTLostFile.Add(1)
 		default:
 			conlog.Debug().Uint8("opcode", traceInfo.EventDescriptor.Opcode).
 				Msg("Invalid opcode for lost event")
@@ -287,6 +301,13 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 
 	if er.EventHeader.ProviderId.Equals(rtLostEventGuid) {
 		c.handleLostEvent(er)
+		return
+	}
+
+	// We must always get the context first. It might be nil if the trace is
+	// closing or if the event is a system notification without a context.
+	if er.getUserContext() == nil {
+		setError(fmt.Errorf("EventRecord has no UserContext, skipping event"))
 		return
 	}
 
@@ -364,7 +385,7 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 	seslog.Debug().Msg("Closing consumer...")
 
 	// closing trace handles
-	c.traces.Range(func(key, value interface{}) bool {
+	c.traces.Range(func(key, value any) bool {
 		t := value.(*ConsumerTrace)
 		seslog.Debug().Str("trace", t.TraceName).Msg("Closing handle for trace")
 		// if we don't wait for traces, ERROR_CTX_CLOSE_PENDING is a valid error
@@ -455,15 +476,16 @@ func (c *Consumer) OpenTrace(name string) (err error) {
 	ti.open = true
 
 	// On success, OpenTrace populates loggerInfo with the initial trace state.
-	// We clone it to create a safe, managed copy and store it in the atomic pointer.
-	// This makes the initial state available immediately.
-	ti.lastTraceLogfile.Store(&loggerInfo)
+	// We perform a one-time deep copy to initialize our internal state safely.
+	// Since pointers may not be valid when the trace is closed,
+	// we clone the EventTraceLogfile structure (except the pointers).
+	ti.traceLogfile = *loggerInfo.Clone()
 
 	return nil
 }
 
 // same as [ConsumerTrace.QueryTrace] but using string traceName
-func (c *Consumer) QueryTrace(traceName string) (prop *EventTracePropertyData2, err error) {
+func (c *Consumer) QueryTrace(traceName string) (prop *EventTraceProperties2Wrapper, err error) {
 	value, ok := c.traces.Load(traceName)
 	if !ok {
 		return nil, fmt.Errorf("trace %s not found", traceName)

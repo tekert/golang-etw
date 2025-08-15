@@ -694,6 +694,9 @@ type EventTraceProperties2 struct {
 	V2Options       uint64                 // (Wow, QpcDeltaTracking, LargeMdlPages, ExcludeKernelStack)
 }
 
+// This is wrapper for the EVENT_TRACE_PROPERTIES2
+// used to handle the LoggerName and LogFileName more easily instead of using pointers/offsets/sizesof.
+//
 // The session name (LoggerName) is limited to 1,024 characters.
 // The session name is case-insensitive.
 //
@@ -705,7 +708,7 @@ type EventTraceProperties2 struct {
 //
 // You must copy the log file name to the offset but you do not copy the session name to the offset.
 // The StartTrace/ControlTrace function copies the name for you.
-type EventTracePropertyData2 struct {
+type EventTraceProperties2Wrapper struct {
 	EventTraceProperties2
 	LoggerName  [128]uint16
 	LogFileName [1024]uint16
@@ -714,27 +717,27 @@ type EventTracePropertyData2 struct {
 // This structure is supported starting with Windows 10 version 1703.
 // When used with earlier versions of Windows,
 // the additional fields (e.g. FilterDesc and V2Options) will be ignored
-func NewEventTracePropertiesV2() (*EventTracePropertyData2, uint32) {
-	return &EventTracePropertyData2{}, uint32(unsafe.Sizeof(EventTracePropertyData2{}))
+func NewEventTracePropertiesV2() (*EventTraceProperties2Wrapper, uint32) {
+	return &EventTraceProperties2Wrapper{}, uint32(unsafe.Sizeof(EventTraceProperties2Wrapper{}))
 }
 
-func (e *EventTracePropertyData2) Clone() *EventTracePropertyData2 {
-	clone := new(EventTracePropertyData2)
+func (e *EventTraceProperties2Wrapper) Clone() *EventTraceProperties2Wrapper {
+	clone := new(EventTraceProperties2Wrapper)
 	*clone = *e
 	clone.FilterDesc = nil // ignore on copy.
 	return clone
 }
 
 // null terminated unicode string.
-func (e *EventTracePropertyData2) GetTraceName() *uint16 {
+func (e *EventTraceProperties2Wrapper) GetTraceName() *uint16 {
 	return &e.LoggerName[0]
 }
 
-func (e *EventTracePropertyData2) GetTraceNameOffset() uint32 {
-	return uint32(unsafe.Offsetof(EventTracePropertyData2{}.LogFileName))
+func (e *EventTraceProperties2Wrapper) GetTraceNameOffset() uint32 {
+	return uint32(unsafe.Offsetof(EventTraceProperties2Wrapper{}.LogFileName))
 }
 
-func (e *EventTracePropertyData2) SetTraceName_old(name string) *uint16 {
+func (e *EventTraceProperties2Wrapper) SetTraceName_old(name string) *uint16 {
 	if len(name) >= ((cap(e.LoggerName) / 2) - 1) { // 1 for null terminator
 		panic("LoggerName too long")
 	}
@@ -752,9 +755,9 @@ func (e *EventTracePropertyData2) SetTraceName_old(name string) *uint16 {
 // Set the logger name
 // NOTE: [StartTrace] will set it for us if we provide the LogNameOffset.
 //
-// This does NOT update the [EventTracePropertyData2.Prop.LogNameOffset] field.
+// This does NOT update the [EventTraceProperties2Wrapper.Prop.LogNameOffset] field.
 // You have to set it manually.
-func (e *EventTracePropertyData2) SetTraceName(name string) {
+func (e *EventTraceProperties2Wrapper) SetTraceName(name string) {
 	loggerName, _ := syscall.UTF16FromString(name)
 	if len(loggerName) > len(e.LoggerName) { // Does it fit in the fixed-size buffer?
 		panic("LoggerName too long for the fixed-size buffer")
@@ -763,7 +766,7 @@ func (e *EventTracePropertyData2) SetTraceName(name string) {
 }
 
 // null terminated unicode string.
-func (e *EventTracePropertyData2) GetLogFileName() *uint16 {
+func (e *EventTraceProperties2Wrapper) GetLogFileName() *uint16 {
 	if e.LogFileNameOffset == 0 || e.LogFileNameOffset >= e.Wnode.BufferSize {
 		return nil
 	}
@@ -771,7 +774,7 @@ func (e *EventTracePropertyData2) GetLogFileName() *uint16 {
 	return (*uint16)(unsafe.Pointer(uintptr(unsafe.Pointer(e)) + uintptr(e.LogFileNameOffset)))
 }
 
-func (e *EventTracePropertyData2) SetLogFileName_old(fName string) *uint16 {
+func (e *EventTraceProperties2Wrapper) SetLogFileName_old(fName string) *uint16 {
 	if len(fName) >= ((cap(e.LogFileName) / 2) - 1) { // 1 for null terminator
 		panic("LogFileName too long")
 	}
@@ -790,9 +793,9 @@ func (e *EventTracePropertyData2) SetLogFileName_old(fName string) *uint16 {
 // NOTE: [StartTrace] will set it for us if we provide the LogFileNameOffset.
 // Same for ControlTrace when querying.
 //
-// This does NOT update the [EventTracePropertyData2.Prop.LogFileNameOffset] field.
+// This does NOT update the [EventTraceProperties2Wrapper.Prop.LogFileNameOffset] field.
 // You have to set it manually.
-func (e *EventTracePropertyData2) SetLogFileName(fName string) {
+func (e *EventTraceProperties2Wrapper) SetLogFileName(fName string) {
 	logFileName, _ := syscall.UTF16FromString(fName)
 	if len(logFileName) > len(e.LogFileName) {
 		panic("LogFileName too long for the fixed-size buffer")
@@ -800,8 +803,8 @@ func (e *EventTracePropertyData2) SetLogFileName(fName string) {
 	copy(e.LogFileName[:], logFileName)
 }
 
-func (e *EventTracePropertyData2) GetLogFileNameOffset() uint32 {
-	return uint32(unsafe.Offsetof(EventTracePropertyData2{}.LogFileName))
+func (e *EventTraceProperties2Wrapper) GetLogFileNameOffset() uint32 {
+	return uint32(unsafe.Offsetof(EventTraceProperties2Wrapper{}.LogFileName))
 }
 
 // V2Control
@@ -1109,6 +1112,7 @@ func (e *EventTraceLogfile) Clone() *EventTraceLogfile {
 
 	// No need to copy LogfileHeader.LoggerName and LogfileHeader.LogFileName
 	// since they are not used according to Microsoft docs
+	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-trace_logfile_header
 	clone.LogfileHeader.LoggerName = nil
 	clone.LogfileHeader.LogFileName = nil
 
@@ -1210,7 +1214,11 @@ func (e *EventRecord) IsMof() bool {
 // GetEventInformation retrieves the event schema information for the given event record.
 // It uses a provided buffer to store the information, resizing it if necessary.
 func (e *EventRecord) GetEventInformation(buffer *[]byte) (tei *TraceEventInfo, err error) {
-	if buffer == nil || cap(*buffer) == 0 {
+	if buffer == nil {
+		var tempBuf []byte
+		return e.GetEventInformation(&tempBuf)
+	}
+	if cap(*buffer) == 0 {
 		// This should not happen with traceStorage, but as a safeguard:
 		*buffer = make([]byte, 8192) // Default initial size
 	}
@@ -1295,7 +1303,7 @@ cleanup:
 */
 
 var eventMapInfoPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		b := make([]byte, 64)
 		return &b // Store pointer
 	},
