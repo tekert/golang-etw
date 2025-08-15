@@ -21,6 +21,7 @@ import (
 // for details.
 //
 // Note that it must not be embedded, due to the Lock and Unlock methods.
+//
 //lint:ignore U1000 explanation
 type noCopy struct{}
 
@@ -115,38 +116,45 @@ func UUID() (uuid string, err error) {
 	return
 }
 
+// ConvertSidToStringSidGO converts a SID structure to its string representation.
+// This version is optimized to reduce memory allocations by using a byte buffer
+// and strconv.AppendUint.
 // No cgo/syscalls needed
 // replaces ConvertSidToStringSidW from Windows API
 func ConvertSidToStringSidGO(sid *SID) (string, error) {
-	// Basic validation
-	if sid == nil {
-		return "", nil
-	}
+    if sid == nil {
+        return "", nil
+    }
 
-	// Validate SID structure // SID_MAX_SUB_AUTHORITIES = 15
-	if sid.Revision != 1 || sid.SubAuthorityCount > 15 {
-		return "", fmt.Errorf("the SID is not valid")
-	}
+    // Validate SID structure // SID_MAX_SUB_AUTHORITIES = 15
+    if sid.Revision != 1 || sid.SubAuthorityCount > 15 {
+        return "", fmt.Errorf("the SID is not valid")
+    }
 
-	// Convert identifier authority
-	// High 2 bytes are used only if value > 2^32
-	auth := uint64(sid.IdentifierAuthority.Value[5]) |
-		uint64(sid.IdentifierAuthority.Value[4])<<8 |
-		uint64(sid.IdentifierAuthority.Value[3])<<16 |
-		uint64(sid.IdentifierAuthority.Value[2])<<24 |
-		uint64(sid.IdentifierAuthority.Value[1])<<32 |
-		uint64(sid.IdentifierAuthority.Value[0])<<40
+    // A typical SID string is around 40-70 chars. Pre-allocating a buffer of
+    // 64 bytes is a good starting point to avoid reallocations.
+    buf := make([]byte, 0, 64)
 
-	// Start with S-1
-	result := fmt.Sprintf("S-%d-%d", sid.Revision, auth)
+    buf = append(buf, 'S', '-')
+    buf = strconv.AppendUint(buf, uint64(sid.Revision), 10)
 
-	// Add sub authorities
-	subAuth := unsafe.Slice(&sid.SubAuthority[0], sid.SubAuthorityCount)
-	for i := 0; i < int(sid.SubAuthorityCount); i++ {
-		result += fmt.Sprintf("-%d", subAuth[i])
-	}
+    // Format IdentifierAuthority. It's a 6-byte big-endian value.
+    var authority uint64
+    // Using range on a fixed-size array is safe and clean.
+    for i := range sid.IdentifierAuthority.Value {
+        authority = (authority << 8) | uint64(sid.IdentifierAuthority.Value[i])
+    }
+    buf = append(buf, '-')
+    buf = strconv.AppendUint(buf, authority, 10)
 
-	return result, nil
+    // Format SubAuthorities
+    subAuthorities := sid.SubAuthorities()
+    for _, subAuth := range subAuthorities {
+        buf = append(buf, '-')
+        buf = strconv.AppendUint(buf, uint64(subAuth), 10)
+    }
+
+    return string(buf), nil
 }
 
 func isETLFile(path string) bool {

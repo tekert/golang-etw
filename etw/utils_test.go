@@ -43,13 +43,9 @@ func allocSID(t testing.TB, subAuthorityCount uint8) *SID {
 	sidSize := unsafe.Sizeof(SID{}) - unsafe.Sizeof([1]uint32{}) +
 		uintptr(subAuthorityCount)*unsafe.Sizeof(uint32(0))
 
-	// Allocate contiguous memory
-	memory := make([]byte, sidSize)
+	newSID := make([]byte, sidSize)
+	sid := (*SID)(unsafe.Pointer(&newSID[0])) // Get SID pointer
 
-	// Get SID pointer
-	sid := (*SID)(unsafe.Pointer(&memory[0]))
-
-	// Initialize fields
 	sid.Revision = 1
 	sid.SubAuthorityCount = subAuthorityCount
 
@@ -118,9 +114,39 @@ func TestSIDConversion(t *testing.T) {
 			tt.Assert(gotGO == tc.want,
 				"GO result mismatch: got "+gotGO+", want "+tc.want)
 			tt.Assert(gotAPI == gotGO,
-				"Results differ: API=" + gotAPI + ", GO=" + gotGO)
+				"Results differ: API="+gotAPI+", GO="+gotGO)
 		})
 	}
+}
+
+// write a benchmark comparing the SID conversion functions
+func BenchmarkSIDConversion(b *testing.B) {
+	// Test data for SID conversion
+	sid := allocSID(b, 3)
+	sid.Revision = 1
+	sid.IdentifierAuthority.Value = [6]byte{0, 0, 0, 0, 0, 5} // NT Authority
+	subAuth := sid.SubAuthorities()
+	subAuth[0] = 21         // SECURITY_NT_NON_UNIQUE
+	subAuth[1] = 1068291655 // Domain ID part 1
+	subAuth[2] = 1087365685 // Domain ID part 2
+
+	b.Run("ConvertSidToStringSidW", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := ConvertSidToStringSidW(sid)
+			if err != nil {
+				b.Fatalf("ConvertSidToStringSidW failed: %v", err)
+			}
+		}
+	})
+
+	b.Run("ConvertSidToStringSidGO", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := ConvertSidToStringSidGO(sid)
+			if err != nil {
+				b.Fatalf("ConvertSidToStringSidGO failed: %v", err)
+			}
+		}
+	})
 }
 
 func BenchmarkUTF16Conversion(b *testing.B) {
