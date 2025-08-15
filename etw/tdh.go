@@ -148,7 +148,8 @@ ULONG __stdcall TdhGetProperty(
 Tested: OK
 */
 
-// Retrieves a property value from the event data.
+// [Deprecated] Dont use this. Use TdhFormatProperty instead.
+//  Retrieves a property value from the event data.
 func TdhGetProperty(pEvent *EventRecord,
 	tdhContextCount uint32,
 	pTdhContext *TdhContext,
@@ -185,13 +186,15 @@ Tested: OK
 */
 
 // Retrieves the size of one or more property values in the event data.
+// Uses Syscall.SyscallN instead of Proc.Call to avoid heap allocations.
 func TdhGetPropertySize(pEvent *EventRecord,
 	tdhContextCount uint32,
 	pTdhContext *TdhContext,
 	propertyDataCount uint32,
 	pPropertyData *PropertyDataDescriptor,
 	pPropertySize *uint32) error {
-	r1, _, _ := tdhGetPropertySize.Call(
+	//r1, _, _ := tdhGetPropertySize.Call(
+	r1, _, _ := syscall.SyscallN(tdhGetPropertySize.Addr(),
 		uintptr(unsafe.Pointer(pEvent)),
 		uintptr(tdhContextCount),
 		uintptr(unsafe.Pointer(pTdhContext)),
