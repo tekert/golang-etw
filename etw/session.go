@@ -33,63 +33,95 @@ func (p *RealTimeSession) IsKernelSession() bool {
 		(p.traceProps.LogFileMode&EVENT_TRACE_SYSTEM_LOGGER_MODE) != 0
 }
 
-// NewRealTimeSession creates a new ETW trace session to receive events
-// in real time
+// NewRealTimeSession creates a new ETW trace session to receive events in real time.
+//
+// This is the standard session type for providers in both user-mode applications
+// and kernel-mode drivers. By default, it uses non-paged memory for its buffers,
+// which offers high performance but consumes a more limited system resource.
+// For tracing user-mode providers where the absolute lowest latency is not
+// critical, or to conserve non-paged memory, consider using [NewPagedRealTimeSession].
+// You can check current created sessions with
+//
+//	> logman query -ets
 func NewRealTimeSession(name string) (s *RealTimeSession) {
 	s = &RealTimeSession{}
-	s.traceProps = NewRealTimeEventTraceProperties(name)
+	s.traceProps = NewRealTimeEventTraceProperties()
 	s.traceName = name
 	s.enabledProviders = make([]Provider, 0)
 	return
 }
 
-// Only use this if the providers that will be enabled are not kernel providers
+// NewPagedRealTimeSession creates a new ETW trace session that receives events in
+// real time and uses paged memory for its buffers.
 //
-// NewPagedRealTimeSession creates a new ETW trace session to receive events
-// in real time that uses paged memory.
-// This setting is recommended so that events do not use up the nonpaged memory.
-// Nonpaged buffers use nonpaged memory for buffer space.
-// Because nonpaged buffers are never paged out, a logging session performs well.
-// Using pageable buffers is less resource-intensive.
-// Kernel-mode providers and system loggers cannot log events to sessions that specify this logging mode.
+// This session type is configured with the EVENT_TRACE_USE_PAGED_MEMORY flag in the
+// LogFileMode field of the session properties. Using paged memory is less
+// resource-intensive than the default non-paged memory and is recommended for
+// tracing user-mode providers that do not generate an extremely high volume of events.
+//
+// IMPORTANT: Kernel-mode providers and system loggers cannot log events to sessions
+// that use paged memory. Attempting to enable a kernel provider on such a session
+// will fail. This session type is strictly for user-mode providers.
 func NewPagedRealTimeSession(name string) (s *RealTimeSession) {
 	s = NewRealTimeSession(name)
 	s.traceProps.LogFileMode |= EVENT_TRACE_USE_PAGED_MEMORY
 	return
 }
 
-// NewKernelRealTimeSession creates a new ETW trace system session to enable reading from the
-// NT Kernel Logger trace events in real time (only one session can be running at any time)
+// NewKernelRealTimeSession creates a special ETW session for the "NT Kernel Logger".
+// This is a unique, system-wide session that is the only way to capture events
+// directly from the Windows kernel.
 //
-// use: [GetKernelProviderFlags] for some predefined flags.
+// Only one NT Kernel Logger session can be active at a time. If another process
+// is already running a kernel session, starting a new one with this library will
+// stop the existing one first.
 //
-// To use a provider, you must enable it in the session creation
-// like this:
+// # Enabling Kernel Events
 //
-//	kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("FileIo", "FileIoInit"))
+// Unlike regular ETW sessions, kernel event groups are enabled at session creation
+// by passing EnableFlags to this function. Each flag corresponds to a category of
+// kernel events, such as process creations, disk I/O, or network activity.
 //
-// For File rundown events (opcode 36)
+// # Discovering Kernel Event Groups
 //
-//	kernelSession := etw.NewKernelRealTimeSession(etw.GetKernelProviderFlags("DiskFileIo"))
+// The available kernel event groups and their corresponding flags can be discovered
+// in several ways:
 //
-// or
+//   - Using the library: The [etw.KernelProviders] slice contains a list of known kernel event groups.
+//     Use [GetKernelProviderFlags] to convert provider names into flags.
 //
-//	kernelSession := etw.NewKernelRealTimeSession(etw.EVENT_TRACE_FLAG_DISK_IO | etw.EVENT_TRACE_FLAG_DISK_FILE_IO)
+//     Example (capture File I/O and Disk I/O events):
 //
-// For a list of kernel providers use:
+//     flags := etw.GetKernelProviderFlags("FileIo", "DiskIo")
+//     kernelSession, err := etw.NewKernelRealTimeSession(flags)
 //
-//	 for _, pd := range etw.KernelProviders {
-//		 fmt.Printf("\t%s: %s\n", pd.Name, pd.GUID)
-//	 }
+//     To list all available kernel provider names:
 //
-// EnableFlags: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties EnableFlags section
+//     for _, p := range etw.KernelProviders {
+//     fmt.Println(p.Name)
+//     }
 //
-// NOTE:
-// These are legacy MOF type events. (without a manifest some of these event don't parse well)
-// Most of the events properties that track something may have a zero value. (kernel memory)
+//   - Using logman: The `logman` command-line tool can query the "Windows Kernel Trace"
+//     provider to show available keywords (flags):
+//
+//     logman query providers "Windows Kernel Trace"
+//
+//   - Using wevtutil: The `wevtutil` tool can also list providers, though it is less
+//     commonly used for kernel event groups:
+//
+//     wevtutil gp "Windows Kernel Trace"
+//
+// # Event Format
+//
+// NOTE: The events from the NT Kernel Logger are legacy MOF-based events. They do not
+// have a modern XML manifest, which can lead to parsing challenges. Some event
+// properties may also be zero-valued, as they rely on kernel memory structures
+// that are not always available to the tracing session.
+//
+// For more details on the EnableFlags, see the #microsoft-docs:
+// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties
 //
 // Some MOF are not documented on the microsoft site, for example: Process_V4_TypeGroup1 etc..
-//
 // https://msdn.microsoft.com/en-us/library/windows/desktop/aa364083(v=vs.85).aspx
 func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	p = NewRealTimeSession(NtKernelLogger)
@@ -101,42 +133,63 @@ func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	return
 }
 
-// Windows 11-only.
+// NewSystemTraceProviderSession creates a session for the modern SystemTraceProvider.
 //
-// New way to enable kernel (now system) providers
-// The events generated by the System Trace Provider are not changing due to this new feature.
-// This means that the events are not marked as being emitted from the individual
-// system providers.
+// IMPORTANT: This feature is only available on Windows 11 and later.
 //
+// This function creates a session that can consume events from the new "System
+// Providers" model. This model replaces the monolithic "NT Kernel Logger" with
+// individual providers for different kernel components (e.g., processes, memory, I/O).
+//
+// Unlike the legacy kernel session, which is configured with bitmask flags at creation,
+// this session is started first and then individual system providers are enabled
+// using `EnableProvider`, just like any other manifest-based provider. This allows
+// for more granular and flexible kernel tracing.
+//
+// For a full list of system providers and their keywords, see:
+// https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+//
+// For more background information, see:
 // https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-a-systemtraceprovider-session
 //
-// # Starting a SystemTraceProvider Session using guids and keywords
+// Example - Capturing process and thread start/stop events:
 //
-// How to use it:
-//   - GUIDs and Keywords defined here: https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
-//   - Write the keywords you want and put them in ParseProvider() wich are then passed to EnableTraceEx2
+//	s, err := etw.NewSystemTraceProviderSession("MySystemSession")
+//	if err != nil {
+//		// handle error
+//	}
+//	defer s.Stop()
 //
-// Use the provider names in MustParseProvider()
-// get the names using:  logman query providers | findstr -i system
+//	processProvider := etw.Provider{
+//		GUID:            etw.SystemProcessProviderGuid,
+//		MatchAnyKeyword: etw.SYSTEM_PROCESS_KW_GENERAL | etw.SYSTEM_PROCESS_KW_THREAD,
+//	}
 //
-// OR
+//	if err := s.EnableProvider(processProvider); err != nil {
+//		// handle error
+//	}
 //
-//		var prov etw.Provider
-//	 prov.GUID = etw.SystemProcessProviderGuid
-//	 prov.EnableLevel = 0xff // any level
-//	 prov.MatchAnyKeyword = etw.SYSTEM_PROCESS_KW_GENERAL
-//	 prov.MatchAllKeyword = 0
-//	 if err := s.EnableProvider(prov); err != nil {
-//		 panic(err)
-//	 }
+// You can discover the names of the available system providers using `logman`:
+//
+//	logman query providers | findstr -i system
 func NewSystemTraceProviderSession(name string) (s *RealTimeSession) {
 	s = NewRealTimeSession(name)
 	s.traceProps.LogFileMode |= EVENT_TRACE_SYSTEM_LOGGER_MODE
 	return
 }
 
-// TODO: remove logSessionName param, no longer used.
-func NewRealTimeEventTraceProperties(logSessionName string) *EventTraceProperties2Wrapper {
+// NewRealTimeEventTraceProperties creates and initializes an EventTraceProperties2Wrapper
+// for a real-time ETW session.
+//
+// This function sets up the necessary fields in the underlying EVENT_TRACE_PROPERTIES_V2
+// structure required by the Windows API for [StartTrace] a session. It configures the
+// session for real-time event consumption without logging to a file.
+//
+// As per the Windows API documentation for StartTrace, the session name is passed as a
+// separate parameter to the API call. StartTrace then copies that name into the properties
+// structure using the provided LoggerNameOffset. Therefore, this function only needs to
+// calculate and set the offset, not write the name string itself.
+func NewRealTimeEventTraceProperties() *EventTraceProperties2Wrapper {
 	traceProps, size := NewEventTracePropertiesV2()
 
 	// https://learn.microsoft.com/en-us/windows/win32/etw/wnode-header
@@ -145,8 +198,10 @@ func NewRealTimeEventTraceProperties(logSessionName string) *EventTracePropertie
 	traceProps.Wnode.Guid = GUID{}     // Will be set by etw
 	// Only used if PROCESS_TRACE_MODE_RAW_TIMESTAMP is set in the Consumer side
 	traceProps.Wnode.ClientContext = 1 // QPC
-	// *NOTE(tekert) should this be WNODE_FLAG_TRACED_GUID instead of WNODE_FLAG_ALL_DATA?
+	// WNODE_FLAG_ALL_DATA Flag is part of the legacy WMI query interface,
+	// its is for querying data not for starting a trace session.
 	// WNODE_FLAG_VERSIONED_PROPERTIES means use EventTraceProperties2
+	// These are used so that StartTrace know what to start.
 	traceProps.Wnode.Flags = WNODE_FLAG_TRACED_GUID | WNODE_FLAG_VERSIONED_PROPERTIES
 	traceProps.LogFileMode = EVENT_TRACE_REAL_TIME_MODE
 	traceProps.LogFileNameOffset = 0
@@ -227,12 +282,10 @@ func (s *RealTimeSession) EnableProvider(prov Provider) (err error) {
 		}
 	}
 
-	params := EnableTraceParameters{
-		Version: 2,
+	params := EnableTraceParameters{}
 
-		// Does not seem to bring valuable information
-		//EnableProperty: EVENT_ENABLE_PROPERTY_PROCESS_START_KEY,
-	}
+	params.Version = 2
+	params.EnableProperty = prov.EnableProperties
 
 	if len(descriptors) > 0 {
 		params.EnableFilterDesc = (*EventFilterDescriptor)(unsafe.Pointer(&descriptors[0]))
@@ -385,9 +438,15 @@ func (s *RealTimeSession) Flush() error {
 		EVENT_TRACE_CONTROL_FLUSH)
 }
 
-// Provide a valid trace name
-// This returns a wrapper for the [EventTraceProperties2] struct that accounts for
-// the strings space after the struct.
+// NewQueryTraceProperties creates a properties structure used to query an existing
+// ETW session by its name. The `traceName` parameter specifies the name of the
+// running session to query, which can belong to any process on the system.
+//
+// This function initializes an [EventTraceProperties2Wrapper] with the minimum
+// fields required by the ControlTrace API for an EVENT_TRACE_CONTROL_QUERY
+// operation. The wrapper handles the complex memory layout of the underlying
+// Windows struct, which requires a single contiguous buffer for both the
+// properties and the session name string, avoiding manual pointer arithmetic.
 func NewQueryTraceProperties(traceName string) *EventTraceProperties2Wrapper {
 	traceProps, size := NewEventTracePropertiesV2()
 	// Set only required fields for QUERY
@@ -407,22 +466,21 @@ func NewQueryTraceProperties(traceName string) *EventTraceProperties2Wrapper {
 	return traceProps
 }
 
-// Gets the properties of a realtime event trace session with instaceName (loggerName or traceName)
-// logFileName not suported (sessions that write to a file)
-// Use [NewQueryTraceProperties] output as parameter
-//
 // QueryTrace queries the properties and status of a running trace session by name.
-// This is a low-level function that wraps the `ControlTrace` API with the
-// `EVENT_TRACE_CONTROL_QUERY` command. It's used to get statistics for any
-// running session, even those started by other processes.
 //
-// The `queryProp` parameter serves as both input and output. It must be a
-// non-nil pointer to an `EventTracePropertyData2` struct, typically created
-// with `NewQueryTraceProperties`. The `LoggerName` field within this struct
-// is used to identify the session to query. On success, the same struct is
-// populated with the current properties and statistics of the session.
+// This is a low-level function that wraps the [ControlTrace] API with the
+// `EVENT_TRACE_CONTROL_QUERY` command. This allows querying any running session,
+// even those started by other processes, using its instance name (loggerName or traceName).
+// This implementation does not support querying sessions via a log file name (logFileName).
 //
-// This function is used internally by `ConsumerTrace.QueryTrace()`.
+// The queryProp parameter serves as both input and output. It must be a
+// non-nil pointer to an EventTraceProperties2Wrapper struct, typically created
+// with [NewQueryTraceProperties]. On input, the ControlTrace API uses the
+// session name within this struct to identify the session to query. On success,
+// the API populates the same struct with the current properties and statistics
+// of the session.
+//
+// This function is used internally by [ConsumerTrace.QueryTrace()].
 func QueryTrace(queryProp *EventTraceProperties2Wrapper) (err error) {
 	if queryProp == nil {
 		return fmt.Errorf("data must be non nil")
