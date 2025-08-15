@@ -845,7 +845,7 @@ typedef struct _ENABLE_TRACE_PARAMETERS {
 type EnableTraceParameters struct {
 	Version          uint32
 	EnableProperty   uint32
-	ControlFlags     uint32
+	ControlFlags     uint32 // Reserved. Set to 0.
 	SourceId         GUID
 	EnableFilterDesc *EventFilterDescriptor
 	FilterDescCount  uint32
@@ -1156,6 +1156,10 @@ func (e *EventRecord) pointerOffset(offset uintptr) uintptr {
 }
 */
 
+// EventID returns the event ID of the event record.
+// If the event is XML-based (manifest), it returns the EventDescriptor ID.
+// If the event is MOF-based (old), it returns the BaseId (ProviderId) + EventDescriptor.Opcode.
+// If the event is neither, it returns 0.
 func (e *EventRecord) EventID() uint16 {
 	if e.IsXML() {
 		return e.EventHeader.EventDescriptor.Id
@@ -1168,6 +1172,8 @@ func (e *EventRecord) EventID() uint16 {
 	return 0
 }
 
+// ExtendedDataItem returns the extended data item at index i.
+// It returns an error if the index is out of bounds.
 func (e *EventRecord) ExtendedDataItem(i uint16) (*EventHeaderExtendedDataItem, error) {
 	if i >= e.ExtendedDataCount {
 		return nil, fmt.Errorf("index %d out of bounds (len %d)", i, e.ExtendedDataCount)
@@ -1177,6 +1183,9 @@ func (e *EventRecord) ExtendedDataItem(i uint16) (*EventHeaderExtendedDataItem, 
 	return &items[i], nil
 }
 
+// RelatedActivityID returns the GUID of the related activity ID.
+// This is used to correlate events that are part of the same activity.
+// It returns a zero GUID if the related activity ID is not present in the event's extended data.
 func (e *EventRecord) RelatedActivityID() GUID {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
 		item, err := e.ExtendedDataItem(i)
@@ -1194,12 +1203,130 @@ func (e *EventRecord) RelatedActivityID() GUID {
 	return nullGUID
 }
 
+// Sid returns the security identifier (SID) of the user who logged the event.
+// It returns nil if the SID is not present in the event's extended data.
+// Use [etw.ConvertSidToStringSidGO] to convert the SID to a go string in most performant way.
+func (e *EventRecord) Sid() *SID {
+    for i := uint16(0); i < e.ExtendedDataCount; i++ {
+        item, err := e.ExtendedDataItem(i)
+        if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_SID {
+            return (*SID)(unsafe.Pointer(item.DataPtr))
+        }
+    }
+    return nil
+}
+
+// TerminalSessionID returns the terminal session identifier of the user who logged the event.
+// The boolean return value indicates whether the session ID was present in the event's extended data.
+func (e *EventRecord) TerminalSessionID() (uint32, bool) {
+    for i := uint16(0); i < e.ExtendedDataCount; i++ {
+        item, err := e.ExtendedDataItem(i)
+        if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_TS_ID {
+            return *(*uint32)(unsafe.Pointer(item.DataPtr)), true
+        }
+    }
+    return 0, false
+}
+
+// ProcessStartKey returns a unique identifier for the process that persists across boot sessions.
+// This is more reliable for correlation than a PID, which can be reused.
+// The boolean return value indicates whether the start key was present in the event's extended data.
+func (e *EventRecord) ProcessStartKey() (uint64, bool) {
+    for i := uint16(0); i < e.ExtendedDataCount; i++ {
+        item, err := e.ExtendedDataItem(i)
+        if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_PROCESS_START_KEY {
+            return *(*uint64)(unsafe.Pointer(item.DataPtr)), true
+        }
+    }
+    return 0, false
+}
+
+// EventKey returns a unique identifier for the event that is constant across trace sessions.
+// This is useful for correlating events from the same provider across different traces.
+// The boolean return value indicates whether the event key was present in the event's extended data.
+func (e *EventRecord) EventKey() (uint64, bool) {
+    for i := uint16(0); i < e.ExtendedDataCount; i++ {
+        item, err := e.ExtendedDataItem(i)
+        if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_EVENT_KEY {
+            return *(*uint64)(unsafe.Pointer(item.DataPtr)), true
+        }
+    }
+    return 0, false
+}
+
+// ContainerID returns the GUID of the container in which the event provider is running.
+// This is useful for tracing events in containerized environments.
+// It returns a zero GUID if the container ID is not present in the event's extended data.
+func (e *EventRecord) ContainerID() GUID {
+    for i := uint16(0); i < e.ExtendedDataCount; i++ {
+        item, err := e.ExtendedDataItem(i)
+        if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_CONTAINER_ID {
+            return *(*GUID)(unsafe.Pointer(item.DataPtr))
+        }
+    }
+    return nullGUID
+}
+
+// EventStackTrace contains the call stack trace associated with an event.
+// https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_extended_item_stack_trace64
+type EventStackTrace struct {
+    MatchID   uint64
+    Addresses []uint64
+}
+
+// StackTrace returns the call stack trace associated with an event, if one is present.
+// A stack trace will only be present if the provider was enabled with the
+// EVENT_ENABLE_PROPERTY_STACK_TRACE flag.
+// The boolean return value indicates whether a stack trace was found.
+func (e *EventRecord) StackTrace() (EventStackTrace, bool) {
+    for i := uint16(0); i < e.ExtendedDataCount; i++ {
+        item, err := e.ExtendedDataItem(i)
+        if err != nil {
+            continue
+        }
+
+        switch item.ExtType {
+        case EVENT_HEADER_EXT_TYPE_STACK_TRACE32:
+            if item.DataSize < 8 {
+                continue
+            }
+            matchID := *(*uint64)(unsafe.Pointer(item.DataPtr))
+            addressCount := (item.DataSize - 8) / 4
+            addresses32 := unsafe.Slice((*uint32)(unsafe.Pointer(item.DataPtr + 8)), addressCount)
+            addresses64 := make([]uint64, addressCount)
+            for j, addr := range addresses32 {
+                addresses64[j] = uint64(addr)
+            }
+            return EventStackTrace{
+                MatchID:   matchID,
+                Addresses: addresses64,
+            }, true
+
+        case EVENT_HEADER_EXT_TYPE_STACK_TRACE64:
+            if item.DataSize < 8 {
+                continue
+            }
+            matchID := *(*uint64)(unsafe.Pointer(item.DataPtr))
+            addressCount := (item.DataSize - 8) / 8
+            addresses64 := unsafe.Slice((*uint64)(unsafe.Pointer(item.DataPtr + 8)), addressCount)
+            addrsCopy := make([]uint64, len(addresses64))
+            copy(addrsCopy, addresses64)
+            return EventStackTrace{
+                MatchID:   matchID,
+                Addresses: addrsCopy,
+            }, true
+        }
+    }
+    return EventStackTrace{}, false
+}
+
+// IsXML checks if the event is manifest-based (XML).
 func (e *EventRecord) IsXML() bool {
 	// If not classic/MOF and has provider, it's manifest-based
 	return !e.IsMof() && !e.EventHeader.ProviderId.IsZero() // TODO(tekert): test this
 }
 
-// Classic event
+// IsMof checks if the event is classic (MOF).
 func (e *EventRecord) IsMof() bool {
 	return e.EventHeader.Flags&EVENT_HEADER_FLAG_CLASSIC_HEADER != 0
 }
@@ -1247,6 +1374,7 @@ func (e *EventRecord) GetEventInformation(buffer *[]byte) (tei *TraceEventInfo, 
 
 	return tei, nil
 }
+
 
 /*
 // Both MOF-based events and manifest-based events can specify name/value maps. The

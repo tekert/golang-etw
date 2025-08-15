@@ -13,7 +13,12 @@ import (
 var (
 	providers       ProviderMap
 	providersOnce   sync.Once
-	defaultProvider = Provider{EnableLevel: 0xff, MatchAnyKeyword: 0xffffffffffffffff, MatchAllKeyword: 0}
+	defaultProvider = Provider{
+		EnableLevel:      0xff,
+		MatchAnyKeyword:  0xffffffffffffffff,
+		MatchAllKeyword:  0,
+		EnableProperties: EVENT_ENABLE_PROPERTY_PROCESS_START_KEY,
+	}
 
 	// Error returned when a provider is not found on the system
 	ErrUnkownProvider = fmt.Errorf("unknown provider")
@@ -82,6 +87,52 @@ type Provider struct {
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-enable_trace_parameters EnableFilterDesc
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_filter_descriptor EVENT_FILTER_TYPE_EVENT_ID
 	Filters []ProviderFilter
+
+    // EnableProperties specifies flags from the EVENT_ENABLE_PROPERTY_* constants.
+    // These flags control special ETW features for the provider when enabling it in a trace session.
+	//
+	// Enabled by default: (EVENT_ENABLE_PROPERTY_PROCESS_START_KEY)
+    //
+    // Supported flags (combine using bitwise OR):
+    //
+    //   EVENT_ENABLE_PROPERTY_IGNORE_KEYWORD_0
+    //     - Filters out events where the event's keyword is 0.
+    //
+    //   EVENT_ENABLE_PROPERTY_PROVIDER_GROUP
+    //     - Enables a provider group rather than an individual event provider.
+    //
+    //   EVENT_ENABLE_PROPERTY_PROCESS_START_KEY
+    //     - Includes the Process Start Key in the event's extended data.
+    //       Retrieve with: EventRecord.ProcessStartKey()
+    //
+    //   EVENT_ENABLE_PROPERTY_EVENT_KEY
+    //     - Includes a unique Event Key in the event's extended data.
+    //       Retrieve with: EventRecord.EventKey()
+    //
+    //   EVENT_ENABLE_PROPERTY_EXCLUDE_INPRIVATE
+    //     - Filters out events marked as InPrivate or from InPrivate processes.
+    //
+    //   EVENT_ENABLE_PROPERTY_SID
+    //     - Includes the security identifier (SID) of the user in the event's extended data.
+    //       Retrieve with: EventRecord.Sid()
+    //
+    //   EVENT_ENABLE_PROPERTY_TS_ID
+    //     - Includes the terminal session identifier in the event's extended data.
+    //       Retrieve with: EventRecord.TerminalSessionID()
+    //
+    //   EVENT_ENABLE_PROPERTY_STACK_TRACE
+    //     - Adds a call stack trace to the extended data of events written using EventWrite.
+    //       Retrieve with: EventRecord.StackTrace()
+    //
+    //   EVENT_ENABLE_PROPERTY_CONTAINER_ID
+    //     - Includes the container ID (GUID) in the event's extended data.
+    //       Retrieve with: EventRecord.ContainerID()
+    //
+    // Example usage:
+    //   prov.EnableProperties = EVENT_ENABLE_PROPERTY_PROCESS_START_KEY | EVENT_ENABLE_PROPERTY_SID
+    //
+	// https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-enable_trace_parameters
+	EnableProperties uint32
 }
 
 // IsZero returns true if the provider is empty
