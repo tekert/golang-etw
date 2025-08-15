@@ -336,12 +336,14 @@ func TestLostEvents(t *testing.T) {
 	// As documented, these fields are often not populated in newer versions.
 	logFile := traceInfo.GetLogFileCopy()
 	if logFile != nil {
-		t.Logf("[BufferCallback] LogfileHeader.EventsLost: %d (Note: often 0 for real-time)", logFile.LogfileHeader.GetEventsLost())
-		t.Logf("[BufferCallback] EventTraceLogfile.EventsLost: %d (Note: documented as 'Not used')", logFile.EventsLost)
+		t.Logf(`[BufferCallback] EventTraceLogfile.LogfileHeader.EventsLost: %d
+		 (Note: often 0 for real-time)`, logFile.LogfileHeader.GetEventsLost())
+		t.Logf(`[BufferCallback] EventTraceLogfile.EventsLost: %d
+		 (Note: documented as 'Not used')`, logFile.EventsLost)
 	}
 }
 
-func jsonStr(i interface{}) string {
+func jsonStr(i any) string {
 	var b []byte
 	var err error
 	if b, err = json.Marshal(i); err != nil {
@@ -951,7 +953,7 @@ func TestProviderFiltering(t *testing.T) {
 }
 
 // Helper to compare static properties between two trace properties
-func assertStaticPropsEqual(t *test.T, expected, actual *EventTracePropertyData2, contextMsg string) {
+func assertStaticPropsEqual(t *test.T, expected, actual *EventTraceProperties2Wrapper, contextMsg string) {
 	t.Assertf(actual.BufferSize == expected.BufferSize,
 		"%s: BufferSize mismatch: expected=%d, got=%d",
 		contextMsg, expected.BufferSize, actual.BufferSize)
@@ -967,7 +969,7 @@ func assertStaticPropsEqual(t *test.T, expected, actual *EventTracePropertyData2
 }
 
 // Helper to validate trace name
-func assertTraceName(t *test.T, prop *EventTracePropertyData2, expectedName string, contextMsg string) {
+func assertTraceName(t *test.T, prop *EventTraceProperties2Wrapper, expectedName string, contextMsg string) {
 	name := UTF16PtrToString(prop.GetTraceName())
 	t.Assertf(name == expectedName,
 		"%s: Name mismatch: expected=%s, got=%s",
@@ -975,7 +977,7 @@ func assertTraceName(t *test.T, prop *EventTracePropertyData2, expectedName stri
 }
 
 // Helper to validate runtime stats
-func assertRuntimeStats(t *test.T, prop *EventTracePropertyData2, contextMsg string) {
+func assertRuntimeStats(t *test.T, prop *EventTraceProperties2Wrapper, contextMsg string) {
 	t.Assertf(prop.NumberOfBuffers > 0,
 		"%s: Expected NumberOfBuffers > 0, got %d",
 		contextMsg, prop.NumberOfBuffers)
@@ -985,7 +987,7 @@ func assertRuntimeStats(t *test.T, prop *EventTracePropertyData2, contextMsg str
 }
 
 // Helper to compare runtime stats between properties
-func assertRuntimeStatsEqual(t *test.T, expected, actual *EventTracePropertyData2, contextMsg string) {
+func assertRuntimeStatsEqual(t *test.T, expected, actual *EventTraceProperties2Wrapper, contextMsg string) {
 	t.Assertf(actual.NumberOfBuffers == expected.NumberOfBuffers,
 		"%s: NumberOfBuffers mismatch: expected=%d, got=%d",
 		contextMsg, expected.NumberOfBuffers, actual.NumberOfBuffers)

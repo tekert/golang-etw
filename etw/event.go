@@ -11,8 +11,8 @@ var (
 	eventPool = sync.Pool{
 		New: func() any {
 			return &Event{
-				EventData:    make(map[string]interface{}),
-				UserData:     make(map[string]interface{}),
+				EventData:    make(map[string]any),
+				UserData:     make(map[string]any),
 				ExtendedData: make([]string, 0),
 			}
 		},

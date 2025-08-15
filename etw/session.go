@@ -21,7 +21,7 @@ type Session interface {
 
 // Real time Trace Session
 type RealTimeSession struct {
-	traceProps    *EventTracePropertyData2
+	traceProps    *EventTraceProperties2Wrapper
 	sessionHandle syscall.Handle
 	traceName     string
 
@@ -136,7 +136,7 @@ func NewSystemTraceProviderSession(name string) (s *RealTimeSession) {
 }
 
 // TODO: remove logSessionName param, no longer used.
-func NewRealTimeEventTraceProperties(logSessionName string) *EventTracePropertyData2 {
+func NewRealTimeEventTraceProperties(logSessionName string) *EventTraceProperties2Wrapper {
 	traceProps, size := NewEventTracePropertiesV2()
 
 	// https://learn.microsoft.com/en-us/windows/win32/etw/wnode-header
@@ -209,8 +209,8 @@ func (s *RealTimeSession) Start() (err error) {
 // ETW runtime after the event has been generated (depends on provider), which reduces
 // trace volume but not the initial CPU overhead of generation.
 func (s *RealTimeSession) EnableProvider(prov Provider) (err error) {
-    // If the trace is not started yet we have to start it
-    // otherwise we cannot enable provider
+	// If the trace is not started yet we have to start it
+	// otherwise we cannot enable provider
 	if !s.IsStarted() {
 		if err = s.Start(); err != nil {
 			return
@@ -350,7 +350,7 @@ func (s *RealTimeSession) Stop() error {
 }
 
 // Gets a copy of the current EventTraceProperties file used for this session
-func (s *RealTimeSession) GetTracePropertyCopy() *EventTracePropertyData2 {
+func (s *RealTimeSession) GetTracePropertyCopy() *EventTraceProperties2Wrapper {
 	return s.traceProps.Clone()
 }
 
@@ -361,7 +361,7 @@ func (s *RealTimeSession) GetTracePropertyCopy() *EventTracePropertyData2 {
 //
 // The returned pointer refers to the session's internal properties struct and should
 // not be modified.
-func (s *RealTimeSession) QueryTrace() (prop *EventTracePropertyData2, err error) {
+func (s *RealTimeSession) QueryTrace() (prop *EventTraceProperties2Wrapper, err error) {
 	// If you are reusing a EVENT_TRACE_PROPERTIES structure
 	// (i.e. using a structure that you previously passed to StartTrace or ControlTrace),
 	// be sure to set the LogFileNameOffset member to 0 unless you are changing the log file name.
@@ -388,7 +388,7 @@ func (s *RealTimeSession) Flush() error {
 // Provide a valid trace name
 // This returns a wrapper for the [EventTraceProperties2] struct that accounts for
 // the strings space after the struct.
-func NewQueryTraceProperties(traceName string) *EventTracePropertyData2 {
+func NewQueryTraceProperties(traceName string) *EventTraceProperties2Wrapper {
 	traceProps, size := NewEventTracePropertiesV2()
 	// Set only required fields for QUERY
 	traceProps.Wnode.BufferSize = size
@@ -423,7 +423,7 @@ func NewQueryTraceProperties(traceName string) *EventTracePropertyData2 {
 // populated with the current properties and statistics of the session.
 //
 // This function is used internally by `ConsumerTrace.QueryTrace()`.
-func QueryTrace(queryProp *EventTracePropertyData2) (err error) {
+func QueryTrace(queryProp *EventTraceProperties2Wrapper) (err error) {
 	if queryProp == nil {
 		return fmt.Errorf("data must be non nil")
 	}
@@ -460,7 +460,7 @@ func StopSession(name string) error {
 }
 
 // (used for internal debuggging)
-func newQueryProperties2(tname string) *EventTracePropertyData2 {
+func newQueryProperties2(tname string) *EventTraceProperties2Wrapper {
 	traceProps, size := NewEventTracePropertiesV2()
 	// Set only required fields for QUERY
 	traceProps.Wnode.BufferSize = size
@@ -477,7 +477,7 @@ func newQueryProperties2(tname string) *EventTracePropertyData2 {
 // Use a valid properties struct created with [NewQueryTraceProperties]
 // The trace name is taken from props.LoggerNameOffset.
 // (used for internal debuggging)
-func queryTrace2(traceProps *EventTracePropertyData2) (err error) {
+func queryTrace2(traceProps *EventTraceProperties2Wrapper) (err error) {
 	// get loggerName from the props.LoggerNameOffset
 	loggerName := traceProps.GetTraceName()
 
