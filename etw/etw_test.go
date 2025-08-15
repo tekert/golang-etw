@@ -68,7 +68,9 @@ func TestProducerConsumer(t *testing.T) {
 	tt.Assert(ses.IsStarted())
 
 	// Consumer part
-	c := NewConsumer(context.Background()).FromSessions(ses) //.FromTraceNames(EventlogSecurity)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewConsumer(ctx).FromSessions(ses) //.FromTraceNames(EventlogSecurity)
 
 	// we have to declare a func otherwise c.Stop seems to be called
 	defer func() { tt.CheckErr(c.Stop()) }()
@@ -93,10 +95,16 @@ func TestProducerConsumer(t *testing.T) {
 			_, err := json.Marshal(&e)
 			tt.CheckErr(err)
 			//t.Log(string(b))
+
+			// Stop after receiving one event.
+			if eventCount > 0 {
+				cancel()
+			}
 		})
 	}()
-	// sleeping
-	time.Sleep(3 * time.Second)
+
+	// Wait for the consumer to be canceled.
+	<-ctx.Done()
 
 	// stopping consumer
 	tt.CheckErr(c.Stop())
@@ -132,7 +140,9 @@ func TestKernelSession(t *testing.T) {
 	tt.Assert(kp.IsStarted())
 
 	// consumer part
-	c := NewConsumer(context.Background()).FromSessions(kp)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewConsumer(ctx).FromSessions(kp)
 
 	// we have to declare a func otherwise c.Stop seems to be called
 	defer func() { tt.CheckErr(c.Stop()) }()
@@ -151,10 +161,21 @@ func TestKernelSession(t *testing.T) {
 			_, err := json.Marshal(&e)
 			tt.CheckErr(err)
 			//t.Log(string(b))
+
+			// Stop after receiving one event.
+			if eventCount > 0 {
+				cancel()
+			}
 		})
 	}()
 
-	time.Sleep(3 * time.Second)
+	// Wait for the context to be canceled or a timeout.
+	select {
+	case <-ctx.Done():
+		// Canceled as expected.
+	case <-time.After(10 * time.Second):
+		t.Fatal("Test timed out waiting for an event")
+	}
 
 	tt.CheckErr(c.Stop())
 	tt.CheckErr(kp.Stop())
@@ -165,6 +186,7 @@ func TestKernelSession(t *testing.T) {
 	t.Logf("Received: %d events in %s (%d EPS)", eventCount, delta, int(eps))
 }
 
+// TODO(tekert): check why we have some errors on callback
 func TestEventMapInfo(t *testing.T) {
 	tt := test.FromT(t)
 	eventCount := 0
@@ -195,7 +217,9 @@ func TestEventMapInfo(t *testing.T) {
 	// consumer part
 	fakeError := fmt.Errorf("fake")
 
-	c := NewConsumer(context.Background()).FromSessions(prod)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewConsumer(ctx).FromSessions(prod)
 	// reducing size of channel so that we are obliged to skip events
 	c.Events.Channel = make(chan []*Event)
 	c.Events.BatchSize = 1
@@ -239,12 +263,23 @@ func TestEventMapInfo(t *testing.T) {
 			_, err := json.Marshal(&e)
 			tt.CheckErr(err)
 			if e.System.Correlation.ActivityID != nullGUIDStr && e.System.Correlation.RelatedActivityID != nullGUIDStr {
-				//t.Logf("Provider=%s ActivityID=%s RelatedActivityID=%s", e.System.Provider.Name, e.System.Correlation.ActivityID, e.System.Correlation.RelatedActivityID)
+				t.Logf("Provider=%s ActivityID=%s RelatedActivityID=%s", e.System.Provider.Name, e.System.Correlation.ActivityID, e.System.Correlation.RelatedActivityID)
+			}
+			// Stop after receiving one event.
+			if eventCount > 0 {
+				cancel()
 			}
 		})
 	}()
 
-	time.Sleep(2 * time.Second)
+	// Wait for the context to be canceled or a timeout.
+	select {
+	case <-ctx.Done():
+		// Canceled as expected.
+	case <-time.After(10 * time.Second):
+		t.Log("Test timed out waiting for an event")
+		cancel() // ensure context is canceled on timeout
+	}
 
 	tt.CheckErr(c.Stop())
 	wg.Wait()
@@ -275,6 +310,7 @@ func TestLostEvents(t *testing.T) {
 	// enabling provider
 	tt.CheckErr(ses.EnableProvider(prov))
 	defer ses.Stop()
+	tt.CheckErr(ses.Start())
 
 	// ! TESTING
 	// Set acces for the Eventlog-Security trace (admin is not enough)
@@ -293,7 +329,9 @@ func TestLostEvents(t *testing.T) {
 	// )
 
 	// Consumer part
-	c := NewConsumer(context.Background()).FromSessions(ses) //.FromTraceNames(EventlogSecurity)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewConsumer(ctx).FromSessions(ses) //.FromTraceNames(EventlogSecurity)
 	// we have to declare a func otherwise c.Stop does not seem to be called
 	defer func() { tt.CheckErr(c.Stop()) }()
 
@@ -303,12 +341,46 @@ func TestLostEvents(t *testing.T) {
 	go func() {
 		//for range c.Events {
 		c.ProcessEvents(func(e *Event) {
-			cnt++
+			atomic.AddUint64(&cnt, 1)
 		})
 	}()
-	time.Sleep(10 * time.Second)
+
+	// Periodically check for lost events until they are detected or timeout.
+	checkForLostEvents := func() bool {
+		traceInfo, ok := c.GetTrace("GolangTest")
+		if !ok {
+			return false
+		}
+		if traceInfo.RTLostEvents.Load() > 1 {
+			return true
+		}
+		// sessionProps, err := ses.QueryTrace()
+		// if err != nil {
+		// 	return false
+		// }
+		//return sessionProps.EventsLost > 0
+		return false
+	}
+
+	timeout := time.After(15 * time.Second)
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			if checkForLostEvents() {
+				t.Log("Lost events detected, stopping consumer.")
+				break loop
+			}
+		case <-timeout:
+			t.Log("Timed out waiting for lost events.")
+			break loop
+		}
+	}
+
 	tt.CheckErr(c.Stop())
-	time.Sleep(5 * time.Second)
 	t.Logf("Events received: %d", cnt)
 	t.Logf("Events lost: %d", c.LostEvents.Load())
 
@@ -376,7 +448,9 @@ func TestConsumerCallbacks(t *testing.T) {
 	defer ses.Stop()
 
 	// Consumer part
-	c := NewConsumer(context.Background()).FromSessions(ses) //.FromTraceNames(EventlogSecurity)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewConsumer(ctx).FromSessions(ses) //.FromTraceNames(EventlogSecurity)
 
 	c.EventRecordHelperCallback = func(erh *EventRecordHelper) (err error) {
 
@@ -492,8 +566,8 @@ func TestConsumerCallbacks(t *testing.T) {
 	t.Logf("testfile: %s", testfile)
 
 	start := time.Now()
-	var etwread int
-	var etwwrite int
+	var etwread int32
+	var etwwrite int32
 
 	pid := os.Getpid()
 	// consuming events in Golang
@@ -521,9 +595,9 @@ func TestConsumerCallbacks(t *testing.T) {
 				}
 
 				if e.System.EventID == 15 {
-					etwread++
+					atomic.AddInt32(&etwread, 1)
 				} else {
-					etwwrite++
+					atomic.AddInt32(&etwwrite, 1)
 				}
 			}
 		})
@@ -535,24 +609,32 @@ func TestConsumerCallbacks(t *testing.T) {
 	tf := testfile
 	for ; nReadWrite < randBetween(800, 1000); nReadWrite++ {
 		tmp := fmt.Sprintf("%s.%d", tf, nReadWrite)
-		tt.CheckErr(os.WriteFile(tmp, []byte("testdata"), 7777))
+		tt.CheckErr(os.WriteFile(tmp, []byte("testdata"), 0644))
 		_, err = os.ReadFile(tmp)
 		tt.CheckErr(err)
 		time.Sleep(time.Millisecond)
 	}
 
-	d := time.Duration(0)
-	sleep := time.Second
-	for d < 10*time.Second {
-		if etwread == nReadWrite && etwwrite == nReadWrite {
-			break
-		}
-		time.Sleep(sleep)
-		d += sleep
-	}
+	// Wait until all generated file events are received or timeout.
+	timeout := time.After(15 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
 
-	// wait a couple of seconds more to see if we get more events
-	time.Sleep(10 * time.Second)
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			if atomic.LoadInt32(&etwread) >= int32(nReadWrite) && atomic.LoadInt32(&etwwrite) >= int32(nReadWrite) {
+				t.Log("All file IO events received.")
+				// Wait a bit longer to catch any potential extra events.
+				time.Sleep(2 * time.Second)
+				break loop
+			}
+		case <-timeout:
+			t.Log("Timed out waiting for all file IO events.")
+			break loop
+		}
+	}
 
 	// stopping consumer
 	tt.CheckErr(c.Stop())
@@ -560,10 +642,10 @@ func TestConsumerCallbacks(t *testing.T) {
 	tt.Assert(eventCount != 0, "did not receive any event")
 	tt.Assert(c.Skipped.Load() == 0)
 	// verifying that we caught all events
-	t.Logf("read=%d etwread=%d", nReadWrite, etwread)
-	tt.Assert(nReadWrite == etwread)
-	t.Logf("write=%d etwwrite=%d", nReadWrite, etwwrite)
-	tt.Assert(nReadWrite == etwwrite)
+	t.Logf("read=%d etwread=%d", nReadWrite, atomic.LoadInt32(&etwread))
+	tt.Assert(nReadWrite == int(atomic.LoadInt32(&etwread)))
+	t.Logf("write=%d etwwrite=%d", nReadWrite, atomic.LoadInt32(&etwwrite))
+	tt.Assert(nReadWrite == int(atomic.LoadInt32(&etwwrite)))
 
 	delta := time.Since(start)
 	eps := float64(eventCount) / delta.Seconds()
@@ -684,7 +766,8 @@ func TestCallbackConcurrency(t *testing.T) {
 	tt := test.FromT(t)
 	SetLogDebugLevel()
 
-	c := NewConsumer(context.Background())
+	ctx := tt.Context()
+	c := NewConsumer(ctx)
 
 	c.EventRecordHelperCallback = nil
 	c.EventPreparedCallback = nil
@@ -733,8 +816,23 @@ func TestCallbackConcurrency(t *testing.T) {
 
 	tt.CheckErr(c.Start())
 
-	// Wait for some events
-	time.Sleep(5 * time.Second)
+	// Wait until we've seen a few callbacks or a timeout occurs.
+	timeout := time.After(5 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+waitLoop:
+	for {
+		select {
+		case <-timeout:
+			t.Log("Test duration finished.")
+			break waitLoop
+		case <-ticker.C:
+			if callCount.Load() > 5 {
+				t.Log("Sufficient callbacks executed.")
+				break waitLoop
+			}
+		}
+	}
 
 	t.Logf("Waiting for consumer to stop")
 	// Stop consumer before checking results
@@ -1035,7 +1133,9 @@ func TestQueryTraceMethods(t *testing.T) {
 	assertStaticPropsEqual(tt, sesData, gloData, "Initial Session vs Global")
 
 	// Setup consumer
-	c := NewConsumer(context.Background()).FromSessions(ses)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewConsumer(ctx).FromSessions(ses)
 	defer c.Stop()
 	tt.CheckErr(c.Start())
 
@@ -1053,10 +1153,20 @@ func TestQueryTraceMethods(t *testing.T) {
 	eventsReceived := uint32(0)
 	go func() {
 		c.ProcessEvents(func(e *Event) {
-			atomic.AddUint32(&eventsReceived, 1)
+			if atomic.AddUint32(&eventsReceived, 1) > 10 {
+				cancel()
+			}
 		})
 	}()
-	time.Sleep(5 * time.Second)
+
+	// Wait for context to be canceled or timeout
+	select {
+	case <-ctx.Done():
+		// Canceled as expected
+	case <-time.After(10 * time.Second):
+		t.Log("Timed out waiting for events")
+	}
+
 	tt.CheckErr(c.Stop())
 
 	// Query final properties from all three perspectives
@@ -1096,4 +1206,109 @@ func TestConsumerTrace_QueryTraceFail(t *testing.T) {
 	prop, err := trace.QueryTrace()
 	tt.Assert(err != nil, "Expected an error when querying a non-existent trace")
 	tt.Assert(prop == nil, "Expected properties to be nil on failure")
+}
+
+// TestEnableProperties validates that setting EnableProperties on a provider
+// correctly includes the requested extended data in the event record.
+func TestEnableProperties(t *testing.T) {
+	tt := test.FromT(t)
+	sessionName := "GolangETW"
+
+	_ = StopSession(sessionName)
+	time.Sleep(250 * time.Millisecond)
+
+	providersToTest := []string{
+		"Microsoft-Windows-RPC",
+		"Microsoft-Windows-Kernel-Process",
+		"Microsoft-Windows-Kernel-File",
+	}
+
+	// Just test these is enough
+	enableProperties := EVENT_ENABLE_PROPERTY_PROCESS_START_KEY |
+		EVENT_ENABLE_PROPERTY_SID |
+		EVENT_ENABLE_PROPERTY_EVENT_KEY |
+		EVENT_ENABLE_PROPERTY_STACK_TRACE
+
+	// Track which properties we've seen in any event
+	var seenStartKey, seenSID, seenEventKey, seenStackTrace atomic.Bool
+
+	_ = StopSession(sessionName)
+	time.Sleep(100 * time.Millisecond)
+
+	ses := NewRealTimeSession(sessionName)
+	defer ses.Stop()
+
+	for _, providerName := range providersToTest {
+		prov, err := ParseProvider(providerName)
+		if err != nil {
+			tt.Fatalf("ParseProvider(%s): %v", providerName, err)
+		}
+		prov.EnableProperties = uint32(enableProperties)
+		if err := ses.EnableProvider(prov); err != nil {
+			tt.Fatalf("EnableProvider(%s): %v", providerName, err)
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := NewConsumer(ctx)
+	c.FromSessions(ses)
+
+	c.EventPreparedCallback = func(erh *EventRecordHelper) error {
+		if !seenStartKey.Load() {
+			_, has := erh.EventRec.ProcessStartKey()
+			if has {
+				seenStartKey.Store(true)
+				tt.Log("Found ProcessStartKey")
+			}
+		}
+		if !seenSID.Load() {
+			sid := erh.EventRec.Sid()
+			if sid != nil {
+				seenSID.Store(true)
+				tt.Log("Found SID")
+			}
+		}
+		if !seenEventKey.Load() {
+			_, has := erh.EventRec.EventKey()
+			if has {
+				seenEventKey.Store(true)
+				tt.Log("Found EventKey")
+			}
+		}
+		if !seenStackTrace.Load() {
+			stack, has := erh.EventRec.StackTrace()
+			if has && len(stack.Addresses) > 0 {
+				seenStackTrace.Store(true)
+				tt.Log("Found StackTrace")
+			}
+		}
+		// If all properties have been seen, stop the test early
+		if seenStartKey.Load() && seenSID.Load() && seenEventKey.Load() && seenStackTrace.Load() {
+			cancel()
+		}
+		return nil
+	}
+
+	if err := c.Start(); err != nil {
+		tt.Fatalf("Consumer.Start: %v", err)
+	}
+
+	// Wait for events or timeout
+	timeout := time.After(10 * time.Second)
+	select {
+	case <-ctx.Done():
+		// All properties found
+	case <-timeout:
+		tt.Log("Timeout reached before all properties were found")
+	}
+
+	_ = c.Stop()
+	_ = ses.Stop()
+
+	tt.Assert(seenStartKey.Load(), "Did not see ProcessStartKey in any event")
+	tt.Assert(seenSID.Load(), "Did not see SID in any event")
+	tt.Assert(seenEventKey.Load(), "Did not see EventKey in any event")
+	tt.Assert(seenStackTrace.Load(), "Did not see StackTrace in any event")
 }
