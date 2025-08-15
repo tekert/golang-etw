@@ -86,7 +86,7 @@ type Consumer struct {
 	tmu    sync.RWMutex // Protect trace updates
 	traces sync.Map     // map[string]*ConsumerTrace
 
-	lastError error
+	lastError atomic.Value // stores error
 
 	// [1] First callback executed, it allows to filter out events
 	// based on fields of raw ETW EventRecord structure. When this callback
@@ -285,7 +285,7 @@ func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 				conlog.Error().Err(err).Msg("callback error")
 			}
 		}
-		c.lastError = err
+		c.lastError.Store(err)
 	}
 
 	// Skips the event if it is the event trace header. Log files contain this event
@@ -662,9 +662,10 @@ func (c *Consumer) processTrace(name string, trace *ConsumerTrace) {
 			// BufferCallback function.
 			seslog.Info().Str("trace", name).Err(err).Msg("ProcessTrace canceled")
 		} else {
-			c.lastError = fmt.Errorf(
+			lastErr := fmt.Errorf(
 				"ProcessTrace failed: %w, handle: %v, LoggerName: %s", err, trace.handle, name)
-			seslog.Error().Err(c.lastError).Msg("ProcessTrace failed")
+		 c.lastError.Store(lastErr)
+			seslog.Error().Err(lastErr).Msg("ProcessTrace failed")
 		}
 	}
 	trace.processing = false
@@ -708,7 +709,10 @@ func (c *Consumer) processTraceWithTimeout(name string, trace *ConsumerTrace) {
 
 // LastError returns the last error encountered by the consumer
 func (c *Consumer) LastError() error {
-	return c.lastError
+    if v := c.lastError.Load(); v != nil {
+        return v.(error)
+    }
+    return nil
 }
 
 // Stop blocks and waits for the ProcessTrace to empty it's buffer.
