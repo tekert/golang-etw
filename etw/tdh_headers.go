@@ -389,8 +389,6 @@ func (t *TraceEventInfo) EventID() uint16 {
 	return 0
 }
 
-// Seems to be always empty
-// TODO(tekert): investigate this
 func (t *TraceEventInfo) EventMessage() string {
 	return t.cleanStringAt(uintptr(t.EventMessageOffset))
 }
