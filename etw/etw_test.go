@@ -186,7 +186,6 @@ func TestKernelSession(t *testing.T) {
 	t.Logf("Received: %d events in %s (%d EPS)", eventCount, delta, int(eps))
 }
 
-// TODO(tekert): check why we have some errors on callback
 func TestEventMapInfo(t *testing.T) {
 	tt := test.FromT(t)
 	eventCount := 0
@@ -241,7 +240,7 @@ func TestEventMapInfo(t *testing.T) {
 		}
 
 		// don't skip events with related activity ID
-		erh.Flags.Skip = erh.EventRec.RelatedActivityID() == nullGUID
+		erh.Flags.Skip = erh.EventRec.ExtRelatedActivityID() == nullGUID
 
 		return fakeError
 	}
@@ -1257,28 +1256,28 @@ func TestEnableProperties(t *testing.T) {
 
 	c.EventPreparedCallback = func(erh *EventRecordHelper) error {
 		if !seenStartKey.Load() {
-			_, has := erh.EventRec.ProcessStartKey()
+			_, has := erh.EventRec.ExtProcessStartKey()
 			if has {
 				seenStartKey.Store(true)
 				tt.Log("Found ProcessStartKey")
 			}
 		}
 		if !seenSID.Load() {
-			sid := erh.EventRec.Sid()
+			sid := erh.EventRec.ExtSid()
 			if sid != nil {
 				seenSID.Store(true)
 				tt.Log("Found SID")
 			}
 		}
 		if !seenEventKey.Load() {
-			_, has := erh.EventRec.EventKey()
+			_, has := erh.EventRec.ExtEventKey()
 			if has {
 				seenEventKey.Store(true)
 				tt.Log("Found EventKey")
 			}
 		}
 		if !seenStackTrace.Load() {
-			stack, has := erh.EventRec.StackTrace()
+			stack, has := erh.EventRec.ExtStackTrace()
 			if has && len(stack.Addresses) > 0 {
 				seenStackTrace.Store(true)
 				tt.Log("Found StackTrace")
