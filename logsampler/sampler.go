@@ -1,7 +1,7 @@
 /*
-	Package sampler provides high-performance, concurrent-safe log sampling strategies.
-	It is designed for use in hot paths of applications where logging every event would
-	be prohibitively expensive, such as high-frequency error reporting or verbose tracing.
+Package sampler provides high-performance, concurrent-safe log sampling strategies.
+It is designed for use in hot paths of applications where logging every event would
+be prohibitively expensive, such as high-frequency error reporting or verbose tracing.
 */
 package logsampler
 
@@ -11,8 +11,19 @@ import (
 	"time"
 )
 
+// BackoffConfig defines the parameters for the exponential backoff strategy.
+type BackoffConfig struct {
+	InitialInterval time.Duration // The base quiet window after a log is emitted.
+	MaxInterval     time.Duration // The maximum quiet window.
+	Factor          float64       // The multiplication factor for the window (e.g., 2.0).
+	// ResetInterval is the duration of inactivity after which the backoff window for a key is reset to InitialInterval.
+	// If zero, the backoff window never resets.
+	ResetInterval time.Duration
+}
+
 // SummaryReporter defines the interface for a logger that can report
-// sampler summaries. This allows the sampler to remain decoupled from any
+// sampler summaries for inactive keys.
+// This allows the sampler to remain decoupled from any
 // specific logging library.
 type SummaryReporter interface {
 	LogSummary(key string, suppressedCount int64)
@@ -21,9 +32,9 @@ type SummaryReporter interface {
 // Sampler defines the interface for deciding if a log message should be processed.
 type Sampler interface {
 	// ShouldLog determines if a log event should be written.
-	// The key is a stable identifier for the log site.
-	// The err object can be used for more advanced decisions but is optional.
-	ShouldLog(key string, err error) bool
+	// It returns true if the event should be logged. If true, it also returns
+	// the number of events that were suppressed since the last logged event for that key.
+	ShouldLog(key string, err error) (bool, int64)
 	// Flush reports a summary of any suppressed logs.
 	Flush()
 	// Close permanently stops the sampler and its background tasks, flushing one last time.
@@ -49,7 +60,7 @@ func NewRateSampler(rate int, window time.Duration) *RateSampler {
 }
 
 // ShouldLog returns true if this event should be logged based on the rate limit.
-func (s *RateSampler) ShouldLog(key string, err error) bool {
+func (s *RateSampler) ShouldLog(key string, err error) (bool, int64) {
 	now := time.Now().UnixNano()
 	lastReset := s.last.Load()
 
@@ -58,7 +69,7 @@ func (s *RateSampler) ShouldLog(key string, err error) bool {
 			s.count.Store(0)
 		}
 	}
-	return (s.count.Add(1)-1)%s.rate == 0
+	return (s.count.Add(1)-1)%s.rate == 0, 0 // RateSampler doesn't track suppressed counts.
 }
 
 // Flush is a no-op for the simple RateSampler.
@@ -69,63 +80,85 @@ func (s *RateSampler) Close() {}
 
 // logInfo holds the sampling state for a given log key.
 type logInfo struct {
-	count    atomic.Int64
-	lastSeen atomic.Int64
-	lastLogs atomic.Int64
+	suppressedCount atomic.Int64
+	lastLogTime     atomic.Int64
+	// activeWindow is the duration of the quiet window that started after the last log.
+	activeWindow atomic.Int64
 }
 
-// DeduplicatingSampler provides high-performance, configurable sampling.
-// Behavior is controlled by the `rate` parameter:
-//   - If rate <= 1: Pure Time-Based Deduplication.
-//   - If rate > 1: Hybrid Sampling (Time Window + Rate Limit).
+// DeduplicatingSampler provides high-performance, adaptive sampling with exponential backoff.
 type DeduplicatingSampler struct {
-	rate     int64
-	window   int64
+	config   BackoffConfig
 	logs     sync.Map
 	stopCh   chan struct{}
-	reporter SummaryReporter // Changed from *plog.Logger
+	reporter SummaryReporter
 }
 
-// NewDeduplicatingSampler creates a new sampler and starts its summary reporter.
-func NewDeduplicatingSampler(rate int, window time.Duration, reporter SummaryReporter) *DeduplicatingSampler {
+// NewDeduplicatingSampler creates a new sampler with exponential backoff.
+func NewDeduplicatingSampler(config BackoffConfig, reporter SummaryReporter) *DeduplicatingSampler {
 	s := &DeduplicatingSampler{
-		rate:     int64(rate),
-		window:   int64(window),
+		config:   config,
 		stopCh:   make(chan struct{}),
-		reporter: reporter, // Changed
+		reporter: reporter,
 	}
-	// The reporter can be nil if the user doesn't want summaries.
 	if s.reporter != nil {
-		go s.summaryReporter()
+		go s.garbageCollector()
 	}
 	return s
 }
 
-// ShouldLog determines if an event should be logged based on its configured strategy.
-func (s *DeduplicatingSampler) ShouldLog(key string, err error) bool {
+// ShouldLog determines if an event should be logged based on its adaptive strategy.
+func (s *DeduplicatingSampler) ShouldLog(key string, err error) (bool, int64) {
 	now := time.Now().UnixNano()
 	val, _ := s.logs.LoadOrStore(key, &logInfo{})
 	info := val.(*logInfo)
-	info.lastSeen.Store(now)
 
-	lastLogs := info.lastLogs.Load()
+	lastLog := info.lastLogTime.Load()
 
-	if now-lastLogs > s.window {
-		if info.lastLogs.CompareAndSwap(lastLogs, now) {
-			info.count.Store(0)
-			return true
+	// Reset backoff if the key has been inactive for the configured reset interval.
+	if lastLog != 0 && s.config.ResetInterval > 0 {
+		if now-lastLog > int64(s.config.ResetInterval) {
+			// By resetting the window, the next check will behave as if the quiet period
+			// has passed, allowing the log and starting the backoff sequence over.
+			info.activeWindow.Store(int64(s.config.InitialInterval))
 		}
 	}
 
-	count := info.count.Add(1)
-	if s.rate > 1 && count%s.rate == 0 {
-		lastLogs = info.lastLogs.Load()
-		if info.lastLogs.CompareAndSwap(lastLogs, now) {
-			info.count.Store(0)
-			return true
+	// The first log for a key always passes. This also serves as initialization.
+	if lastLog == 0 {
+		if info.lastLogTime.CompareAndSwap(0, now) {
+			// The first quiet window is the initial interval.
+			info.activeWindow.Store(int64(s.config.InitialInterval))
+			return true, 0
 		}
+		// If we lost the race to initialize, another goroutine won. We must suppress this event
+		// and let the next event be evaluated against the newly set window.
+		info.suppressedCount.Add(1)
+		return false, 0
 	}
-	return false
+
+	activeWindow := info.activeWindow.Load()
+
+	// Check if the active quiet window has passed.
+	if now-lastLog > activeWindow {
+		if info.lastLogTime.CompareAndSwap(lastLog, now) {
+			suppressed := info.suppressedCount.Swap(0)
+
+			// Calculate and activate the *next* backoff window.
+			nextWindow := int64(float64(activeWindow) * s.config.Factor)
+			if maxInterval := int64(s.config.MaxInterval); nextWindow > maxInterval {
+				nextWindow = maxInterval
+			}
+			info.activeWindow.Store(nextWindow)
+
+			return true, suppressed
+		}
+		// If we lost the race, another goroutine just logged. We must suppress.
+	}
+
+	// We are within the quiet window; suppress the log.
+	info.suppressedCount.Add(1)
+	return false, 0
 }
 
 // Flush triggers an immediate summary report of all currently suppressed logs.
@@ -139,7 +172,7 @@ func (s *DeduplicatingSampler) flushSummaries() {
 	}
 	s.logs.Range(func(key, value any) bool {
 		info := value.(*logInfo)
-		if suppressedCount := info.count.Load(); suppressedCount > 0 {
+		if suppressedCount := info.suppressedCount.Load(); suppressedCount > 0 {
 			s.reporter.LogSummary(key.(string), suppressedCount)
 		}
 		s.logs.Delete(key)
@@ -147,8 +180,10 @@ func (s *DeduplicatingSampler) flushSummaries() {
 	})
 }
 
-func (s *DeduplicatingSampler) summaryReporter() {
-	tickerInterval := max(time.Duration(s.window * 3), 10 * time.Second)
+// garbageCollector is a background task that cleans up inactive keys to prevent memory leaks.
+func (s *DeduplicatingSampler) garbageCollector() {
+	// Run GC less frequently, e.g., every 2x the max interval.
+	tickerInterval := max(s.config.MaxInterval*2, 1*time.Minute)
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
 
@@ -158,11 +193,13 @@ func (s *DeduplicatingSampler) summaryReporter() {
 			now := time.Now().UnixNano()
 			s.logs.Range(func(key, value any) bool {
 				info := value.(*logInfo)
-				lastSeen := info.lastSeen.Load()
-				if now-lastSeen > int64(tickerInterval) {
-					suppressedCount := info.count.Swap(0)
-					if suppressedCount > 0 {
-						s.reporter.LogSummary(key.(string), suppressedCount)
+				lastLog := info.lastLogTime.Load()
+
+				// If a key hasn't logged anything for a long time, it's considered inactive.
+				if now-lastLog > int64(tickerInterval) {
+					// Before deleting, flush any lingering suppressed count.
+					if suppressed := info.suppressedCount.Swap(0); suppressed > 0 {
+						s.reporter.LogSummary(key.(string), suppressed)
 					}
 					s.logs.Delete(key)
 				}
