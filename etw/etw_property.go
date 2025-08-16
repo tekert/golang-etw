@@ -10,8 +10,8 @@ import (
 )
 
 type Property struct {
-	evtRecordHelper *EventRecordHelper
-	evtPropInfo     *EventPropertyInfo
+	erh         *EventRecordHelper
+	evtPropInfo *EventPropertyInfo
 
 	name  string
 	value string
@@ -48,7 +48,7 @@ func (p *Property) reset() {
 // The EventRecordHelper releases the entire block of properties at once.
 
 func (p *Property) Parseable() bool {
-	return p.evtRecordHelper != nil && p.evtPropInfo != nil && p.pValue > 0
+	return p.erh != nil && p.evtPropInfo != nil && p.pValue > 0
 }
 
 // GetInt returns the property value as int64.
@@ -138,10 +138,10 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 			TDH_INTYPE_UINT16,
 			TDH_INTYPE_UINT32,
 			TDH_INTYPE_HEXINT32:
-			pMapName := (*uint16)(unsafe.Pointer(p.evtRecordHelper.TraceInfo.pointerOffset(uintptr(p.evtPropInfo.MapNameOffset()))))
-			decSrc := p.evtRecordHelper.TraceInfo.DecodingSource
+			pMapName := (*uint16)(unsafe.Pointer(p.erh.TraceInfo.pointerOffset(uintptr(p.evtPropInfo.MapNameOffset()))))
+			decSrc := p.erh.TraceInfo.DecodingSource
 			var mapInfoBuffer *EventMapInfoBuffer
-			mapInfoBuffer, err = p.evtRecordHelper.EventRec.GetMapInfo(pMapName, uint32(decSrc))
+			mapInfoBuffer, err = p.erh.EventRec.GetMapInfo(pMapName, uint32(decSrc))
 			if mapInfoBuffer != nil {
 				defer mapInfoBuffer.Release()
 			}
@@ -162,7 +162,7 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 		if p.length == 0 && p.evtPropInfo.InType() == TDH_INTYPE_NULL {
 			// TdhFormatProperty doesn't handle INTYPE_NULL.
 			(*buffPtr)[0] = 0
-			p.evtRecordHelper.addPropError()
+			p.erh.addPropError()
 			err = nil
 		} else if p.length == 0 &&
 			(p.evtPropInfo.Flags&(PropertyParamLength|PropertyParamFixedLength)) != 0 &&
@@ -170,13 +170,13 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 				p.evtPropInfo.InType() == TDH_INTYPE_ANSISTRING) {
 			// TdhFormatProperty doesn't handle zero-length counted strings.
 			(*buffPtr)[0] = 0
-			p.evtRecordHelper.addPropError()
+			p.erh.addPropError()
 			err = nil
 		} else {
 			err = TdhFormatProperty(
-				p.evtRecordHelper.TraceInfo,
+				p.erh.TraceInfo,
 				pMapInfo,
-				p.evtRecordHelper.EventRec.PointerSize(),
+				p.erh.EventRec.PointerSize(),
 				uint16(p.evtPropInfo.InType()),
 				uint16(p.evtPropInfo.OutType()),
 				p.length,
@@ -215,20 +215,21 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 		// definition in the publisher's manifest.
 		// Seems some kernel properties can't be parsed with Tdh, maybe is a pointer to kernel memory?
 		// UPDATE: the MOF classes types are wrong, this is not usuable for kernel events.
-		if p.evtRecordHelper.TraceInfo.IsMof() {
+		if p.erh.TraceInfo.IsMof() {
 			if value = p.fixMOFProp(); value != "" {
 				err = nil
 				return
 			}
 		}
 
-		p.evtRecordHelper.addPropError()
+		p.erh.addPropError()
 
 		if !isDebug {
 			conlog.Debug().Err(err).Msg("tdh failed to format property")
 			return "", udc, fmt.Errorf("tdh failed to format property: %s", err)
 		}
 
+		// TODO: better formatting of the error message
 		err = fmt.Errorf("failed to format property: Event Details:\n"+
 			"Property Name: %s\n"+
 			// TODO: property flags...
@@ -242,13 +243,11 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 			p.evtPropInfo.OutType(),
 			p.length,
 			err,
-			p.evtRecordHelper.TraceInfo.IsMof(),
-			p.evtRecordHelper.TraceInfo.IsXML(),
+			p.erh.TraceInfo.IsMof(),
+			p.erh.TraceInfo.IsXML(),
 		)
 		// Use sampled error logging for hot path - avoid spam but still log some errors
-		if sampler := loggerManager.sampler; sampler == nil || sampler.ShouldLog() {
-			conlog.Error().Err(err).Msg("failed to format property")
-		}
+		conlog.SampledError("formatprop-tdh").Err(err).Msg("failed to format property using thd")
 
 		return
 	}
@@ -267,7 +266,7 @@ var gFixTcpIpGuid = MustParseGUID("9a280ac0-c8e0-11d1-84e2-00c04fb998a2")
 func (p *Property) fixMOFProp() string {
 	if p.evtPropInfo.InType() == TDH_INTYPE_POINTER {
 		// "TcpIp" or "UdpIp"
-		if p.evtRecordHelper.TraceInfo.EventGUID.Equals(gFixTcpIpGuid) {
+		if p.erh.TraceInfo.EventGUID.Equals(gFixTcpIpGuid) {
 			// most likely a pointer to a uint32 connid;
 			return fmt.Sprintf("%d", *(*uint32)(unsafe.Pointer(p.pValue)))
 			// "connid" is always 0 for some reason, the same with "seqnum" prop

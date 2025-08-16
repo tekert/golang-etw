@@ -257,7 +257,7 @@ func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 		// if the consumer has been stopped we
 		// don't process event records anymore
 		// return 0 to stop ProcessTrace
-		conlog.Trace().Msg("bufferCallback: Context canceled, stopping ProcessTrace...")
+		conlog.SampledTrace("bufferCallback").Msg("bufferCallback: Context canceled, stopping ProcessTrace...")
 
 		return 0
 	}
@@ -275,16 +275,10 @@ func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 // ProcessTrace goroutines with this callback set.
 func (c *Consumer) callback(er *EventRecord) (re uintptr) {
 	// Count the number of events with errors, but only once per event.
-	errorOccurred := false
 	setError := func(err error) {
-		if !errorOccurred {
-			errorOccurred = true
-			er.getUserContext().trace.ErrorEvents.Add(1) // safe here.
-			// Use sampled error logging for hot path - only log some errors to avoid spam
-			if sampler := loggerManager.sampler; sampler == nil || sampler.ShouldLog() {
-				conlog.Error().Err(err).Msg("callback error")
-			}
-		}
+		er.getUserContext().trace.ErrorEvents.Add(1)
+		conlog.SampledErrorWithErrSig("callback-error", err).Msg("callback error")
+		//conlog.Error().Err(err).Msg("callback error")
 		c.lastError.Store(err)
 	}
 
@@ -422,6 +416,10 @@ func (c *Consumer) close(wait bool) (lastErr error) {
 
 	c.Events.close()
 	seslog.Debug().Msg("Events channel closed.")
+
+	// After all processing is complete, flush the global sampler to report
+	// a summary of suppressed logs that occurred during the consumer's lifetime.
+	GetLogManager().GetSampler().Flush()
 
 	c.closed = true
 
@@ -664,7 +662,7 @@ func (c *Consumer) processTrace(name string, trace *ConsumerTrace) {
 		} else {
 			lastErr := fmt.Errorf(
 				"ProcessTrace failed: %w, handle: %v, LoggerName: %s", err, trace.handle, name)
-		 c.lastError.Store(lastErr)
+			c.lastError.Store(lastErr)
 			seslog.Error().Err(lastErr).Msg("ProcessTrace failed")
 		}
 	}
@@ -709,10 +707,10 @@ func (c *Consumer) processTraceWithTimeout(name string, trace *ConsumerTrace) {
 
 // LastError returns the last error encountered by the consumer
 func (c *Consumer) LastError() error {
-    if v := c.lastError.Load(); v != nil {
-        return v.(error)
-    }
-    return nil
+	if v := c.lastError.Load(); v != nil {
+		return v.(error)
+	}
+	return nil
 }
 
 // Stop blocks and waits for the ProcessTrace to empty it's buffer.

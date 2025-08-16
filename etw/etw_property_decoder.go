@@ -462,8 +462,8 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 			return p.decodeToString(TDH_OUTTYPE_GUID)
 		case TDH_INTYPE_POINTER:
 			//* Handle special MOF case
-			if p.evtRecordHelper.TraceInfo.IsMof() {
-				if t, ok := MofClassMapping[p.evtRecordHelper.TraceInfo.EventGUID.Data1]; ok {
+			if p.erh.TraceInfo.IsMof() {
+				if t, ok := MofClassMapping[p.erh.TraceInfo.EventGUID.Data1]; ok {
 					// "TcpIp" or "UdpIp" /*9a280ac0-c8e0-11d1-84e2-00c04fb998a2*/
 					if t.BaseId == 4845 || t.BaseId == 5865 {
 						// most likely a pointer to a uint32 connid;
@@ -472,7 +472,7 @@ func (p *Property) decodeToString(outType TdhOutType) (string, error) {
 					}
 				}
 			}
-			if p.evtRecordHelper.EventRec.PointerSize() == 8 {
+			if p.erh.EventRec.PointerSize() == 8 {
 				return p.decodeToString(TDH_OUTTYPE_HEXINT64)
 			} else {
 				return p.decodeToString(TDH_OUTTYPE_HEXINT32)
@@ -538,7 +538,7 @@ func (p *Property) decodeSIDIntype() (string, error) {
 	// (8 bytes on 64-bit, 4 bytes on 32-bit)
 	sidPtr := p.pValue
 	if p.evtPropInfo.InType() == TDH_INTYPE_WBEMSID {
-		if p.evtRecordHelper.EventRec.PointerSize() == 8 {
+		if p.erh.EventRec.PointerSize() == 8 {
 			sidPtr += 16 // 2 pointers (8 bytes each)
 		} else {
 			sidPtr += 8 // 2 pointers (4 bytes each)
@@ -750,7 +750,7 @@ func (p *Property) decodeScalarIntype() (uint64, bool, error) {
 		return 0, true, nil
 
 	case TDH_INTYPE_POINTER:
-		if p.evtRecordHelper.EventRec.PointerSize() == 8 {
+		if p.erh.EventRec.PointerSize() == 8 {
 			return *(*uint64)(unsafe.Pointer(p.pValue)), false, nil
 		}
 		return uint64(*(*uint32)(unsafe.Pointer(p.pValue))), false, nil
@@ -761,7 +761,7 @@ func (p *Property) decodeScalarIntype() (uint64, bool, error) {
 		return *(*uint64)(unsafe.Pointer(p.pValue)), false, nil
 
 	case TDH_INTYPE_SIZET:
-		if p.evtRecordHelper.EventRec.PointerSize() == 8 {
+		if p.erh.EventRec.PointerSize() == 8 {
 			return *(*uint64)(unsafe.Pointer(p.pValue)), false, nil
 		}
 		return uint64(*(*uint32)(unsafe.Pointer(p.pValue))), false, nil

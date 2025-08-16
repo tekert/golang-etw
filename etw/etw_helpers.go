@@ -673,7 +673,7 @@ func (e *EventRecordHelper) prepareProperty(i uint32) (p *Property, err error) {
 	p = e.newProperty()
 
 	p.evtPropInfo = e.getEpiAt(i)
-	p.evtRecordHelper = e
+	p.erh = e
 	// the complexity of maintaining a stringCache is larger than the small cost it saves
 	p.name = UTF16AtOffsetToString(e.TraceInfo.pointer(), uintptr(p.evtPropInfo.NameOffset))
 	p.pValue = e.userDataIt
@@ -835,12 +835,11 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		epi := e.getEpiAt(i)
 		if epi == nil {
 			e.addPropError()
-			if sampler := loggerManager.sampler; sampler == nil || sampler.ShouldLog() {
-				e.logTraceInfo(conlog.Error()).
-					Uint32("index", i).
-					Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
-					Msg("prepareProperties: getEpiAt returned nil, skipping property")
-			}
+			conlog.SampledError("epi-null").
+				Uint32("index", i).
+				Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
+				Msg("prepareProperties: getEpiAt returned nil, skipping property")
+
 			continue // This is not a fatal error, we can continue processing.
 		}
 
