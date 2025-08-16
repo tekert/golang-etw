@@ -1,88 +1,7 @@
 /*
-Package sampler provides high-performance, concurrent-safe log sampling strategies.
-It is designed for use in hot paths of applications where logging every event would
-be prohibitively expensive, such as high-frequency error reporting or verbose tracing.
-
-The package offers two main sampler implementations under a common `Sampler` interface.
-
---- Sampler Interface ---
-
-The `Sampler` interface defines the core contract for all samplers:
-
-`ShouldLog(key string, err error) bool`: The primary decision-making function.
-  - `key`: A stable, unique string identifying the log call site (e.g., "database-connection-error").
-  - `err`: An optional error object that can be used for more advanced sampling decisions.
-
-`Flush()`: Triggers an immediate summary report of all currently suppressed logs.
-`Close()`: Permanently shuts down the sampler, stopping any background tasks and
-
-	performing a final flush of suppressed log summaries.
-
---- Implementations ---
-
-1. DeduplicatingSampler
-
-This is a powerful and flexible sampler that combines time-based deduplication with
-optional rate-limiting. Its behavior is controlled by the `rate` parameter passed to
-`NewDeduplicatingSampler(rate int, window time.Duration, ...)`.
-
-  - Pure Time-Based Deduplication (rate <= 1):
-    This is the default and most common use case for stopping log spam. It logs the
-    *first* occurrence of an event for a given key, then suppresses all subsequent
-    events for that key until the `window` duration has passed.
-    Example: `NewDeduplicatingSampler(1, 10*time.Second, logger)` will log an error
-    once, then remain silent for 10 seconds, regardless of how many more times
-    the error occurs.
-
-  - Hybrid Sampling (rate > 1):
-    This mode combines the time window with 1-in-N sampling. It logs the first
-    event and enters the quiet `window`. However, *within* that window, it will
-    also log every Nth suppressed event, where N is the `rate`.
-    Example: `NewDeduplicatingSampler(100, 10*time.Second, logger)` will log the
-    first error, then for the next 10 seconds, it will also log the 100th, 200th,
-    etc., suppressed errors it sees.
-
-  - Summary Reporting:
-    The `DeduplicatingSampler` automatically runs a background goroutine to
-    periodically report the number of suppressed logs for each key and to clean up
-    inactive keys. Calling `Flush()` or `Close()` provides an immediate, final report.
-
-2. RateSampler
-
-This is a simpler, lightweight sampler that only performs 1-in-N sampling. It does
-not have a concept of a strict quiet period.
-
-  - Usage: `NewRateSampler(rate int, window time.Duration)`
-    It will log every `rate`-th event. The `window` is used to periodically reset
-    the counter. This is useful for monitoring the ongoing frequency of very common,
-    low-priority events without the overhead of the `DeduplicatingSampler`.
-
---- How to Use ---
-
- 1. Create an instance of a sampler, typically once during application startup.
-    The `DeduplicatingSampler` is recommended for most use cases.
-
-    // Create a sampler that logs an error once, then suppresses for 30 seconds.
-    // It uses a default logger to print summaries of suppressed logs.
-    logSampler := sampler.NewDeduplicatingSampler(1, 30*time.Second, defaultLogger)
-
- 2. In your application's hot path (e.g., a loop or a callback), use the sampler
-    to decide whether to log.
-
-    if err != nil {
-    if logSampler.ShouldLog("my-error-key", err) {
-    log.Error().Err(err).Msg("An error occurred")
-    }
-    }
-
- 3. Ensure the sampler is flushed or closed at the appropriate lifecycle point to
-    get a final summary of suppressed logs. For example, in a service's graceful
-    shutdown routine:
-
-    func (s *MyService) Stop() {
-    // ... other shutdown logic ...
-    logSampler.Flush() // Or logSampler.Close() if it's the final shutdown.
-    }
+	Package sampler provides high-performance, concurrent-safe log sampling strategies.
+	It is designed for use in hot paths of applications where logging every event would
+	be prohibitively expensive, such as high-frequency error reporting or verbose tracing.
 */
 package logsampler
 
@@ -229,10 +148,7 @@ func (s *DeduplicatingSampler) flushSummaries() {
 }
 
 func (s *DeduplicatingSampler) summaryReporter() {
-	tickerInterval := time.Duration(s.window * 3)
-	if tickerInterval < 10*time.Second {
-		tickerInterval = 10 * time.Second
-	}
+	tickerInterval := max(time.Duration(s.window * 3), 10 * time.Second)
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
 
