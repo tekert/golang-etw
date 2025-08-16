@@ -1172,6 +1172,15 @@ func (e *EventRecord) EventID() uint16 {
 	return 0
 }
 
+// The number of the CPU on which the provider process was running.
+func (e *EventRecord) ProcessorNumber() uint16 {
+	if e.EventHeader.Flags&EVENT_HEADER_FLAG_PROCESSOR_INDEX != 0 {
+		return e.BufferContext.ProcessorIndex()
+	}
+	// If the flag is not set, we use the ProcessorNumber member.
+	return uint16(e.BufferContext.ProcessorNumber())
+}
+
 // ExtendedDataItem returns the extended data item at index i.
 // It returns an error if the index is out of bounds.
 func (e *EventRecord) ExtendedDataItem(i uint16) (*EventHeaderExtendedDataItem, error) {
@@ -1185,10 +1194,11 @@ func (e *EventRecord) ExtendedDataItem(i uint16) (*EventHeaderExtendedDataItem, 
 	return &items[i], nil
 }
 
-// RelatedActivityID returns the GUID of the related activity ID.
+// ExtRelatedActivityID returns the GUID of the related activity ID.
 // This is used to correlate events that are part of the same activity.
 // It returns a zero GUID if the related activity ID is not present in the event's extended data.
-func (e *EventRecord) RelatedActivityID() GUID {
+// Always available for XML-based events.
+func (e *EventRecord) ExtRelatedActivityID() GUID {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
 		item, err := e.ExtendedDataItem(i)
 		if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID {
@@ -1199,10 +1209,10 @@ func (e *EventRecord) RelatedActivityID() GUID {
 	return nullGUID
 }
 
-// Sid returns the security identifier (SID) of the user who logged the event.
+// ExtSid returns the security identifier (SID) of the user who logged the event.
 // It returns nil if the SID is not present in the event's extended data.
 // Use [etw.ConvertSidToStringSidGO] to convert the SID to a go string (it's fast).
-func (e *EventRecord) Sid() *SID {
+func (e *EventRecord) ExtSid() *SID {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
 		item, err := e.ExtendedDataItem(i)
 		if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_SID {
@@ -1212,9 +1222,9 @@ func (e *EventRecord) Sid() *SID {
 	return nil
 }
 
-// TerminalSessionID returns the terminal session identifier of the user who logged the event.
+// ExtTerminalSessionID returns the terminal session identifier of the user who logged the event.
 // The boolean return value indicates whether the session ID was present in the event's extended data.
-func (e *EventRecord) TerminalSessionID() (uint32, bool) {
+func (e *EventRecord) ExtTerminalSessionID() (uint32, bool) {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
 		item, err := e.ExtendedDataItem(i)
 		if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_TS_ID {
@@ -1224,10 +1234,10 @@ func (e *EventRecord) TerminalSessionID() (uint32, bool) {
 	return 0, false
 }
 
-// ProcessStartKey returns a unique identifier for the process that persists across boot sessions.
+// ExtProcessStartKey returns a unique identifier for the process that persists across boot sessions.
 // This is more reliable for correlation than a PID, which can be reused.
 // The boolean return value indicates whether the start key was present in the event's extended data.
-func (e *EventRecord) ProcessStartKey() (uint64, bool) {
+func (e *EventRecord) ExtProcessStartKey() (uint64, bool) {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
 		item, err := e.ExtendedDataItem(i)
 		if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_PROCESS_START_KEY {
@@ -1237,10 +1247,10 @@ func (e *EventRecord) ProcessStartKey() (uint64, bool) {
 	return 0, false
 }
 
-// EventKey returns a unique identifier for the event that is constant across trace sessions.
+// ExtEventKey returns a unique identifier for the event that is constant across trace sessions.
 // This is useful for correlating events from the same provider across different traces.
 // The boolean return value indicates whether the event key was present in the event's extended data.
-func (e *EventRecord) EventKey() (uint64, bool) {
+func (e *EventRecord) ExtEventKey() (uint64, bool) {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
 		item, err := e.ExtendedDataItem(i)
 		if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_EVENT_KEY {
@@ -1250,10 +1260,10 @@ func (e *EventRecord) EventKey() (uint64, bool) {
 	return 0, false
 }
 
-// ContainerID returns the GUID of the container in which the event provider is running.
+// ExtContainerID returns the GUID of the container in which the event provider is running.
 // This is useful for tracing events in containerized environments.
 // It returns a zero GUID if the container ID is not present in the event's extended data.
-func (e *EventRecord) ContainerID() GUID {
+func (e *EventRecord) ExtContainerID() GUID {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
 		item, err := e.ExtendedDataItem(i)
 		if err == nil && item.ExtType == EVENT_HEADER_EXT_TYPE_CONTAINER_ID {
@@ -1270,11 +1280,11 @@ type EventStackTrace struct {
 	Addresses []uint64
 }
 
-// StackTrace returns the call stack trace associated with an event, if one is present.
+// ExtStackTrace returns the call stack trace associated with an event, if one is present.
 // A stack trace will only be present if the provider was enabled with the
 // EVENT_ENABLE_PROPERTY_STACK_TRACE flag.
 // The boolean return value indicates whether a stack trace was found.
-func (e *EventRecord) StackTrace() (EventStackTrace, bool) {
+func (e *EventRecord) ExtStackTrace() (EventStackTrace, bool) {
 	for i := uint16(0); i < e.ExtendedDataCount; i++ {
 		item, err := e.ExtendedDataItem(i)
 		if err != nil {
@@ -1359,7 +1369,7 @@ func (e *EventRecord) GetEventInformation(buffer *[]byte) (tei *TraceEventInfo, 
 	}
 	if err != nil {
 		if err == ERROR_NOT_FOUND {
-			return nil, fmt.Errorf("%w: event schema not found (provider not registered or classic event)", err)
+			return nil, fmt.Errorf("the schema for the event was not found. %w", err)
 		}
 		return nil, fmt.Errorf("TdhGetEventInformation failed: %w", err)
 	}
@@ -1768,9 +1778,25 @@ typedef struct _ETW_BUFFER_CONTEXT {
 */
 // sizeof: 0x4 (OK)
 type EtwBufferContext struct {
-	Processor uint8  // The number of the CPU on which the provider process was running. The number is zero on a single processor computer.
-	Alignment uint8  // Alignment between events (always eight).
-	LoggerId  uint16 // Identifier of the session that logged the event.
+	Union1   uint16 // (ProcessorNumber, Alignment) or ProcessorIndex
+	LoggerId uint16 // Identifier of the session that logged the event.
+}
+
+// ProcessorNumber returns the ProcessorNumber if the EVENT_HEADER_FLAG_PROCESSOR_INDEX flag is not set.
+// The number of the CPU on which the provider process was running. The number is zero on a single processor computer.
+func (e *EtwBufferContext) ProcessorNumber() uint8 {
+	return uint8(e.Union1 & 0x00FF) // Extract the lower 8 bits
+}
+
+// Alignment returns the Alignment between events (always eight).
+// if EVENT_HEADER_FLAG_PROCESSOR_INDEX flag is not set.
+func (e *EtwBufferContext) Alignment() uint8 {
+	return uint8((e.Union1 >> 8) & 0x00FF) // Extract the upper 8 bits
+}
+
+// ProcessorIndex returns the ProcessorIndex if the EVENT_HEADER_FLAG_PROCESSOR_INDEX flag is set.
+func (e *EtwBufferContext) ProcessorIndex() uint16 {
+	return e.Union1 // The full 16-bit value represents ProcessorIndex
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_header
@@ -2032,7 +2058,7 @@ type TimeZoneInformation struct {
 	StandardBias int32
 	DaylightName [32]uint16
 	DaylightDate SystemTime
-	DaylighBias  int32
+	DaylightBias  int32
 }
 
 // https://learn.microsoft.com/en-en/windows/win32/api/minwinbase/ns-minwinbase-systemtime
