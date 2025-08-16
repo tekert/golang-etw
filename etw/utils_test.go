@@ -3,7 +3,10 @@
 package etw
 
 import (
+	crand "crypto/rand"
+	"fmt"
 	"hash/fnv"
+	"hash/maphash"
 	"runtime" // <-- Import runtime
 	"strconv"
 	"syscall"
@@ -207,38 +210,44 @@ func BenchmarkUTF16Conversion(b *testing.B) {
 	}
 }
 
+// BenchmarkHash compares the performance of different non-cryptographic hashing
+// algorithms on strings of various lengths.
 func BenchmarkHash(b *testing.B) {
-	// Test data sizes
-	sizes := []int{8, 16, 32, 64, 128, 256}
+	// A single seed for maphash is created once for all benchmarks.
+	var hashSeed = maphash.MakeSeed()
+
+	// Test strings of various lengths, typical for error messages.
+	sizes := []int{16, 32, 64, 128, 256, 512}
+	testStrings := make(map[int]string)
 
 	for _, size := range sizes {
-		// Generate test data
-		data := make([]uint16, size)
-		for i := range data {
-			data[i] = uint16(i % 256) // Some sample data
+		data := make([]byte, size)
+		if _, err := crand.Read(data); err != nil {
+			b.Fatalf("failed to generate random test data: %v", err)
 		}
+		testStrings[size] = string(data)
+	}
 
-		b.Run("current/"+strconv.Itoa(size), func(b *testing.B) {
-			for b.Loop() {
-				var h uint64
-				for _, v := range data {
-					h = h*31 + uint64(v)
-				}
-			}
-		})
+	for _, size := range sizes {
+		data := testStrings[size]
+		dataBytes := []byte(data)
 
-		// FNV hash
-		b.Run("fnv/"+strconv.Itoa(size), func(b *testing.B) {
+		b.Run(fmt.Sprintf("FNV-1a_FullString/%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(dataBytes)))
+			b.ResetTimer()
 			for b.Loop() {
-				h := fnv.New64()
-				for _, v := range data {
-					h.Write([]byte{byte(v), byte(v >> 8)})
-				}
+				h := fnv.New64a()
+				h.Write(dataBytes)
+				_ = h.Sum64()
 			}
 		})
 
 		// FNV-1a inline
-		b.Run("fnv1a/"+strconv.Itoa(size), func(b *testing.B) {
+		b.Run("FNV-1a_FullString_inline/"+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(dataBytes)))
+			b.ResetTimer()
 			for b.Loop() {
 				h := uint64(14695981039346656037)
 				for _, v := range data {
@@ -250,11 +259,41 @@ func BenchmarkHash(b *testing.B) {
 
 		// djb2
 		b.Run("djb2/"+strconv.Itoa(size), func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(dataBytes)))
+			b.ResetTimer()
 			for b.Loop() {
 				var h uint64 = 5381
 				for _, v := range data {
 					h = ((h << 5) + h) + uint64(v)
 				}
+			}
+		})
+
+		b.Run(fmt.Sprintf("MapHash_FullString/%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(dataBytes)))
+			b.ResetTimer()
+			// maphash.Hash is a struct designed to be used by value to avoid allocations.
+			var h maphash.Hash
+			h.SetSeed(hashSeed)
+			for b.Loop() {
+				h.Reset() // Reset is very cheap.
+				h.WriteString(data)
+				_ = h.Sum64()
+			}
+		})
+
+		b.Run(fmt.Sprintf("DJB2_FullString/%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(dataBytes)))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				var hash uint64 = 5381
+				for _, c := range data {
+					hash = ((hash << 5) + hash) + uint64(c) // hash * 33 + c
+				}
+				_ = hash
 			}
 		})
 	}
