@@ -6,7 +6,7 @@
 package etw
 
 import (
-	"hash/fnv"
+	"hash/maphash" // Import maphash
 	"os"
 	"strconv"
 	"sync/atomic"
@@ -16,6 +16,10 @@ import (
 
 	plog "github.com/phuslu/log"
 )
+
+// A package-level seed for maphash ensures that hashes are consistent
+// for the lifetime of the application.
+var hashSeed = maphash.MakeSeed()
 
 // plogSummaryReporter is an adapter that implements the sampler.SummaryReporter
 // interface using a phuslu/log logger.
@@ -67,28 +71,35 @@ func (l *SampledLogger) sampled(level plog.Level, key string, useErrSig bool, er
 
 	// 2. If using error signature, create a more granular key.
 	if useErrSig && e != nil {
-		hasher := fnv.New64a()
-		errStr := e.Error()
-		if len(errStr) > 64 {
-			errStr = errStr[:64]
-		}
-		hasher.Write([]byte(errStr))
+		// Use the highly optimized maphash on the entire error string.
+		var h maphash.Hash
+		h.SetSeed(hashSeed)
+		h.WriteString(e.Error())
+
 		// Efficiently build key using a byte buffer and strconv
 		var buf [128]byte
 		b := buf[:0]
 		b = append(b, key...)
 		b = append(b, ':')
-		b = strconv.AppendUint(b, hasher.Sum64(), 16)
+		b = strconv.AppendUint(b, h.Sum64(), 16)
 		key = string(b)
 	}
 
 	// 3. Consult the sampler to see if we should log.
-	if l.sampler == nil || l.sampler.ShouldLog(key, e) {
-		// Only now do we create a log entry.
-		// WithLevel is the correct generic way to create an entry for any given
-		// log level, avoiding a hardcoded switch statement.
+	if l.sampler != nil {
+		if shouldLog, suppressedCount := l.sampler.ShouldLog(key, e); shouldLog {
+			entry := l.Logger.WithLevel(level)
+			if suppressedCount > 0 {
+				entry.Int64("suppressedCount", suppressedCount)
+			}
+			if e != nil {
+				entry.Err(e)
+			}
+			return entry
+		}
+	} else {
+		// No sampler configured, log directly.
 		entry := l.Logger.WithLevel(level)
-
 		if e != nil {
 			entry.Err(e)
 		}
@@ -191,10 +202,17 @@ func NewLoggerManager() *LoggerManager {
 		Context: plog.NewContext(nil).Str("component", string(DefaultLogger)).Value(),
 	}
 
-	// The sampler needs a logger to report summaries. We'll use the default logger.
-	// We wrap our logger in the adapter to satisfy the sampler's interface.
+	// Default backoff configuration.
+	backoffConfig := logsampler.BackoffConfig{
+		InitialInterval: 1 * time.Second,
+		MaxInterval:     1 * time.Hour,
+		Factor:          1.2,
+		ResetInterval:   10 * time.Minute,
+	}
+
+	// The sampler needs a logger to report summaries for inactive keys.
 	reporter := &plogSummaryReporter{logger: lm.loggers[DefaultLogger]}
-	lm.sampler = logsampler.NewDeduplicatingSampler(1, time.Second, reporter)
+	lm.sampler = logsampler.NewDeduplicatingSampler(backoffConfig, reporter)
 
 	// Assign to convenient direct-access variables
 	lm.conlog = lm.loggers[ConsumerLogger]
