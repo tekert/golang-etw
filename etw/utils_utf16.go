@@ -8,35 +8,41 @@ import (
 	"github.com/tekert/golang-etw/internal/utf16f"
 )
 
-const maxUtf16CachedLength2 = 256 // Maximum string length to cache (prevents cache pollution from large strings)
+const maxUtf16CachedLength = 256 // Maximum string length to cache (prevents cache pollution from large strings)
 
 // utf16Convert performs a cache lookup for a given string slice and its hash.
 // On a cache miss, it calls the final utf16 conversion function and stores the result in the cache.
-// This helper centralizes the core caching logic for all cacheable strings.
 //
 //go:inline
 func utf16Convert(s []uint16, h uint64, n int) string {
 	// For long strings, convert directly without caching to avoid polluting the cache.
-	if n >= maxUtf16CachedLength2 {
+	if n >= maxUtf16CachedLength {
 		return utf16f.DecodeWtf8(s)
 	}
 	// If the hash wasn't pre-computed (e.g., from a slice), calculate it now.
 	if h == 0 {
-		// The probability is astronomically low (1 in 2^64) that a already hashed string was 0
-		h = globalUtf16Cache.hash(s)
+		h = fnvHash(s)
 	}
 
-	if str, ok := globalUtf16Cache.getKey(h); ok {
-		return str // Cache hit!
-	}
-	// On cache miss, perform the conversion and store the result.
-	// This is the single, centralized place where conversion happens for cached strings.
-	str := utf16f.DecodeWtf8(s)
-	globalUtf16Cache.setKey(h, str)
-	return str
+	// The converter function is only executed on a cache miss.
+	return globalUtf16Cache.lookupOrConvert(h, func() string {
+		return utf16f.DecodeWtf8(s)
+	})
 }
 
-// UTF16PtrToString2 is the most performant way to convert a null-terminated
+// fnvHash calculates the FNV-1a hash for a UTF-16 slice.
+//
+//go:inline
+func fnvHash(data []uint16) uint64 {
+	h := uint64(fnvOffset64)
+	for _, v := range data {
+		h ^= uint64(v)
+		h *= fnvPrime64
+	}
+	return h
+}
+
+// UTF16PtrToString is the most performant way to convert a null-terminated
 // UTF-16 pointer to a Go string. It finds the string length and calculates
 // its hash in a single pass to optimize cache lookups.
 func UTF16PtrToString(p *uint16) string {
@@ -54,8 +60,8 @@ func UTF16PtrToString(p *uint16) string {
 		if char == 0 {
 			break // Null terminator found
 		}
-		h ^= uint64(char)   // XOR with character value
-		h *= fnvPrime64     // Multiply by FNV prime
+		h ^= uint64(char) // XOR with character value
+		h *= fnvPrime64   // Multiply by FNV prime
 
 		end = unsafe.Pointer(uintptr(end) + 2) // 2 bytes per uint16
 		n++
