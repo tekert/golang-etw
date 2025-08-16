@@ -3,16 +3,13 @@
 package etw
 
 import (
-	"bytes"
-	"encoding/hex" // also slow but not used much here.
+	"bytes" // also slow but not used much here.
 	"fmt"
 
 	"math"
 	"os"
 	"sync"
 	"unsafe"
-
-	plog "github.com/phuslu/log"
 )
 
 const (
@@ -179,48 +176,6 @@ func (e *EventRecordHelper) addPropError() {
 	}
 }
 
-// Helper func to log trace event info for debugging
-func (e *EventRecordHelper) logTraceInfo(entry *plog.Entry) *plog.Entry {
-	if e.TraceInfo != nil {
-		entry = entry.
-			Str("provider", e.TraceInfo.ProviderName()).
-			Str("providerGUID", e.TraceInfo.ProviderGUID.String()).
-			Str("event", e.TraceInfo.EventName()).
-			Str("eventGUID", e.TraceInfo.EventGUID.String()).
-			Str("activityID", e.TraceInfo.ActivityIDName()).
-			Str("relatedActivityID", e.TraceInfo.RelatedActivityIDName()).
-			Str("keywords", fmt.Sprint(e.TraceInfo.KeywordsName())).
-			Str("level", e.TraceInfo.LevelName()).
-			Str("task", e.TraceInfo.TaskName()).
-			Str("channel", e.TraceInfo.ChannelName()).
-			Str("opcode", e.TraceInfo.OpcodeName()).
-			Str("event_message", e.TraceInfo.EventMessage()).
-			Str("provider_message", e.TraceInfo.ProviderMessage()).
-			Uint32("propertyCount", e.TraceInfo.PropertyCount).
-			Uint32("topLevelPropertyCount", e.TraceInfo.TopLevelPropertyCount).
-			Bool("isMof", e.TraceInfo.IsMof())
-	}
-	if e.EventRec != nil { // EventHeader
-		entry = entry.
-			Int("flags", int(e.EventRec.EventHeader.Flags)).
-			Str("GUID", e.EventRec.EventHeader.ProviderId.StringU()).
-			Int("header_eventID", int(e.EventRec.EventHeader.EventDescriptor.Id)).
-			Int("header_version", int(e.EventRec.EventHeader.EventDescriptor.Version)).
-			Int("header_opcode", int(e.EventRec.EventHeader.EventDescriptor.Opcode))
-	}
-	if e.TraceInfo != nil { // EventDescriptor (TraceInfo)
-		entry = entry.
-			Int("edescriptor_eventID", int(e.TraceInfo.EventID())).
-			Int("edescriptor_version", int(e.TraceInfo.EventDescriptor.Version)).
-			Int("edescriptor_channel", int(e.TraceInfo.EventDescriptor.Channel)).
-			Int("edescriptor_level", int(e.TraceInfo.EventDescriptor.Level)).
-			Int("edescriptor_task", int(e.TraceInfo.EventDescriptor.Task)).
-			Str("edescriptor_keyword", fmt.Sprintf("0x%X", e.TraceInfo.EventDescriptor.Keyword)).
-			Int("edescriptor_opcode", int(e.TraceInfo.EventDescriptor.Opcode))
-	}
-	return entry
-}
-
 // Release EventRecordHelper back to memory pool.
 // Note: The reusable memory (maps, slices, etc.) referenced by EventRecordHelper
 // is managed and reset by traceStorage.reset() before reuse. This method only
@@ -244,9 +199,10 @@ func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 	// Use the teiBuffer from storage for GetEventInformation.
 	// The buffer will be resized by GetEventInformation if needed.
 	if erh.TraceInfo, err = er.GetEventInformation(&storage.teiBuffer); err != nil {
-		// TODO: many of these when using some NT Kernel Logger MOF events, investigate wich kernel provider is it.
+		// TODO: many of these when using some NT Kernel Logger MOF events, FileIo_V3 opcode 39 is not even documented.
 		err = fmt.Errorf("GetEventInformation failed : %s", err)
-		conlog.Trace().Msg("GetEventInformation failed")
+		//erh.logTraceInfo(conlog.SampledError("GetEventInformation")).Err(err).Msg("Failed to get trace event info")
+		conlog.SampledErrorWithErrSig("GetEventInformation", err).Interface("eventRecord", erh.EventRec).Msg("Failed to get trace event info")
 	}
 	erh.teiBuffer = &storage.teiBuffer // Keep a reference
 
@@ -347,7 +303,7 @@ func (e *EventRecordHelper) setEventMetadata(event *Event) {
 		event.System.Execution.ThreadID = e.EventRec.EventHeader.ThreadId
 	}
 
-	event.System.Execution.ProcessorID = uint16(e.EventRec.BufferContext.Processor)
+	event.System.Execution.ProcessorID = e.EventRec.ProcessorNumber()
 
 	// NOTE: for private session use e.EventRec.EventHeader.ProcessorTime
 	if e.EventRec.EventHeader.Flags&
@@ -393,7 +349,7 @@ func (e *EventRecordHelper) setEventMetadata(event *Event) {
 		event.System.Correlation.RelatedActivityID = e.TraceInfo.RelatedActivityIDName()
 	} else {
 		event.System.Correlation.ActivityID = e.EventRec.EventHeader.ActivityId.StringU()
-		if relatedActivityID := e.EventRec.RelatedActivityID(); relatedActivityID.IsZero() {
+		if relatedActivityID := e.EventRec.ExtRelatedActivityID(); relatedActivityID.IsZero() {
 			event.System.Correlation.RelatedActivityID = nullGUIDStr
 		} else {
 			event.System.Correlation.RelatedActivityID = relatedActivityID.StringU()
@@ -462,7 +418,7 @@ func (e *EventRecordHelper) getEpiAt(i uint32) *EventPropertyInfo {
 	return epi
 }
 
-// TODO: test performance of this (no bounds checking)
+// TODO: test performance of this (no bounds checking), 1.5% faster but not sure if worth it
 //
 //go:nosplit
 //go:nocheckptr
@@ -808,7 +764,7 @@ func (e *EventRecordHelper) prepareSimpleArray(i uint32, epi *EventPropertyInfo,
 // including timestamp, PID, TID, provider ID, activity ID, and the raw data.
 func (e *EventRecordHelper) prepareProperties() (err error) {
 
-	// TODO: move this to a separate function before TraceInfo is used
+	// TODO: move this to a separate function before TraceInfo is used/created
 	// Handle special case for MOF events that are just a single string.
 	// https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header
 	if e.EventRec.IsMof() {
@@ -875,7 +831,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		// Probably this is because TraceEventInfo used an older Thread_V2_TypeGroup1
 		// instead of a Thread_V3_TypeGroup1 MOF class to decode it.
 		// Try to parse the remaining data as a MOF property.
-		// TODO: remvoe this?
+		// TODO: remove this?
 		if e.TraceInfo.IsMof() {
 			if err2 := e.prepareMofProperty(remainingData, remainingBytes); err2 == nil {
 				return nil // Data was successfully parsed, return.
@@ -883,10 +839,10 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 		}
 
 		e.addPropError()
-		e.logTraceInfo(log.Warn()).
-			Uint32("remaining", remainingBytes).
+		conlog.Warn().Interface("eventRecord", e.EventRec).
+			Interface("traceInfo", e.TraceInfo).Uint32("remaining", remainingBytes).
 			Int("total", int(e.EventRec.UserDataLength)).
-			Str("remainingHex", hex.EncodeToString(remainingData)).
+			//Str("remainingHex", hex.EncodeToString(remainingData)). // Interface mashal already does this
 			Msg("UserData not fully parsed")
 	}
 
@@ -898,7 +854,7 @@ func (e *EventRecordHelper) prepareProperties() (err error) {
 // data is a new field.
 // TODO(tekert): use the new kernel mof generated classes to decode this.
 // TODO: the problem is, for example FileIO V3 is not defined elsewere, and we get those events from ETW
-func (e *EventRecordHelper) prepareMofProperty(remainingData []byte, remaining uint32) (last error) {
+func (e *EventRecordHelper) prepareMofProperty(remainingData []byte, remaining uint32) (err error) {
 	// Check if all bytes are padding (zeros)
 	if bytes.IndexFunc(remainingData, func(r rune) bool {
 		return r != 0
@@ -1098,7 +1054,8 @@ func (e *EventRecordHelper) parseAndSetAllProperties(out *Event) (last error) {
 }
 
 func (e *EventRecordHelper) formatStructs(structs []map[string]*Property, name string) ([]map[string]string, error) {
-	result := make([]map[string]string, 0, len(structs)) // TODO(tekert): use pools?
+	// NOTE: this is only used when parsing to json event, reusable memory maybe it's no ideal.
+	result := make([]map[string]string, 0, len(structs))
 	var err error
 
 	for _, propStruct := range structs {
