@@ -1,9 +1,11 @@
 package etw
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
+	"unsafe"
 
 	"github.com/tekert/golang-etw/internal/hexf"
 )
@@ -17,7 +19,7 @@ type JsonLogfile struct {
 	LoggerName    string
 	CurrentTime   time.Time
 	BuffersRead   uint32
-	ProcessMode   []string  // From Union1 uint32 to array strings
+	ProcessMode   []string // From Union1 uint32 to array strings
 	LogfileHeader JsonLogHeader
 	BufferSize    uint32
 	Filled        uint32
@@ -53,11 +55,51 @@ type JsonTime time.Time
 type JsonTimeZoneInfo struct {
 	Bias         int32
 	StandardName string
-	StandardDate JsonTime `json:",omitempty"`
+	StandardDate JsonTime `json:",omitzero"`
 	StandardBias int32    `json:",omitempty"`
 	DaylightName string
-	DaylightDate JsonTime `json:",omitempty"`
+	DaylightDate JsonTime `json:",omitzero"`
 	DaylightBias int32    `json:",omitempty"`
+}
+
+type JsonEventPropertyInfo struct {
+	Name                string        `json:"Name"`
+	Flags               PropertyFlags `json:"Flags"`
+	InType              TdhInType     `json:"InType,omitempty"`
+	OutType             TdhOutType    `json:"OutType,omitempty"`
+	MapName             string        `json:"MapName,omitempty"`
+	StructStartIndex    uint16        `json:"StructStartIndex,omitempty"`
+	NumOfStructMembers  uint16        `json:"NumOfStructMembers,omitempty"`
+	Count               uint16        `json:"Count"`
+	CountPropertyIndex  uint16        `json:"CountPropertyIndex,omitempty"`
+	Length              uint16        `json:"Length"`
+	LengthPropertyIndex uint16        `json:"LengthPropertyIndex,omitempty"`
+}
+
+func (epi *EventPropertyInfo) ToJSON(t *TraceEventInfo) JsonEventPropertyInfo {
+	prop := JsonEventPropertyInfo{
+		Name:   t.cleanStringAt(uintptr(epi.NameOffset)),
+		Flags:  epi.Flags,
+		Count:  epi.Count(),
+		Length: epi.Length(),
+	}
+	if (epi.Flags & PropertyStruct) != 0 {
+		prop.StructStartIndex = epi.StructStartIndex()
+		prop.NumOfStructMembers = epi.NumOfStructMembers()
+	} else {
+		prop.InType = epi.InType()
+		prop.OutType = epi.OutType()
+		if epi.MapNameOffset() > 0 {
+			prop.MapName = t.cleanStringAt(uintptr(epi.MapNameOffset()))
+		}
+	}
+	if (epi.Flags & PropertyParamCount) != 0 {
+		prop.CountPropertyIndex = epi.CountPropertyIndex()
+	}
+	if (epi.Flags & PropertyParamLength) != 0 {
+		prop.LengthPropertyIndex = epi.LengthPropertyIndex()
+	}
+	return prop
 }
 
 func (t JsonTime) MarshalJSON() ([]byte, error) {
@@ -117,7 +159,7 @@ func (h *TraceLogfileHeader) ToJSON() (JsonLogHeader, error) {
 			StandardBias: h.TimeZone.StandardBias,
 			DaylightName: UTF16SliceToString(h.TimeZone.DaylightName[:]),
 			DaylightDate: JsonTime(h.TimeZone.DaylightDate.ToTime()),
-			DaylightBias: h.TimeZone.DaylighBias,
+			DaylightBias: h.TimeZone.DaylightBias,
 		},
 	}, nil
 }
@@ -153,3 +195,205 @@ func (etl *EventTraceLogfile) ToJSON() (*JsonLogfile, error) {
 
 	return safe, nil
 }
+
+func (e *EventHeader) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Size            uint16          `json:"Size"`
+		HeaderType      uint16          `json:"HeaderType"`
+		Flags           uint16          `json:"Flags"`
+		EventProperty   uint16          `json:"EventProperty"`
+		ThreadId        uint32          `json:"ThreadId"`
+		ProcessId       uint32          `json:"ProcessId"`
+		TimeStamp       time.Time       `json:"TimeStamp"`
+		ProviderId      string          `json:"ProviderId"`
+		EventDescriptor EventDescriptor `json:"EventDescriptor"`
+		KernelTime      uint32          `json:"KernelTime"`
+		UserTime        uint32          `json:"UserTime"`
+		ProcessorTime   uint64          `json:"ProcessorTime"`
+		ActivityId      string          `json:"ActivityId"`
+	}{
+		Size:            e.Size,
+		HeaderType:      e.HeaderType,
+		Flags:           e.Flags,
+		EventProperty:   e.EventProperty,
+		ThreadId:        e.ThreadId,
+		ProcessId:       e.ProcessId,
+		TimeStamp:       e.UTCTimeStamp(),
+		ProviderId:      e.ProviderId.StringU(),
+		EventDescriptor: e.EventDescriptor,
+		KernelTime:      e.GetKernelTime(),
+		UserTime:        e.GetUserTime(),
+		ProcessorTime:   e.ProcessorTime,
+		ActivityId:      e.ActivityId.StringU(),
+	})
+}
+
+func (e *EtwBufferContext) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		ProcessorNumber uint8  `json:"ProcessorNumber"`
+		Alignment       uint8  `json:"Alignment"`
+		ProcessorIndex  uint16 `json:"ProcessorIndex"`
+		LoggerId        uint16 `json:"LoggerId"`
+	}{
+		ProcessorNumber: e.ProcessorNumber(),
+		Alignment:       e.Alignment(),
+		ProcessorIndex:  e.ProcessorIndex(),
+		LoggerId:        e.LoggerId,
+	})
+}
+
+func (er *EventRecord) MarshalJSON() (b []byte, err error) {
+	// Use defer and recover to catch any panics from unsafe memory access.
+	defer func() {
+		if r := recover(); r != nil {
+			// If a panic occurred, return a safe JSON object with the error.
+			err = fmt.Errorf("panic recovered while marshaling EventRecord: %v", r)
+			b, _ = json.Marshal(map[string]any{
+				"error":         "failed to marshal event record due to panic",
+				"panic_details": fmt.Sprintf("%v", r),
+				"eventHeader":   er.EventHeader, // EventHeader is usually safe to access
+			})
+		}
+	}()
+
+	var extData []EventHeaderExtendedDataItem
+	if er.ExtendedDataCount > 0 {
+		extData = unsafe.Slice(er.ExtendedData, er.ExtendedDataCount)
+	}
+
+	var userDataHex string
+	if er.UserDataLength > 0 {
+		userDataSlice := unsafe.Slice((*byte)(unsafe.Pointer(er.UserData)), er.UserDataLength)
+		userDataHex = hex.EncodeToString(userDataSlice)
+	}
+
+	var sidStr string
+	if sid := er.ExtSid(); sid != nil {
+		sidStr, _ = ConvertSidToStringSidGO(sid)
+	}
+
+	tsid, hasTsid := er.ExtTerminalSessionID()
+	pStartKey, hasPStartKey := er.ExtProcessStartKey()
+	evtKey, hasEvtKey := er.ExtEventKey()
+	containerID := er.ExtContainerID()
+	stackTrace, hasStackTrace := er.ExtStackTrace()
+	relatedActivityID := er.ExtRelatedActivityID()
+
+	aux := struct {
+		EventHeader          EventHeader                   `json:"EventHeader"`
+		BufferContext        EtwBufferContext              `json:"BufferContext"`
+		ExtendedDataCount    uint16                        `json:"ExtendedDataCount"`
+		UserDataLength       uint16                        `json:"UserDataLength"`
+		ExtendedData         []EventHeaderExtendedDataItem `json:"ExtendedData,omitempty"`
+		UserData             string                        `json:"UserData,omitempty"`
+		EventID              uint16                        `json:"EventID"`
+		IsMof                bool                          `json:"IsMof"`
+		ProcessorNumber      uint16                        `json:"ProcessorNumber"`
+		RelatedActivityID    string                        `json:"RelatedActivityID"`
+		ExtSID               string                        `json:"SID,omitempty"`
+		ExtTerminalSessionID *uint32                       `json:"TerminalSessionID,omitempty"`
+		ExtProcessStartKey   *uint64                       `json:"ProcessStartKey,omitempty"`
+		ExtEventKey          *uint64                       `json:"EventKey,omitempty"`
+		ExtContainerID       string                        `json:"ContainerID,omitempty"`
+		ExtStackTrace        *EventStackTrace              `json:"StackTrace,omitempty"`
+	}{
+		EventHeader:       er.EventHeader,
+		BufferContext:     er.BufferContext,
+		ExtendedDataCount: er.ExtendedDataCount,
+		UserDataLength:    er.UserDataLength,
+		ExtendedData:      extData,
+		UserData:          userDataHex,
+		EventID:           er.EventID(),
+		IsMof:             er.IsMof(),
+		ProcessorNumber:   er.ProcessorNumber(),
+		RelatedActivityID: (&relatedActivityID).StringU(),
+		ExtSID:            sidStr,
+	}
+
+	if hasTsid {
+		aux.ExtTerminalSessionID = &tsid
+	}
+	if hasPStartKey {
+		aux.ExtProcessStartKey = &pStartKey
+	}
+	if hasEvtKey {
+		aux.ExtEventKey = &evtKey
+	}
+	if !containerID.IsZero() {
+		aux.ExtContainerID = containerID.StringU()
+	}
+	if hasStackTrace {
+		aux.ExtStackTrace = &stackTrace
+	}
+
+	return json.Marshal(aux)
+}
+
+func (t *TraceEventInfo) MarshalJSON() (b []byte, err error) {
+	// Use defer and recover to catch any panics from unsafe memory access.
+	defer func() {
+		if r := recover(); r != nil {
+			// If a panic occurred, return a safe JSON object with the error.
+			err = fmt.Errorf("panic recovered while marshaling TraceEventInfo: %v", r)
+			b, _ = json.Marshal(map[string]any{
+				"error":           "failed to marshal TraceEventInfo due to panic",
+				"panic_details":   fmt.Sprintf("%v", r),
+				"eventDescriptor": t.EventDescriptor, // EventDescriptor is usually safe to access
+			})
+		}
+	}()
+
+	var properties []JsonEventPropertyInfo
+	if t.PropertyCount > 0 {
+		properties = make([]JsonEventPropertyInfo, t.PropertyCount)
+		for i := uint32(0); i < t.PropertyCount; i++ {
+			epi := t.GetEventPropertyInfoAt(i)
+			properties[i] = epi.ToJSON(t)
+		}
+	}
+
+	return json.Marshal(struct {
+		ProviderGUID          string                  `json:"ProviderGUID"`
+		EventGUID             string                  `json:"EventGUID"`
+		EventDescriptor       EventDescriptor         `json:"EventDescriptor"`
+		DecodingSource        DecodingSource          `json:"DecodingSource"`
+		ProviderName          string                  `json:"ProviderName"`
+		LevelName             string                  `json:"LevelName"`
+		ChannelName           string                  `json:"ChannelName"`
+		KeywordsName          []string                `json:"KeywordsName"`
+		TaskName              string                  `json:"TaskName"`
+		OpcodeName            string                  `json:"OpcodeName"`
+		EventMessage          string                  `json:"EventMessage"`
+		ProviderMessage       string                  `json:"ProviderMessage"`
+		EventName             string                  `json:"EventName"`
+		ActivityIDName        string                  `json:"ActivityIDName"`
+		EventAttributes       string                  `json:"EventAttributes"`
+		RelatedActivityIDName string                  `json:"RelatedActivityIDName"`
+		PropertyCount         uint32                  `json:"PropertyCount"`
+		TopLevelPropertyCount uint32                  `json:"TopLevelPropertyCount"`
+		Flags                 TemplateFlags           `json:"Flags"`
+		Properties            []JsonEventPropertyInfo `json:"Properties,omitempty"`
+	}{
+		ProviderGUID:          t.ProviderGUID.StringU(),
+		EventGUID:             t.EventGUID.StringU(),
+		EventDescriptor:       t.EventDescriptor,
+		DecodingSource:        t.DecodingSource,
+		ProviderName:          t.ProviderName(),
+		LevelName:             t.LevelName(),
+		ChannelName:           t.ChannelName(),
+		KeywordsName:          t.KeywordsName(),
+		TaskName:              t.TaskName(),
+		OpcodeName:            t.OpcodeName(),
+		EventMessage:          t.EventMessage(),
+		ProviderMessage:       t.ProviderMessage(),
+		EventName:             t.EventName(),
+		ActivityIDName:        t.ActivityIDName(),
+		EventAttributes:       t.EventAttributes(),
+		RelatedActivityIDName: t.RelatedActivityIDName(),
+		PropertyCount:         t.PropertyCount,
+		TopLevelPropertyCount: t.TopLevelPropertyCount,
+		Flags:                 t.Flags,
+		Properties:            properties,
+	})
+}
+

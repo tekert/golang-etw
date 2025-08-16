@@ -3,6 +3,7 @@
 package etw
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"syscall"
@@ -33,6 +34,39 @@ type Property struct {
 
 	// Distance in bytes between this prop pointer and the end of UserData.
 	userDataRemaining uint16
+}
+
+func (p *Property) MarshalJSON() ([]byte, error) {
+	if p == nil {
+		return []byte("null"), nil
+	}
+
+	var jsonEvtPropInfo any
+	if p.evtPropInfo != nil && p.erh != nil && p.erh.TraceInfo != nil {
+		jsonEvtPropInfo = p.evtPropInfo.ToJSON(p.erh.TraceInfo)
+	} else if p.evtPropInfo != nil {
+		// Fallback to marshaling the raw struct if we don't have TraceInfo
+		// to resolve names. This is better than nothing.
+		jsonEvtPropInfo = p.evtPropInfo
+	}
+
+	return json.Marshal(struct {
+		Name              string `json:"Name"`
+		Value             string `json:"Value,omitempty"`
+		Length            uint16 `json:"Length"`
+		SizeBytes         uint32 `json:"SizeBytes"`
+		UserDataRemaining uint16 `json:"UserDataRemainingBytes"`
+		PValue            string `json:"PValue"`
+		EventPropertyInfo any    `json:"EventPropertyInfo,omitempty"`
+	}{
+		Name:              p.name,
+		Value:             p.value,
+		Length:            p.length,
+		SizeBytes:         p.sizeBytes,
+		UserDataRemaining: p.userDataRemaining,
+		PValue:            fmt.Sprintf("0x%x", p.pValue),
+		EventPropertyInfo: jsonEvtPropInfo,
+	})
 }
 
 // The global propertyPool is no longer used. Properties are now managed in
@@ -225,29 +259,17 @@ func (p *Property) formatToStringTdh() (value string, udc uint16, err error) {
 		p.erh.addPropError()
 
 		if !isDebug {
-			conlog.Debug().Err(err).Msg("tdh failed to format property")
-			return "", udc, fmt.Errorf("tdh failed to format property: %s", err)
+			conlog.SampledErrorWithErrSig("formatprop-tdh", err).Msg("tdh failed to format property")
+			return "", udc, fmt.Errorf("tdh failed to format property: %w", err)
 		}
 
-		// TODO: better formatting of the error message
-		err = fmt.Errorf("failed to format property: Event Details:\n"+
-			"Property Name: %s\n"+
-			// TODO: property flags...
-			"Property Type: InType=%d, OutType=%d\n"+
-			"Property Length: %d\n"+
-			"Error: %v\n"+
-			"IsMof: %v\n"+
-			"IsXML: %v",
-			p.name,
-			p.evtPropInfo.InType(),
-			p.evtPropInfo.OutType(),
-			p.length,
-			err,
-			p.erh.TraceInfo.IsMof(),
-			p.erh.TraceInfo.IsXML(),
-		)
-		// Use sampled error logging for hot path - avoid spam but still log some errors
-		conlog.SampledError("formatprop-tdh").Err(err).Msg("failed to format property using thd")
+		err = fmt.Errorf("failed to format property %w", err)
+		// Printed only when debugging is enabled.
+		conlog.Debug().Interface("property", p).
+			Interface("traceInfo", p.erh.TraceInfo).
+			Bool("isMof", p.erh.TraceInfo.IsMof()).
+			Bool("isXML", p.erh.TraceInfo.IsXML()).
+			Msg("failed to format property using thd")
 
 		return
 	}
